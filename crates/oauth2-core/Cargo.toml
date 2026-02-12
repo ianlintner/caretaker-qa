@@ -18,7 +18,7 @@ chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.6", features = ["v4", "serde"] }
 jsonwebtoken = { version = "10.2", features = ["rust_crypto"] }
 
-# Crypto / helpers used by PKCE
+# Crypto / helpers used by PKCE and OIDC at_hash
 sha2 = "0.10"
 base64 = "0.22"
 

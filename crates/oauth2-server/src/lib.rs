@@ -334,6 +334,43 @@ pub async fn run() -> std::io::Result<()> {
 
     tracing::info!("Actors started");
 
+    // Build OIDC configuration for discovery + id_token generation.
+    let issuer = config
+        .server
+        .public_url
+        .clone()
+        .unwrap_or_else(|| format!("http://{}:{}", config.server.host, config.server.port));
+
+    // Optional: RS256 id_token signing (recommended for OIDC clients like oauth2-proxy).
+    // We accept the PEM either as a literal with newlines, or with \n escapes.
+    let id_token_private_key_pem = std::env::var("OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM")
+        .ok()
+        .map(|s| s.replace("\\n", "\n"))
+        .filter(|s| !s.trim().is_empty());
+    let id_token_kid = std::env::var("OAUTH2_ID_TOKEN_KID")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let id_token_alg = std::env::var("OAUTH2_ID_TOKEN_ALG")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            if id_token_private_key_pem.is_some() {
+                "RS256".to_string()
+            } else {
+                "HS256".to_string()
+            }
+        });
+    let oidc_config = oauth2_actix::handlers::wellknown::OidcConfig {
+        issuer: issuer.clone(),
+        jwt_secret: jwt_secret.clone(),
+        id_token_alg,
+        id_token_kid,
+        id_token_private_key_pem,
+    };
+    tracing::info!(issuer = %issuer, "OIDC issuer configured");
+
     // OpenAPI documentation
     let openapi = ApiDoc::openapi();
 
@@ -376,7 +413,8 @@ pub async fn run() -> std::io::Result<()> {
             .app_data(web::Data::new(metrics.clone()))
             .app_data(web::Data::new(social_config.clone()))
             // Server/public URL settings (used by well-known discovery and other URL builders)
-            .app_data(web::Data::new(server_config.clone()));
+            .app_data(web::Data::new(server_config.clone()))
+            .app_data(web::Data::new(oidc_config.clone()));
 
         // Shared, best-effort in-memory idempotency cache for event ingest.
         app = app.app_data(web::Data::new(ingest_idempotency.clone()));
@@ -474,6 +512,14 @@ pub async fn run() -> std::io::Result<()> {
                     .route(
                         "/revoke",
                         web::post().to(oauth2_actix::handlers::token::revoke),
+                    )
+                    .route(
+                        "/userinfo",
+                        web::get().to(oauth2_actix::handlers::wellknown::userinfo),
+                    )
+                    .route(
+                        "/userinfo",
+                        web::post().to(oauth2_actix::handlers::wellknown::userinfo),
                     ),
             )
             // Client management endpoints
@@ -482,10 +528,16 @@ pub async fn run() -> std::io::Result<()> {
                 web::post().to(oauth2_actix::handlers::client::register_client),
             ))
             // Well-known endpoints
-            .service(web::scope("/.well-known").route(
-                "/openid-configuration",
-                web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
-            ))
+            .service(web::scope("/.well-known")
+                .route(
+                    "/openid-configuration",
+                    web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
+                )
+                .route(
+                    "/jwks.json",
+                    web::get().to(oauth2_actix::handlers::wellknown::jwks),
+                )
+            )
             // Admin endpoints
             .service(
                 web::scope("/admin")

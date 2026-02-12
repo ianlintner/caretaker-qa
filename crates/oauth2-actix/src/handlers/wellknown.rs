@@ -1,150 +1,162 @@
 use actix_web::{web, HttpRequest, HttpResponse, Result};
-use oauth2_config::ServerConfig;
+use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use serde::Deserialize;
 use serde_json::json;
+use rsa::pkcs1::DecodeRsaPrivateKey;
+use rsa::pkcs8::DecodePrivateKey;
+use rsa::RsaPrivateKey;
+use rsa::traits::PublicKeyParts;
 
-fn normalize_base_url(base: &str) -> String {
-    base.trim().trim_end_matches('/').to_string()
+use oauth2_core::Claims;
+
+/// Shared OIDC / server configuration injected as `web::Data<OidcConfig>`.
+#[derive(Debug, Clone)]
+pub struct OidcConfig {
+    /// The public issuer URL (e.g. `https://roauth2.cat-herding.net`).
+    pub issuer: String,
+    /// The HMAC secret used for signing JWTs (HS256).
+    pub jwt_secret: String,
+
+    /// Signing algorithm used for OIDC id_tokens (e.g. `HS256` or `RS256`).
+    pub id_token_alg: String,
+    /// Optional key id for the OIDC signing key.
+    pub id_token_kid: Option<String>,
+    /// Optional RSA private key PEM used for RS256 id_token signing.
+    /// When present and `id_token_alg` is RS256, the JWKS endpoint will publish
+    /// the corresponding public key.
+    pub id_token_private_key_pem: Option<String>,
 }
 
-fn join_url(base: &str, path: &str) -> String {
-    let base = normalize_base_url(base);
-    if path.is_empty() {
-        return base;
-    }
-    if path.starts_with('/') {
-        format!("{base}{path}")
+/// OAuth2 / OIDC discovery endpoint
+/// Returns server metadata according to RFC 8414 + OpenID Connect Discovery 1.0
+pub async fn openid_configuration(oidc: web::Data<OidcConfig>) -> Result<HttpResponse> {
+    let base = oidc.issuer.trim_end_matches('/');
+
+    let id_token_algs = if oidc.id_token_alg.eq_ignore_ascii_case("RS256") {
+        ["RS256"]
     } else {
-        format!("{base}/{path}")
-    }
-}
-
-fn strip_quotes(s: &str) -> &str {
-    s.trim().trim_matches('"')
-}
-
-fn first_list_value(s: &str) -> &str {
-    // X-Forwarded-* headers frequently carry comma-separated lists.
-    s.split(',').next().unwrap_or("").trim()
-}
-
-fn forwarded_proto_host(req: &HttpRequest) -> (Option<String>, Option<String>) {
-    // Parse RFC 7239 Forwarded header (best-effort).
-    // Example: Forwarded: proto=https;host=example.com
-    let Some(fwd) = req.headers().get("forwarded") else {
-        return (None, None);
+        ["HS256"]
     };
-    let Ok(fwd) = fwd.to_str() else {
-        return (None, None);
-    };
-    let first = first_list_value(fwd);
-    let mut proto: Option<String> = None;
-    let mut host: Option<String> = None;
-    for part in first.split(';') {
-        let part = part.trim();
-        if let Some((k, v)) = part.split_once('=') {
-            match k.trim().to_ascii_lowercase().as_str() {
-                "proto" => proto = Some(strip_quotes(v).to_string()),
-                "host" => host = Some(strip_quotes(v).to_string()),
-                _ => {}
-            }
-        }
-    }
-    (proto, host)
-}
-
-fn effective_base_url(req: &HttpRequest, server: Option<&ServerConfig>) -> String {
-    // 1) Explicit config override.
-    if let Some(server) = server {
-        if let Some(ref base) = server.public_base_url {
-            let b = base.trim();
-            if !b.is_empty() {
-                return normalize_base_url(b);
-            }
-        }
-    }
-
-    // 2) Proxy headers (only if explicitly enabled).
-    if server.map(|s| s.trust_proxy_headers).unwrap_or(false) {
-        let (mut proto, mut host) = forwarded_proto_host(req);
-
-        if proto.is_none() {
-            proto = req
-                .headers()
-                .get("x-forwarded-proto")
-                .and_then(|v| v.to_str().ok())
-                .map(first_list_value)
-                .filter(|v| !v.is_empty())
-                .map(|v| v.to_string());
-        }
-
-        if host.is_none() {
-            host = req
-                .headers()
-                .get("x-forwarded-host")
-                .and_then(|v| v.to_str().ok())
-                .map(first_list_value)
-                .filter(|v| !v.is_empty())
-                .map(|v| v.to_string());
-        }
-
-        // Optional prefix (common with ingress controllers).
-        let prefix = req
-            .headers()
-            .get("x-forwarded-prefix")
-            .and_then(|v| v.to_str().ok())
-            .map(first_list_value)
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .unwrap_or("");
-
-        if let (Some(proto), Some(host)) = (proto, host) {
-            let prefix = if prefix.is_empty() {
-                "".to_string()
-            } else if prefix.starts_with('/') {
-                prefix.trim_end_matches('/').to_string()
-            } else {
-                format!("/{}", prefix.trim_end_matches('/'))
-            };
-
-            return normalize_base_url(&format!("{}://{}{}", proto, host, prefix));
-        }
-    }
-
-    // 3) Fall back to request connection info.
-    // Note: This reflects the bind address unless proxy headers are enabled.
-    let conn = req.connection_info();
-    format!("{}://{}", conn.scheme(), conn.host())
-}
-
-/// OAuth2 discovery endpoint
-/// Returns server metadata according to RFC 8414
-pub async fn openid_configuration(
-    req: HttpRequest,
-    server: Option<web::Data<ServerConfig>>,
-) -> Result<HttpResponse> {
-    let server_ref = server.as_ref().map(|d| d.get_ref());
-    let base = effective_base_url(&req, server_ref);
-
     let config = json!({
-        "issuer": base.clone(),
-        "authorization_endpoint": join_url(&base, "/oauth/authorize"),
-        "token_endpoint": join_url(&base, "/oauth/token"),
-        "token_introspection_endpoint": join_url(&base, "/oauth/introspect"),
-        "token_revocation_endpoint": join_url(&base, "/oauth/revoke"),
-        "registration_endpoint": join_url(&base, "/clients/register"),
-        "scopes_supported": ["read", "write", "admin"],
-        // The server supports Authorization Code + Client Credentials.
-        // Implicit, Password, and Refresh Token grants are intentionally disabled by default
-        // (OAuth 2.0 Security Best Current Practice).
+        "issuer": base,
+        "authorization_endpoint": format!("{}/oauth/authorize", base),
+        "token_endpoint": format!("{}/oauth/token", base),
+        "token_introspection_endpoint": format!("{}/oauth/introspect", base),
+        "token_revocation_endpoint": format!("{}/oauth/revoke", base),
+        "userinfo_endpoint": format!("{}/oauth/userinfo", base),
+        "jwks_uri": format!("{}/.well-known/jwks.json", base),
+        "registration_endpoint": format!("{}/clients/register", base),
+        "scopes_supported": ["openid", "profile", "email", "read", "write", "admin"],
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "client_credentials"],
+        "subject_types_supported": ["public"],
+        "id_token_signing_alg_values_supported": id_token_algs,
         "token_endpoint_auth_methods_supported": [
             "client_secret_basic",
             "client_secret_post"
         ],
+        "claims_supported": ["sub", "iss", "aud", "exp", "iat", "email", "preferred_username"],
         "code_challenge_methods_supported": ["S256"],
-        "service_documentation": join_url(&base, "/docs")
+        "service_documentation": format!("{}/docs", base)
     });
 
     Ok(HttpResponse::Ok().json(config))
+}
+
+/// JWKS endpoint.
+///
+/// - For HS256 id_tokens, we do NOT publish the shared secret; returns empty `keys`.
+/// - For RS256 id_tokens, publishes the RSA public key so relying parties can verify.
+pub async fn jwks(oidc: web::Data<OidcConfig>) -> Result<HttpResponse> {
+    if !oidc.id_token_alg.eq_ignore_ascii_case("RS256") {
+        return Ok(HttpResponse::Ok()
+            .insert_header(("Cache-Control", "public, max-age=3600"))
+            .json(json!({"keys": []})));
+    }
+
+    let pem = match oidc.id_token_private_key_pem.as_deref() {
+        Some(pem) if !pem.trim().is_empty() => pem,
+        _ => {
+            // Misconfigured: discovery says RS256 but key missing; fail closed.
+            return Ok(HttpResponse::InternalServerError().json(json!({
+                "error": "server_error",
+                "error_description": "RS256 configured but signing key is missing"
+            })));
+        }
+    };
+
+    // Support PKCS8 and PKCS1 PEM.
+    let private_key = RsaPrivateKey::from_pkcs8_pem(pem)
+        .or_else(|_| RsaPrivateKey::from_pkcs1_pem(pem))
+        .map_err(|_| actix_web::error::ErrorInternalServerError("Invalid RSA private key PEM"))?;
+    let public_key = private_key.to_public_key();
+
+    let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
+    let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
+
+    let mut jwk = json!({
+        "kty": "RSA",
+        "use": "sig",
+        "alg": "RS256",
+        "n": n,
+        "e": e
+    });
+    if let Some(kid) = oidc.id_token_kid.as_deref().filter(|s| !s.trim().is_empty()) {
+        jwk["kid"] = json!(kid);
+    }
+
+    let jwks = json!({ "keys": [jwk] });
+
+    Ok(HttpResponse::Ok()
+        .insert_header(("Cache-Control", "public, max-age=3600"))
+        .json(jwks))
+}
+
+/// Query parameters for userinfo (not commonly used, but spec allows GET).
+#[derive(Debug, Deserialize)]
+pub struct UserinfoQuery {
+    pub access_token: Option<String>,
+}
+
+/// OIDC UserInfo endpoint – returns claims about the authenticated user.
+pub async fn userinfo(
+    req: HttpRequest,
+    query: web::Query<UserinfoQuery>,
+    oidc: web::Data<OidcConfig>,
+) -> Result<HttpResponse> {
+    // Extract Bearer token from Authorization header or query parameter
+    let token_str = req
+        .headers()
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .map(|s| s.to_string())
+        .or_else(|| query.access_token.clone());
+
+    let token_str = match token_str {
+        Some(t) => t,
+        None => {
+            return Ok(HttpResponse::Unauthorized()
+                .insert_header(("WWW-Authenticate", "Bearer"))
+                .json(json!({"error": "invalid_token", "error_description": "Missing access token"})));
+        }
+    };
+
+    // Decode the access token JWT to extract claims
+    match Claims::decode(&token_str, &oidc.jwt_secret) {
+        Ok(claims) => {
+            let response = json!({
+                "sub": claims.sub,
+                "iss": oidc.issuer,
+                "aud": claims.aud,
+                "scope": claims.scope,
+                "preferred_username": claims.sub,
+                "email": format!("{}@placeholder.local", claims.sub),
+            });
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(_) => Ok(HttpResponse::Unauthorized()
+            .insert_header(("WWW-Authenticate", "Bearer error=\"invalid_token\""))
+            .json(json!({"error": "invalid_token", "error_description": "Invalid or expired access token"}))),
+    }
 }

@@ -1,5 +1,6 @@
 use actix::Addr;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
+use base64::{engine::general_purpose, Engine as _};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use url::{form_urlencoded, Url};
@@ -10,7 +11,45 @@ use crate::actors::{
     AuthActor, ClientActor, CreateAuthorizationCode, CreateToken, GetClient,
     MarkAuthorizationCodeUsed, TokenActor, ValidateAuthorizationCode, ValidateClient,
 };
-use oauth2_core::{OAuth2Error, TokenResponse};
+use crate::handlers::wellknown::OidcConfig;
+use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
+
+/// Parse RFC6749 client authentication via HTTP Basic.
+///
+/// Header format (RFC7617): `Authorization: Basic base64(client_id:client_secret)`
+fn parse_client_basic_auth(req: &HttpRequest) -> Result<Option<(String, String)>, OAuth2Error> {
+    let header = match req.headers().get(actix_web::http::header::AUTHORIZATION) {
+        Some(h) => h,
+        None => return Ok(None),
+    };
+    let header = header
+        .to_str()
+        .map_err(|_| OAuth2Error::invalid_request("Invalid Authorization header"))?;
+
+    let b64 = match header.strip_prefix("Basic ") {
+        Some(v) => v.trim(),
+        None => return Ok(None),
+    };
+
+    let decoded = general_purpose::STANDARD
+        .decode(b64)
+        .map_err(|_| OAuth2Error::invalid_request("Invalid Basic auth encoding"))?;
+    let decoded = String::from_utf8(decoded)
+        .map_err(|_| OAuth2Error::invalid_request("Invalid Basic auth bytes"))?;
+
+    let (client_id, client_secret) = decoded
+        .split_once(':')
+        .ok_or_else(|| OAuth2Error::invalid_request("Invalid Basic auth format"))?;
+
+    if client_id.is_empty() {
+        return Err(OAuth2Error::invalid_request("Missing client_id"));
+    }
+    if client_secret.is_empty() {
+        return Err(OAuth2Error::invalid_client("Missing client_secret"));
+    }
+
+    Ok(Some((client_id.to_string(), client_secret.to_string())))
+}
 
 fn validate_scope_subset(requested: &str, allowed: &str) -> Result<(), OAuth2Error> {
     let allowed_scopes: Vec<&str> = allowed
@@ -238,10 +277,45 @@ pub async fn token(
     client_actor: web::Data<Addr<ClientActor>>,
     auth_actor: web::Data<Addr<AuthActor>>,
     metrics: web::Data<Metrics>,
+    oidc_config: web::Data<OidcConfig>,
 ) -> Result<HttpResponse, OAuth2Error> {
     // OAuch: reject duplicate parameters (prevents parser differentials / smuggling).
     ensure_no_duplicate_query_params(&req)?;
     let form_map = parse_form_no_dupes(&body)?;
+
+    // Support confidential client auth via either:
+    // - client_secret_post (body)
+    // - client_secret_basic (Authorization header)
+    let basic = parse_client_basic_auth(&req)?;
+    let basic_client_id = basic.as_ref().map(|(id, _)| id.clone());
+    let basic_client_secret = basic.as_ref().map(|(_, s)| s.clone());
+
+    let body_client_id = form_map.get("client_id").cloned();
+    let body_client_secret = form_map.get("client_secret").cloned();
+
+    // If both are present, require they match to avoid ambiguous credentials.
+    if let (Some(ref body_id), Some(ref basic_id)) = (&body_client_id, &basic_client_id) {
+        if body_id != basic_id {
+            return Err(OAuth2Error::invalid_request(
+                "client_id mismatch between body and Basic auth",
+            ));
+        }
+    }
+    if let (Some(ref body_secret), Some(ref basic_secret)) =
+        (&body_client_secret, &basic_client_secret)
+    {
+        if body_secret != basic_secret {
+            // Treat secret mismatches as invalid_client to avoid information leaks.
+            return Err(OAuth2Error::invalid_client(
+                "client_secret mismatch between body and Basic auth",
+            ));
+        }
+    }
+
+    let client_id = body_client_id
+        .or(basic_client_id)
+        .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id"))?;
+    let client_secret = body_client_secret.or(basic_client_secret);
 
     let form = TokenRequest {
         grant_type: form_map
@@ -250,11 +324,8 @@ pub async fn token(
             .ok_or_else(|| OAuth2Error::invalid_request("Missing grant_type"))?,
         code: form_map.get("code").cloned(),
         redirect_uri: form_map.get("redirect_uri").cloned(),
-        client_id: form_map
-            .get("client_id")
-            .cloned()
-            .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id"))?,
-        client_secret: form_map.get("client_secret").cloned(),
+        client_id,
+        client_secret,
         refresh_token: form_map.get("refresh_token").cloned(),
         username: form_map.get("username").cloned(),
         password: form_map.get("password").cloned(),
@@ -264,7 +335,7 @@ pub async fn token(
 
     match form.grant_type.as_str() {
         "authorization_code" => {
-            handle_authorization_code_grant(form, token_actor, client_actor, auth_actor, metrics)
+            handle_authorization_code_grant(form, token_actor, client_actor, auth_actor, metrics, oidc_config)
                 .await
         }
         "client_credentials" => {
@@ -288,6 +359,7 @@ async fn handle_authorization_code_grant(
     client_actor: web::Data<Addr<ClientActor>>,
     auth_actor: web::Data<Addr<AuthActor>>,
     metrics: web::Data<Metrics>,
+    oidc_config: web::Data<OidcConfig>,
 ) -> Result<HttpResponse, OAuth2Error> {
     let code = req
         .code
@@ -360,9 +432,9 @@ async fn handle_authorization_code_grant(
     // Create token
     let token = token_actor
         .send(CreateToken {
-            user_id: Some(auth_code.user_id),
-            client_id: auth_code.client_id,
-            scope: auth_code.scope,
+            user_id: Some(auth_code.user_id.clone()),
+            client_id: auth_code.client_id.clone(),
+            scope: auth_code.scope.clone(),
             include_refresh: false,
             span: tracing::Span::current(),
         })
@@ -371,9 +443,35 @@ async fn handle_authorization_code_grant(
 
     metrics.oauth_token_issued_total.inc();
 
-    Ok(no_store_headers(
-        HttpResponse::Ok().json(TokenResponse::from(token)),
-    ))
+    let mut response = TokenResponse::from(token.clone());
+
+    // Generate OIDC id_token when `openid` scope was requested
+    if auth_code.scope.split_whitespace().any(|s| s == "openid") {
+        let id_claims = IdTokenClaims::new(
+            &oidc_config.issuer,
+            auth_code.user_id,
+            auth_code.client_id,
+            3600, // same lifetime as access token
+            Some(&token.access_token),
+        );
+
+        let id_token = if oidc_config.id_token_alg.eq_ignore_ascii_case("RS256") {
+            let pem = oidc_config
+                .id_token_private_key_pem
+                .as_deref()
+                .ok_or_else(|| OAuth2Error::new("server_error", Some("RS256 configured but key missing")))?;
+            id_claims
+                .encode_rs256(pem, oidc_config.id_token_kid.as_deref())
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+        } else {
+            id_claims
+                .encode(&oidc_config.jwt_secret)
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+        };
+        response = response.with_id_token(id_token);
+    }
+
+    Ok(no_store_headers(HttpResponse::Ok().json(response)))
 }
 
 async fn handle_client_credentials_grant(

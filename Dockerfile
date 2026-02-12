@@ -31,18 +31,28 @@ FROM chef AS cacher
 
 # Optional cargo features (e.g., "mongo")
 ARG CARGO_FEATURES=""
+ARG CARGO_NO_DEFAULT_FEATURES="false"
 
 COPY --from=planner /app/recipe.json recipe.json
 RUN if [ -n "$CARGO_FEATURES" ]; then \
-            cargo chef cook --release --locked --recipe-path recipe.json --features "$CARGO_FEATURES"; \
+            if [ "$CARGO_NO_DEFAULT_FEATURES" = "true" ]; then \
+                cargo chef cook --release --locked --recipe-path recipe.json --no-default-features --features "$CARGO_FEATURES"; \
+            else \
+                cargo chef cook --release --locked --recipe-path recipe.json --features "$CARGO_FEATURES"; \
+            fi; \
         else \
-            cargo chef cook --release --locked --recipe-path recipe.json; \
+            if [ "$CARGO_NO_DEFAULT_FEATURES" = "true" ]; then \
+                cargo chef cook --release --locked --recipe-path recipe.json --no-default-features; \
+            else \
+                cargo chef cook --release --locked --recipe-path recipe.json; \
+            fi; \
         fi
 
 FROM chef AS builder
 
 # Optional cargo features (e.g., "mongo")
 ARG CARGO_FEATURES=""
+ARG CARGO_NO_DEFAULT_FEATURES="false"
 
 # Reuse the dependency build artifacts from the cacher stage
 COPY --from=cacher /app/target /app/target
@@ -51,9 +61,17 @@ COPY --from=cacher /usr/local/cargo /usr/local/cargo
 # Copy full source tree and build the application
 COPY . .
 RUN if [ -n "$CARGO_FEATURES" ]; then \
-            cargo build --release --locked --features "$CARGO_FEATURES"; \
+            if [ "$CARGO_NO_DEFAULT_FEATURES" = "true" ]; then \
+                cargo build --release --locked --no-default-features --features "$CARGO_FEATURES"; \
+            else \
+                cargo build --release --locked --features "$CARGO_FEATURES"; \
+            fi; \
         else \
-            cargo build --release --locked; \
+            if [ "$CARGO_NO_DEFAULT_FEATURES" = "true" ]; then \
+                cargo build --release --locked --no-default-features; \
+            else \
+                cargo build --release --locked; \
+            fi; \
         fi
 
 # Stage 2: Runtime

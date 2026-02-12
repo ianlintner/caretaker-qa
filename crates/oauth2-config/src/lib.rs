@@ -32,6 +32,9 @@ pub struct ServerConfig {
     /// Default is false for safety. Enable only when running behind a trusted proxy.
     #[serde(default)]
     pub trust_proxy_headers: bool,
+    /// Public issuer URL for OIDC discovery. Falls back to `http://{host}:{port}`.
+    #[serde(default)]
+    pub public_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -228,6 +231,14 @@ impl Config {
                     .or_else(|| std::env::var("OAUTH2_TRUST_PROXY_HEADERS").ok())
                     .and_then(|v| v.parse::<bool>().ok())
                     .unwrap_or(false),
+                public_url: std::env::var("OAUTH2_PUBLIC_URL")
+                    .ok()
+                    .or_else(|| std::env::var("OAUTH2_ISSUER_URL").ok()),
+                public_url: std::env::var("OAUTH2_PUBLIC_URL")
+                    .ok()
+                    .or_else(|| std::env::var("OAUTH2_ISSUER_URL").ok())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty()),
             },
             database: DatabaseConfig {
                 url: std::env::var("OAUTH2_DATABASE_URL")
