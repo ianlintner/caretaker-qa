@@ -26,11 +26,11 @@ pub struct Claims {
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdTokenClaims {
-    pub iss: String,           // Issuer
-    pub sub: String,           // Subject (user ID)
-    pub aud: String,           // Audience (client ID)
-    pub exp: i64,              // Expiration time
-    pub iat: i64,              // Issued at
+    pub iss: String, // Issuer
+    pub sub: String, // Subject (user ID)
+    pub aud: String, // Audience (client ID)
+    pub exp: i64,    // Expiration time
+    pub iat: i64,    // Issued at
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>, // Nonce from authorize request
     #[serde(skip_serializing_if = "Option::is_none")]

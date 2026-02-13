@@ -528,15 +528,16 @@ pub async fn run() -> std::io::Result<()> {
                 web::post().to(oauth2_actix::handlers::client::register_client),
             ))
             // Well-known endpoints
-            .service(web::scope("/.well-known")
-                .route(
-                    "/openid-configuration",
-                    web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
-                )
-                .route(
-                    "/jwks.json",
-                    web::get().to(oauth2_actix::handlers::wellknown::jwks),
-                )
+            .service(
+                web::scope("/.well-known")
+                    .route(
+                        "/openid-configuration",
+                        web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
+                    )
+                    .route(
+                        "/jwks.json",
+                        web::get().to(oauth2_actix::handlers::wellknown::jwks),
+                    ),
             )
             // Admin endpoints
             .service(

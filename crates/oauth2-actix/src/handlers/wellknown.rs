@@ -1,11 +1,11 @@
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use serde::Deserialize;
-use serde_json::json;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::pkcs8::DecodePrivateKey;
-use rsa::RsaPrivateKey;
 use rsa::traits::PublicKeyParts;
+use rsa::RsaPrivateKey;
+use serde::Deserialize;
+use serde_json::json;
 
 use oauth2_core::Claims;
 
@@ -101,7 +101,11 @@ pub async fn jwks(oidc: web::Data<OidcConfig>) -> Result<HttpResponse> {
         "n": n,
         "e": e
     });
-    if let Some(kid) = oidc.id_token_kid.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(kid) = oidc
+        .id_token_kid
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         jwk["kid"] = json!(kid);
     }
 
@@ -138,7 +142,9 @@ pub async fn userinfo(
         None => {
             return Ok(HttpResponse::Unauthorized()
                 .insert_header(("WWW-Authenticate", "Bearer"))
-                .json(json!({"error": "invalid_token", "error_description": "Missing access token"})));
+                .json(
+                    json!({"error": "invalid_token", "error_description": "Missing access token"}),
+                ));
         }
     };
 

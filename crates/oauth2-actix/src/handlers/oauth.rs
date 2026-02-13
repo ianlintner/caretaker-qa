@@ -335,8 +335,15 @@ pub async fn token(
 
     match form.grant_type.as_str() {
         "authorization_code" => {
-            handle_authorization_code_grant(form, token_actor, client_actor, auth_actor, metrics, oidc_config)
-                .await
+            handle_authorization_code_grant(
+                form,
+                token_actor,
+                client_actor,
+                auth_actor,
+                metrics,
+                oidc_config,
+            )
+            .await
         }
         "client_credentials" => {
             handle_client_credentials_grant(form, token_actor, client_actor, metrics).await
@@ -459,7 +466,9 @@ async fn handle_authorization_code_grant(
             let pem = oidc_config
                 .id_token_private_key_pem
                 .as_deref()
-                .ok_or_else(|| OAuth2Error::new("server_error", Some("RS256 configured but key missing")))?;
+                .ok_or_else(|| {
+                    OAuth2Error::new("server_error", Some("RS256 configured but key missing"))
+                })?;
             id_claims
                 .encode_rs256(pem, oidc_config.id_token_kid.as_deref())
                 .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?

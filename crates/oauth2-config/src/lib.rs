@@ -233,9 +233,6 @@ impl Config {
                     .unwrap_or(false),
                 public_url: std::env::var("OAUTH2_PUBLIC_URL")
                     .ok()
-                    .or_else(|| std::env::var("OAUTH2_ISSUER_URL").ok()),
-                public_url: std::env::var("OAUTH2_PUBLIC_URL")
-                    .ok()
                     .or_else(|| std::env::var("OAUTH2_ISSUER_URL").ok())
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty()),
