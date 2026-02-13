@@ -1,6 +1,7 @@
 use actix::{Actor, Addr};
 use actix_web::{test, web, App};
 
+use oauth2_actix::handlers::wellknown::OidcConfig;
 use oauth2_core::{Client, OAuth2Error, TokenResponse, User};
 use oauth2_observability::Metrics;
 
@@ -31,6 +32,7 @@ async fn setup_context(
     Addr<oauth2_actix::actors::AuthActor>,
     String,
     Metrics,
+    OidcConfig,
 ) {
     let storage = oauth2_storage_factory::create_storage("sqlite::memory:")
         .await
@@ -61,7 +63,22 @@ async fn setup_context(
     let client_actor = oauth2_actix::actors::ClientActor::new(storage.clone()).start();
     let auth_actor = oauth2_actix::actors::AuthActor::new(storage.clone()).start();
 
-    (token_actor, client_actor, auth_actor, jwt_secret, metrics)
+    let oidc_config = OidcConfig {
+        issuer: "http://localhost".to_string(),
+        jwt_secret: jwt_secret.clone(),
+        id_token_alg: "HS256".to_string(),
+        id_token_kid: None,
+        id_token_private_key_pem: None,
+    };
+
+    (
+        token_actor,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config,
+    )
 }
 
 #[actix_web::test]
@@ -75,7 +92,8 @@ async fn authorize_rejects_unregistered_redirect_uri() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -83,6 +101,7 @@ async fn authorize_rejects_unregistered_redirect_uri() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -132,7 +151,8 @@ async fn authorize_rejects_implicit_response_type() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -140,6 +160,7 @@ async fn authorize_rejects_implicit_response_type() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -187,7 +208,8 @@ async fn token_client_credentials_rejects_invalid_secret() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -195,6 +217,7 @@ async fn token_client_credentials_rejects_invalid_secret() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -249,7 +272,8 @@ async fn token_response_has_no_store_headers() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -257,6 +281,7 @@ async fn token_response_has_no_store_headers() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -324,7 +349,8 @@ async fn authorize_requires_pkce_s256() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -332,6 +358,7 @@ async fn authorize_requires_pkce_s256() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -378,7 +405,8 @@ async fn pkce_allows_public_exchange_and_prevents_downgrade() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -386,6 +414,7 @@ async fn pkce_allows_public_exchange_and_prevents_downgrade() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -495,7 +524,8 @@ async fn token_authorization_code_exchange_allows_missing_redirect_uri() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -503,6 +533,7 @@ async fn token_authorization_code_exchange_allows_missing_redirect_uri() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -579,7 +610,8 @@ async fn token_authorization_code_exchange_rejects_wrong_redirect_uri_when_provi
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -587,6 +619,7 @@ async fn token_authorization_code_exchange_rejects_wrong_redirect_uri_when_provi
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -667,7 +700,8 @@ async fn authorization_code_cannot_be_reused() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -675,6 +709,7 @@ async fn authorization_code_cannot_be_reused() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -767,7 +802,8 @@ async fn well_known_metadata_matches_supported_flows() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -775,6 +811,7 @@ async fn well_known_metadata_matches_supported_flows() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -845,7 +882,8 @@ async fn authorize_redirect_has_clickjacking_and_referrer_headers() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -853,6 +891,7 @@ async fn authorize_redirect_has_clickjacking_and_referrer_headers() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
@@ -918,7 +957,8 @@ async fn pkce_rejects_short_verifier() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics) = setup_context(client).await;
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(token_actor))
@@ -926,6 +966,7 @@ async fn pkce_rejects_short_verifier() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(jwt_secret))
             .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
             .service(
                 web::scope("/oauth")
                     .route(
