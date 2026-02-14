@@ -261,6 +261,66 @@ async fn token_client_credentials_rejects_invalid_secret() {
     assert_eq!(body.error, "invalid_client");
 }
 
+/// RFC 6749 §2.3.1: client credentials in Basic auth are URL-encoded before
+/// base64-encoding.  Verify that secrets containing special chars (`/`, `+`)
+/// are correctly decoded so the constant-time comparison matches.
+#[actix_web::test]
+async fn token_basic_auth_decodes_url_encoded_secret() {
+    use base64::{engine::general_purpose, Engine as _};
+
+    // Secret containing `/` and `+` — just like the production value.
+    let raw_secret = "/Xahug+MGm1vCzn0Obrz6agxB9p/b1ccatLLn6cSHJDttRqxWUIV5YaL09VhzhLv";
+
+    let client = Client::new(
+        "client_special".to_string(),
+        raw_secret.to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "test".to_string(),
+    );
+
+    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+        setup_context(client).await;
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_actor))
+            .app_data(web::Data::new(client_actor))
+            .app_data(web::Data::new(auth_actor))
+            .app_data(web::Data::new(jwt_secret))
+            .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
+            .service(web::scope("/oauth").route(
+                "/token",
+                web::post().to(oauth2_actix::handlers::oauth::token),
+            )),
+    )
+    .await;
+
+    // Build Basic auth header with URL-encoded credentials (Go oauth2 style).
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+    let encoded_id = utf8_percent_encode("client_special", NON_ALPHANUMERIC).to_string();
+    let encoded_secret = utf8_percent_encode(raw_secret, NON_ALPHANUMERIC).to_string();
+    let basic = general_purpose::STANDARD.encode(format!("{encoded_id}:{encoded_secret}"));
+
+    let req = test::TestRequest::post()
+        .uri("/oauth/token")
+        .insert_header(("Authorization", format!("Basic {basic}")))
+        .set_form([("grant_type", "client_credentials"), ("scope", "read")])
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+
+    // Should succeed (200), not fail with invalid_client (401).
+    assert_eq!(
+        resp.status(),
+        200,
+        "URL-encoded Basic auth should decode to match the stored secret"
+    );
+
+    let body: TokenResponse = test::read_body_json(resp).await;
+    assert!(!body.access_token.is_empty());
+}
+
 #[actix_web::test]
 async fn token_response_has_no_store_headers() {
     let client = Client::new(

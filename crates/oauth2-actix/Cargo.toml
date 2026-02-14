@@ -37,3 +37,4 @@ rsa = { version = "0.9", features = ["pem"] }
 
 # URL parsing and form/query decoding (used for strict OAuth parameter handling)
 url = "2.5"
+percent-encoding = "2.3"

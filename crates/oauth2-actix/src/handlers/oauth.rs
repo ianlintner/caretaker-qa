@@ -1,6 +1,7 @@
 use actix::Addr;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use base64::{engine::general_purpose, Engine as _};
+use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use url::{form_urlencoded, Url};
@@ -48,7 +49,19 @@ fn parse_client_basic_auth(req: &HttpRequest) -> Result<Option<(String, String)>
         return Err(OAuth2Error::invalid_client("Missing client_secret"));
     }
 
-    Ok(Some((client_id.to_string(), client_secret.to_string())))
+    // RFC 6749 §2.3.1: credentials are application/x-www-form-urlencoded before
+    // being combined and base64-encoded.  Decode percent-encoded chars so the
+    // values match what is stored in the database.
+    let client_id = percent_decode_str(client_id)
+        .decode_utf8()
+        .map_err(|_| OAuth2Error::invalid_request("Invalid client_id encoding"))?
+        .into_owned();
+    let client_secret = percent_decode_str(client_secret)
+        .decode_utf8()
+        .map_err(|_| OAuth2Error::invalid_request("Invalid client_secret encoding"))?
+        .into_owned();
+
+    Ok(Some((client_id, client_secret)))
 }
 
 fn validate_scope_subset(requested: &str, allowed: &str) -> Result<(), OAuth2Error> {
