@@ -1,4 +1,5 @@
 use actix::Addr;
+use actix_session::Session;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use base64::{engine::general_purpose, Engine as _};
 use percent_encoding::percent_decode_str;
@@ -166,6 +167,7 @@ pub struct AuthorizeQuery {
 pub async fn authorize(
     req: HttpRequest,
     query: web::Query<AuthorizeQuery>,
+    session: Session,
     auth_actor: web::Data<Addr<AuthActor>>,
     client_actor: web::Data<Addr<ClientActor>>,
     metrics: web::Data<Metrics>,
@@ -217,9 +219,26 @@ pub async fn authorize(
         ));
     }
 
-    // In a real implementation, this would show a consent page
-    // For now, we'll auto-approve with a mock user
-    let user_id = "user_123".to_string(); // Mock user
+    // --- User authentication gate ---
+    // Check if there is an authenticated session. If not, save the current
+    // authorize URL and redirect to the login page.
+    let user_id: Option<String> = session.get("user_id").unwrap_or(None);
+    let user_id = match user_id {
+        Some(uid) => uid,
+        None => {
+            // Persist the full authorize URL so we can replay after login.
+            let return_to = format!("/oauth/authorize?{}", req.query_string());
+            session
+                .insert("return_to", &return_to)
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+
+            return Ok(auth_response_security_headers(
+                HttpResponse::Found()
+                    .append_header(("Location", "/auth/login"))
+                    .finish(),
+            ));
+        }
+    };
 
     let scope = query.scope.clone().unwrap_or_else(|| "read".to_string());
 

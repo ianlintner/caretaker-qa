@@ -1,5 +1,6 @@
 use actix::{Actor, Addr};
-use actix_web::{test, web, App};
+use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
+use actix_web::{cookie::Key, test, web, App, HttpResponse};
 
 use oauth2_actix::handlers::wellknown::OidcConfig;
 use oauth2_core::{Client, OAuth2Error, TokenResponse, User};
@@ -24,6 +25,28 @@ fn extract_query_param(url: &str, key: &str) -> Option<String> {
     None
 }
 
+/// Test-only handler that establishes a session for the mock user_123.
+async fn test_set_session(session: Session) -> HttpResponse {
+    session.insert("user_id", "user_123").unwrap();
+    session.insert("authenticated", true).unwrap();
+    HttpResponse::Ok().finish()
+}
+
+/// Extract the session cookie value from a Set-Cookie header.
+fn extract_session_cookie(
+    resp: &actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>,
+) -> String {
+    resp.response()
+        .headers()
+        .get(actix_web::http::header::SET_COOKIE)
+        .and_then(|h| h.to_str().ok())
+        .expect("session cookie should be set")
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string()
+}
+
 async fn setup_context(
     client: Client,
 ) -> (
@@ -40,7 +63,7 @@ async fn setup_context(
     storage.init().await.expect("init storage");
     storage.save_client(&client).await.expect("save client");
 
-    // The authorize endpoint currently auto-approves with a fixed mock user_id ("user_123").
+    // The authorize endpoint reads user_id from the session (set by test_set_session).
     // SQL backends enforce an FK from authorization_codes.user_id -> users.id, so we must ensure
     // this user exists for authorize() to succeed.
     let now = chrono::Utc::now();
@@ -469,6 +492,11 @@ async fn pkce_allows_public_exchange_and_prevents_downgrade() {
         setup_context(client).await;
     let app = test::init_service(
         App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
+            .route("/test/login", web::get().to(test_set_session))
             .app_data(web::Data::new(token_actor))
             .app_data(web::Data::new(client_actor))
             .app_data(web::Data::new(auth_actor))
@@ -501,11 +529,16 @@ async fn pkce_allows_public_exchange_and_prevents_downgrade() {
     )
     .await;
 
+    // Establish an authenticated session
+    let login_req = test::TestRequest::get().uri("/test/login").to_request();
+    let login_resp = test::call_service(&app, login_req).await;
+    let session_cookie = extract_session_cookie(&login_resp);
+
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
 
     // Get a code with PKCE
-    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_pkce&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).to_request();
+    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_pkce&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).insert_header(("Cookie", session_cookie.as_str())).to_request();
     let resp = test::call_service(&app, req).await;
     if resp.status() != 302 {
         let status = resp.status();
@@ -588,6 +621,11 @@ async fn token_authorization_code_exchange_allows_missing_redirect_uri() {
         setup_context(client).await;
     let app = test::init_service(
         App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
+            .route("/test/login", web::get().to(test_set_session))
             .app_data(web::Data::new(token_actor))
             .app_data(web::Data::new(client_actor))
             .app_data(web::Data::new(auth_actor))
@@ -620,13 +658,18 @@ async fn token_authorization_code_exchange_allows_missing_redirect_uri() {
     )
     .await;
 
+    // Establish an authenticated session
+    let login_req = test::TestRequest::get().uri("/test/login").to_request();
+    let login_resp = test::call_service(&app, login_req).await;
+    let session_cookie = extract_session_cookie(&login_resp);
+
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
 
     // Get a code with PKCE
     let req = test::TestRequest::get().uri(&format!(
         "/oauth/authorize?response_type=code&client_id=client_oauth21&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256"
-    )).to_request();
+    )).insert_header(("Cookie", session_cookie.as_str())).to_request();
     let resp = test::call_service(&app, req).await;
     if resp.status() != 302 {
         let status = resp.status();
@@ -674,6 +717,11 @@ async fn token_authorization_code_exchange_rejects_wrong_redirect_uri_when_provi
         setup_context(client).await;
     let app = test::init_service(
         App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
+            .route("/test/login", web::get().to(test_set_session))
             .app_data(web::Data::new(token_actor))
             .app_data(web::Data::new(client_actor))
             .app_data(web::Data::new(auth_actor))
@@ -706,13 +754,18 @@ async fn token_authorization_code_exchange_rejects_wrong_redirect_uri_when_provi
     )
     .await;
 
+    // Establish an authenticated session
+    let login_req = test::TestRequest::get().uri("/test/login").to_request();
+    let login_resp = test::call_service(&app, login_req).await;
+    let session_cookie = extract_session_cookie(&login_resp);
+
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
 
     // Get a code bound to the correct redirect_uri.
     let req = test::TestRequest::get().uri(&format!(
         "/oauth/authorize?response_type=code&client_id=client_redirect_mismatch&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256"
-    )).to_request();
+    )).insert_header(("Cookie", session_cookie.as_str())).to_request();
     let resp = test::call_service(&app, req).await;
     if resp.status() != 302 {
         let status = resp.status();
@@ -764,6 +817,11 @@ async fn authorization_code_cannot_be_reused() {
         setup_context(client).await;
     let app = test::init_service(
         App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
+            .route("/test/login", web::get().to(test_set_session))
             .app_data(web::Data::new(token_actor))
             .app_data(web::Data::new(client_actor))
             .app_data(web::Data::new(auth_actor))
@@ -796,10 +854,15 @@ async fn authorization_code_cannot_be_reused() {
     )
     .await;
 
+    // Establish an authenticated session
+    let login_req = test::TestRequest::get().uri("/test/login").to_request();
+    let login_resp = test::call_service(&app, login_req).await;
+    let session_cookie = extract_session_cookie(&login_resp);
+
     // Get a code (PKCE required)
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
-    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_reuse&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).to_request();
+    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_reuse&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).insert_header(("Cookie", session_cookie.as_str())).to_request();
     let resp = test::call_service(&app, req).await;
     if resp.status() != 302 {
         let status = resp.status();
@@ -946,6 +1009,11 @@ async fn authorize_redirect_has_clickjacking_and_referrer_headers() {
         setup_context(client).await;
     let app = test::init_service(
         App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
+            .route("/test/login", web::get().to(test_set_session))
             .app_data(web::Data::new(token_actor))
             .app_data(web::Data::new(client_actor))
             .app_data(web::Data::new(auth_actor))
@@ -978,9 +1046,14 @@ async fn authorize_redirect_has_clickjacking_and_referrer_headers() {
     )
     .await;
 
+    // Establish an authenticated session
+    let login_req = test::TestRequest::get().uri("/test/login").to_request();
+    let login_resp = test::call_service(&app, login_req).await;
+    let session_cookie = extract_session_cookie(&login_resp);
+
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
-    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_hdr&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).to_request();
+    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_hdr&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).insert_header(("Cookie", session_cookie.as_str())).to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 302);
 
@@ -1021,6 +1094,11 @@ async fn pkce_rejects_short_verifier() {
         setup_context(client).await;
     let app = test::init_service(
         App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
+            .route("/test/login", web::get().to(test_set_session))
             .app_data(web::Data::new(token_actor))
             .app_data(web::Data::new(client_actor))
             .app_data(web::Data::new(auth_actor))
@@ -1053,10 +1131,15 @@ async fn pkce_rejects_short_verifier() {
     )
     .await;
 
+    // Establish an authenticated session
+    let login_req = test::TestRequest::get().uri("/test/login").to_request();
+    let login_resp = test::call_service(&app, login_req).await;
+    let session_cookie = extract_session_cookie(&login_resp);
+
     // Use a valid-length verifier to mint a code.
     let good_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(good_verifier);
-    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_short&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).to_request();
+    let req = test::TestRequest::get().uri(&format!("/oauth/authorize?response_type=code&client_id=client_short&redirect_uri=https%3A%2F%2Fgood.example%2Fcb&scope=read&code_challenge={challenge}&code_challenge_method=S256")).insert_header(("Cookie", session_cookie.as_str())).to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 302);
 

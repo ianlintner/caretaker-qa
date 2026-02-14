@@ -112,6 +112,43 @@ pub async fn run() -> std::io::Result<()> {
         .await
         .expect("Failed to initialize storage backend");
     tracing::info!("Storage backend initialized");
+
+    // Seed a default admin user if none exists yet.
+    // In production, change the password immediately or use OAUTH2_SEED_PASSWORD env var.
+    {
+        use oauth2_core::User;
+
+        let seed_username =
+            std::env::var("OAUTH2_SEED_USERNAME").unwrap_or_else(|_| "admin".to_string());
+        let seed_password =
+            std::env::var("OAUTH2_SEED_PASSWORD").unwrap_or_else(|_| "changeme".to_string());
+        let seed_email =
+            std::env::var("OAUTH2_SEED_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
+
+        match storage.get_user_by_username(&seed_username).await {
+            Ok(None) => {
+                let hash = oauth2_actix::handlers::login::hash_password(&seed_password)
+                    .expect("Failed to hash seed password");
+                let user = User::new(seed_username.clone(), hash, seed_email);
+                storage
+                    .save_user(&user)
+                    .await
+                    .expect("Failed to save seed user");
+                tracing::info!(
+                    username = %seed_username,
+                    user_id = %user.id,
+                    "Seeded default user (change password in production!)"
+                );
+            }
+            Ok(Some(_)) => {
+                tracing::debug!(username = %seed_username, "Seed user already exists, skipping");
+            }
+            Err(e) => {
+                tracing::warn!("Could not check for seed user: {e}");
+            }
+        }
+    }
+
     let jwt_secret = config.jwt.secret.clone();
 
     // Load session key from environment or generate a new one
@@ -444,7 +481,11 @@ pub async fn run() -> std::io::Result<()> {
                 web::scope("/auth")
                     .route(
                         "/login",
-                        web::get().to(oauth2_social_login::handlers::auth::login_page),
+                        web::get().to(oauth2_actix::handlers::login::login_page),
+                    )
+                    .route(
+                        "/login",
+                        web::post().to(oauth2_actix::handlers::login::login_submit),
                     )
                     .route(
                         "/logout",

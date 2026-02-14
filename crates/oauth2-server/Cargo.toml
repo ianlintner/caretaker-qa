@@ -10,6 +10,7 @@ description = "Runnable OAuth2 server binary assembly built from extracted crate
 # Extracted crates
 oauth2-actix = { path = "../oauth2-actix" }
 oauth2-config = { path = "../oauth2-config" }
+oauth2-core = { path = "../oauth2-core" }
 oauth2-events = { path = "../oauth2-events" }
 oauth2-observability = { path = "../oauth2-observability", features = ["actix"] }
 oauth2-openapi = { path = "../oauth2-openapi" }
