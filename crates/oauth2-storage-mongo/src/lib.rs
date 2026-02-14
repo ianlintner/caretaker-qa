@@ -100,12 +100,15 @@ impl MongoStorage {
             .await
             .map_err(Self::mongo_err_to_oauth)?;
 
-        // tokens.refresh_token unique sparse (allow many nulls)
+        // tokens.refresh_token non-unique index for lookups.
+        // NOTE: sparse+unique is unsupported by Azure Cosmos DB for MongoDB —
+        // Cosmos silently drops the sparse flag, causing E11000 when multiple
+        // tokens have no refresh_token.  Use a plain (non-unique) index instead
+        // and rely on application-level uniqueness of non-null refresh tokens.
         self.tokens
             .create_index(
                 IndexModel::builder()
                     .keys(doc! { "refresh_token": 1 })
-                    .options(IndexOptions::builder().unique(true).sparse(true).build())
                     .build(),
                 None,
             )
