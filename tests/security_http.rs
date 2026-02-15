@@ -73,6 +73,7 @@ async fn setup_context(
         password_hash: "not_used_in_security_http_tests".to_string(),
         email: "user_123@example.test".to_string(),
         enabled: true,
+        role: "user".to_string(),
         created_at: now,
         updated_at: now,
     };

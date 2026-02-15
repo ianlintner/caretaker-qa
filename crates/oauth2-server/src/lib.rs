@@ -129,7 +129,8 @@ pub async fn run() -> std::io::Result<()> {
             Ok(None) => {
                 let hash = oauth2_actix::handlers::login::hash_password(&seed_password)
                     .expect("Failed to hash seed password");
-                let user = User::new(seed_username.clone(), hash, seed_email);
+                let mut user = User::new(seed_username.clone(), hash, seed_email);
+                user.role = "admin".to_string();
                 storage
                     .save_user(&user)
                     .await
@@ -580,9 +581,10 @@ pub async fn run() -> std::io::Result<()> {
                         web::get().to(oauth2_actix::handlers::wellknown::jwks),
                     ),
             )
-            // Admin endpoints
+            // Admin endpoints (protected by AdminGuard middleware)
             .service(
                 web::scope("/admin")
+                    .wrap(oauth2_actix::middleware::admin_guard::AdminGuard)
                     .route("", web::get().to(admin_dashboard))
                     .service(
                         web::scope("/api")

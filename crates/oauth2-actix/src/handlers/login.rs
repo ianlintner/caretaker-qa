@@ -129,6 +129,12 @@ pub async fn login_submit(
     session
         .insert("username", &user.username)
         .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
+    session
+        .insert("email", &user.email)
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
+    session
+        .insert("role", &user.role)
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;
 
     tracing::info!(user_id = %user.id, username = %user.username, "User authenticated successfully");
 

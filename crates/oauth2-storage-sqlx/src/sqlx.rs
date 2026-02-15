@@ -98,6 +98,7 @@ impl SqlxStorage {
                 password_hash TEXT NOT NULL,
                 email TEXT NOT NULL,
                 enabled INTEGER NOT NULL DEFAULT 1,
+                role TEXT NOT NULL DEFAULT 'user',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -285,8 +286,8 @@ impl Storage for SqlxStorage {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO users (id, username, password_hash, email, enabled, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (id, username, password_hash, email, enabled, created_at, updated_at, role)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     "#,
                 )
                 .bind(&user.id)
@@ -296,14 +297,15 @@ impl Storage for SqlxStorage {
                 .bind(user.enabled)
                 .bind(user.created_at)
                 .bind(user.updated_at)
+                .bind(&user.role)
                 .execute(pool)
                 .await?;
             }
             DatabasePool::Postgres(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO users (id, username, password_hash, email, enabled, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    INSERT INTO users (id, username, password_hash, email, enabled, created_at, updated_at, role)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     "#,
                 )
                 .bind(&user.id)
@@ -313,6 +315,7 @@ impl Storage for SqlxStorage {
                 .bind(user.enabled)
                 .bind(user.created_at)
                 .bind(user.updated_at)
+                .bind(&user.role)
                 .execute(pool)
                 .await?;
             }

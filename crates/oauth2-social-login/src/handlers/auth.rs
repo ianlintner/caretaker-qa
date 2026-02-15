@@ -186,6 +186,12 @@ pub async fn auth_callback(
     session
         .insert("username", &local_user.username)
         .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
+    session
+        .insert("email", &local_user.email)
+        .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
+    session
+        .insert("role", &local_user.role)
+        .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
 
     // Redirect to the pending OAuth authorize URL (saved before login redirect),
     // or fall back to the success page.
