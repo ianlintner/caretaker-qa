@@ -143,7 +143,7 @@ pub async fn login_submit(
     let return_to: Option<String> = session.get("return_to").unwrap_or(None);
     session.remove("return_to");
 
-    let redirect_url = return_to.unwrap_or_else(|| "/auth/success".to_string());
+    let redirect_url = return_to.unwrap_or_else(|| "/profile".to_string());
 
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect_url))

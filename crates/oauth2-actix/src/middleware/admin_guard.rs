@@ -98,7 +98,7 @@ where
             if !is_admin {
                 // Authenticated but not admin — redirect to profile site
                 let redirect_url = std::env::var("OAUTH2_NON_ADMIN_REDIRECT")
-                    .unwrap_or_else(|_| "https://profile.cat-herding.net".to_string());
+                    .unwrap_or_else(|_| "/profile".to_string());
                 tracing::warn!(
                     username = %username,
                     email = %email,

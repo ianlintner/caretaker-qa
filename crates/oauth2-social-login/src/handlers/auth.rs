@@ -200,7 +200,7 @@ pub async fn auth_callback(
         .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
     session.remove("return_to");
 
-    let redirect_url = return_to.unwrap_or_else(|| "/auth/success".to_string());
+    let redirect_url = return_to.unwrap_or_else(|| "/profile".to_string());
 
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect_url))

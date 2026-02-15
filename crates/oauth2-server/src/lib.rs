@@ -473,7 +473,7 @@ pub async fn run() -> std::io::Result<()> {
                 "/",
                 web::get().to(|| async {
                     HttpResponse::Found()
-                        .append_header(("Location", "/auth/login"))
+                        .append_header(("Location", "/profile"))
                         .finish()
                 }),
             )
@@ -609,6 +609,11 @@ pub async fn run() -> std::io::Result<()> {
                                 web::delete().to(oauth2_actix::handlers::admin::delete_client),
                             ),
                     ),
+            )
+            // User profile page (landing page for non-admin users)
+            .route(
+                "/profile",
+                web::get().to(oauth2_actix::handlers::profile::profile_page),
             )
             // Error page
             .route("/error", web::get().to(error_page))
