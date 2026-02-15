@@ -3761,12 +3761,16 @@ version = "0.0.0"
 dependencies = [
  "actix-session",
  "actix-web",
+ "argon2",
  "oauth2",
  "oauth2-config",
  "oauth2-core",
+ "oauth2-ports",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

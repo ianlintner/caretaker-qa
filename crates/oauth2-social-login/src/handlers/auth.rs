@@ -6,7 +6,8 @@ use oauth2::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-use oauth2_core::OAuth2Error;
+use oauth2_core::{OAuth2Error, User};
+use oauth2_ports::DynStorage;
 
 use crate::models::{SocialLoginConfig, SocialUserInfo};
 use crate::service::SocialLoginService;
@@ -126,6 +127,7 @@ pub async fn auth_callback(
     query: web::Query<AuthCallbackQuery>,
     provider: web::Path<String>,
     config: web::Data<Arc<SocialLoginConfig>>,
+    storage: web::Data<DynStorage>,
     session: Session,
 ) -> Result<HttpResponse, OAuth2Error> {
     // Verify CSRF token
@@ -155,18 +157,89 @@ pub async fn auth_callback(
         _ => return Err(OAuth2Error::invalid_request("Unsupported provider")),
     };
 
-    // Store user info in session
+    // Find-or-create a local user for this social identity.
+    // Username format: "provider:provider_user_id" (e.g. "github:12345")
+    let social_username = format!("{}:{}", user_info.provider, user_info.provider_user_id);
+    let local_user = find_or_create_social_user(&storage, &social_username, &user_info).await?;
+
+    tracing::info!(
+        user_id = %local_user.id,
+        provider = %user_info.provider,
+        provider_user_id = %user_info.provider_user_id,
+        email = %user_info.email,
+        "Social login successful"
+    );
+
+    // Store user info in session (for /auth/success display)
     session
         .insert("user_info", serde_json::to_string(&user_info).unwrap())
+        .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
+
+    // Set the same session keys that the username/password login sets,
+    // so the OAuth2 authorize handler recognises the user as authenticated.
+    session
+        .insert("user_id", &local_user.id)
         .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
     session
         .insert("authenticated", true)
         .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
+    session
+        .insert("username", &local_user.username)
+        .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
 
-    // Redirect to success page
+    // Redirect to the pending OAuth authorize URL (saved before login redirect),
+    // or fall back to the success page.
+    let return_to: Option<String> = session
+        .get("return_to")
+        .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
+    session.remove("return_to");
+
+    let redirect_url = return_to.unwrap_or_else(|| "/auth/success".to_string());
+
     Ok(HttpResponse::Found()
-        .append_header(("Location", "/auth/success"))
+        .append_header(("Location", redirect_url))
         .finish())
+}
+
+/// Look up a local user by the social username (e.g. "github:12345").
+/// If none exists, create one with a random placeholder password hash.
+async fn find_or_create_social_user(
+    storage: &DynStorage,
+    social_username: &str,
+    user_info: &SocialUserInfo,
+) -> Result<User, OAuth2Error> {
+    // Try to find existing user
+    if let Some(existing) = storage.get_user_by_username(social_username).await? {
+        return Ok(existing);
+    }
+
+    // Create a new local user for this social identity.
+    // The password hash is a random value — social users don't use passwords.
+    let placeholder_hash = {
+        use argon2::password_hash::{rand_core::OsRng, SaltString};
+        use argon2::{Argon2, PasswordHasher};
+        let salt = SaltString::generate(&mut OsRng);
+        Argon2::default()
+            .hash_password(uuid::Uuid::new_v4().to_string().as_bytes(), &salt)
+            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+            .to_string()
+    };
+
+    let user = User::new(
+        social_username.to_string(),
+        placeholder_hash,
+        user_info.email.clone(),
+    );
+
+    storage.save_user(&user).await?;
+    tracing::info!(
+        user_id = %user.id,
+        username = %social_username,
+        provider = %user_info.provider,
+        "Created new local user for social login"
+    );
+
+    Ok(user)
 }
 
 async fn handle_google_callback(
