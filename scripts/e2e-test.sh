@@ -47,6 +47,20 @@ PROFILE_URL="${PROFILE_URL:-https://profile.cat-herding.net}"
 SCOPES="${SCOPES:-openid profile email}"
 TEST_USERNAME="${TEST_USERNAME:-admin}"
 TEST_PASSWORD="${TEST_PASSWORD:-changeme}"
+INSECURE_TLS="${INSECURE_TLS:-false}"
+SMOKE_ONLY_PROFILE_OAUTH2="${SMOKE_ONLY_PROFILE_OAUTH2:-false}"
+
+# Optional TLS behavior for test environments with self-signed/expired certs.
+CURL_TLS_OPTS=()
+if [[ "${INSECURE_TLS}" == "true" ]]; then
+  CURL_TLS_OPTS+=("-k")
+fi
+
+# Wrapper so every existing curl invocation in this script automatically
+# inherits the configured TLS behavior.
+curl() {
+  command curl "${CURL_TLS_OPTS[@]}" "$@"
+}
 
 # Cookie jar for session tracking
 COOKIE_JAR=$(mktemp /tmp/e2e-cookies.XXXXXX)
@@ -125,24 +139,26 @@ url_decode() {
 }
 
 # ---------------------------------------------------------------------------
-# Resolve client secret
+# Resolve client secret (not required in smoke-only mode)
 # ---------------------------------------------------------------------------
-if [[ -z "$CLIENT_SECRET" ]]; then
-  if command -v kubectl &>/dev/null; then
-    # Try to read from the K8s secret synced by CSI SecretProviderClass
-    CLIENT_SECRET=$(kubectl get secret secure-subdomain-oauth-secrets -n aks-istio-ingress \
-      -o jsonpath='{.data.client-secret}' 2>/dev/null | base64 -d 2>/dev/null || true)
-  fi
+if [[ "${SMOKE_ONLY_PROFILE_OAUTH2}" != "true" ]]; then
   if [[ -z "$CLIENT_SECRET" ]]; then
-    # Alternatively read from CSI secret store mount inside the pod
-    CLIENT_SECRET=$(kubectl exec -n aks-istio-ingress \
-      "$(kubectl get pods -n aks-istio-ingress -l app=oauth2-proxy -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)" \
-      -c oauth2-proxy -- cat /mnt/secrets-store/secure-subdomain-client-secret 2>/dev/null || true)
-  fi
-  if [[ -z "$CLIENT_SECRET" ]]; then
-    echo -e "${RED}ERROR: CLIENT_SECRET not set and could not be read from cluster${NC}"
-    echo "Set CLIENT_SECRET env var or ensure kubectl access."
-    exit 1
+    if command -v kubectl &>/dev/null; then
+      # Try to read from the K8s secret synced by CSI SecretProviderClass
+      CLIENT_SECRET=$(kubectl get secret secure-subdomain-oauth-secrets -n aks-istio-ingress \
+        -o jsonpath='{.data.client-secret}' 2>/dev/null | base64 -d 2>/dev/null || true)
+    fi
+    if [[ -z "$CLIENT_SECRET" ]]; then
+      # Alternatively read from CSI secret store mount inside the pod
+      CLIENT_SECRET=$(kubectl exec -n aks-istio-ingress \
+        "$(kubectl get pods -n aks-istio-ingress -l app=oauth2-proxy -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)" \
+        -c oauth2-proxy -- cat /mnt/secrets-store/secure-subdomain-client-secret 2>/dev/null || true)
+    fi
+    if [[ -z "$CLIENT_SECRET" ]]; then
+      echo -e "${RED}ERROR: CLIENT_SECRET not set and could not be read from cluster${NC}"
+      echo "Set CLIENT_SECRET env var or ensure kubectl access."
+      exit 1
+    fi
   fi
 fi
 
@@ -155,7 +171,61 @@ echo -e "${BOLD}║${NC} Client ID:    ${BLUE}${CLIENT_ID}${NC}"
 echo -e "${BOLD}║${NC} Redirect URI: ${BLUE}${REDIRECT_URI}${NC}"
 echo -e "${BOLD}║${NC} Profile URL:  ${BLUE}${PROFILE_URL}${NC}"
 echo -e "${BOLD}║${NC} Username:     ${BLUE}${TEST_USERNAME}${NC}"
+echo -e "${BOLD}║${NC} Smoke mode:   ${BLUE}${SMOKE_ONLY_PROFILE_OAUTH2}${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════════════╝${NC}"
+
+# ==========================================================================
+# SMOKE MODE: profile oauth2-proxy protection only (no login credentials)
+# ==========================================================================
+if [[ "${SMOKE_ONLY_PROFILE_OAUTH2}" == "true" ]]; then
+  header "SMOKE: profile oauth2-proxy protection"
+
+  PROXY_COOKIE_JAR=$(mktemp /tmp/e2e-proxy-cookies.XXXXXX)
+  trap 'rm -f "$COOKIE_JAR" "$COOKIE_JAR.proxy" "$PROXY_COOKIE_JAR"' EXIT
+
+  # 1) Visiting protected root should redirect to oauth2 start flow.
+  PROXY_RESP=$(curl -s -D - -o /dev/null -c "$PROXY_COOKIE_JAR" \
+    -w "\n%{http_code}" "${PROFILE_URL}/" 2>&1 || true)
+  PROXY_STATUS=$(echo "$PROXY_RESP" | tail -1)
+  PROXY_LOCATION=$(echo "$PROXY_RESP" | awk 'BEGIN{IGNORECASE=1} /^location:/ {print $2; exit}' | tr -d '\r')
+
+  if [[ "$PROXY_STATUS" == "302" || "$PROXY_STATUS" == "307" ]]; then
+    pass "Profile root redirects (${PROXY_STATUS})"
+  else
+    fail "Expected redirect from profile root" "got ${PROXY_STATUS}"
+  fi
+
+  if echo "$PROXY_LOCATION" | grep -q "_oauth2/start"; then
+    pass "Redirect location points to oauth2-proxy start"
+  else
+    fail "Expected redirect to /_oauth2/start" "location=${PROXY_LOCATION}"
+  fi
+
+  # 2) Direct auth check endpoint should reject without an authenticated session.
+  AUTH_RESP=$(curl -s -D - -o /dev/null \
+    -w "\n%{http_code}" "${PROFILE_URL}/_oauth2/auth" 2>&1 || true)
+  AUTH_STATUS=$(echo "$AUTH_RESP" | tail -1)
+
+  if [[ "$AUTH_STATUS" == "401" ]]; then
+    pass "GET /_oauth2/auth returns 401 without session"
+  else
+    fail "Expected 401 from /_oauth2/auth without session" "got ${AUTH_STATUS}"
+  fi
+
+  echo ""
+  echo -e "${BOLD}══════════════════════════════════════════════════════════════${NC}"
+  TOTAL=$((PASS + FAIL + SKIP))
+  echo -e "${BOLD} Results: ${GREEN}${PASS} passed${NC}, ${RED}${FAIL} failed${NC}, ${YELLOW}${SKIP} skipped${NC} (${TOTAL} total)"
+  echo -e "${BOLD}══════════════════════════════════════════════════════════════${NC}"
+
+  if [[ "$FAIL" -gt 0 ]]; then
+    echo -e "${RED}Smoke checks failed!${NC}"
+    exit 1
+  else
+    echo -e "${GREEN}Smoke checks passed!${NC}"
+    exit 0
+  fi
+fi
 
 # ===========================================================================
 # TEST 1: OIDC Discovery
