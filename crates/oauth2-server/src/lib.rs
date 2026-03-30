@@ -586,6 +586,9 @@ pub async fn run() -> std::io::Result<()> {
                 web::scope("/admin")
                     .wrap(oauth2_actix::middleware::admin_guard::AdminGuard)
                     .route("", web::get().to(admin_dashboard))
+                    .route("/clients", web::get().to(admin_dashboard))
+                    .route("/tokens", web::get().to(admin_dashboard))
+                    .route("/users", web::get().to(admin_dashboard))
                     .service(
                         web::scope("/api")
                             .route(
@@ -599,6 +602,10 @@ pub async fn run() -> std::io::Result<()> {
                             .route(
                                 "/tokens",
                                 web::get().to(oauth2_actix::handlers::admin::list_tokens),
+                            )
+                            .route(
+                                "/users",
+                                web::get().to(oauth2_actix::handlers::admin::list_users),
                             )
                             .route(
                                 "/tokens/{id}/revoke",

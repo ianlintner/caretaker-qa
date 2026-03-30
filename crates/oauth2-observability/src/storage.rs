@@ -226,4 +226,25 @@ impl Storage for ObservedStorage {
             .instrument(span)
             .await
     }
+
+    async fn list_all_clients(&self) -> Result<Vec<Client>, OAuth2Error> {
+        let span = self.span("list_all_clients");
+        async move { self.inner.list_all_clients().await }
+            .instrument(span)
+            .await
+    }
+
+    async fn list_all_users(&self) -> Result<Vec<User>, OAuth2Error> {
+        let span = self.span("list_all_users");
+        async move { self.inner.list_all_users().await }
+            .instrument(span)
+            .await
+    }
+
+    async fn list_all_tokens(&self) -> Result<Vec<Token>, OAuth2Error> {
+        let span = self.span("list_all_tokens");
+        async move { self.inner.list_all_tokens().await }
+            .instrument(span)
+            .await
+    }
 }

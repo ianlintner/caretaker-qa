@@ -535,6 +535,58 @@ impl Storage for SqlxStorage {
 
         Ok(())
     }
+
+    async fn list_all_clients(&self) -> Result<Vec<Client>, OAuth2Error> {
+        let clients = match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query_as::<_, Client>("SELECT * FROM clients ORDER BY created_at DESC")
+                    .fetch_all(pool)
+                    .await?
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query_as::<_, Client>("SELECT * FROM clients ORDER BY created_at DESC")
+                    .fetch_all(pool)
+                    .await?
+            }
+        };
+        Ok(clients)
+    }
+
+    async fn list_all_users(&self) -> Result<Vec<User>, OAuth2Error> {
+        let users = match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY created_at DESC")
+                    .fetch_all(pool)
+                    .await?
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY created_at DESC")
+                    .fetch_all(pool)
+                    .await?
+            }
+        };
+        Ok(users)
+    }
+
+    async fn list_all_tokens(&self) -> Result<Vec<Token>, OAuth2Error> {
+        let tokens = match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query_as::<_, Token>(
+                    "SELECT * FROM tokens ORDER BY created_at DESC LIMIT 200",
+                )
+                .fetch_all(pool)
+                .await?
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query_as::<_, Token>(
+                    "SELECT * FROM tokens ORDER BY created_at DESC LIMIT 200",
+                )
+                .fetch_all(pool)
+                .await?
+            }
+        };
+        Ok(tokens)
+    }
 }
 
 fn sqlite_db_path(database_url: &str) -> Option<PathBuf> {

@@ -247,6 +247,46 @@ impl Storage for MongoStorage {
             .map_err(Self::mongo_err_to_oauth)
     }
 
+    async fn list_all_clients(&self) -> Result<Vec<Client>, OAuth2Error> {
+        use futures::TryStreamExt;
+        let opts = mongodb::options::FindOptions::builder()
+            .sort(doc! { "created_at": -1 })
+            .build();
+        let cursor = self
+            .clients
+            .find(doc! {}, opts)
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+        cursor.try_collect().await.map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn list_all_users(&self) -> Result<Vec<User>, OAuth2Error> {
+        use futures::TryStreamExt;
+        let opts = mongodb::options::FindOptions::builder()
+            .sort(doc! { "created_at": -1 })
+            .build();
+        let cursor = self
+            .users
+            .find(doc! {}, opts)
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+        cursor.try_collect().await.map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn list_all_tokens(&self) -> Result<Vec<Token>, OAuth2Error> {
+        use futures::TryStreamExt;
+        let opts = mongodb::options::FindOptions::builder()
+            .sort(doc! { "created_at": -1 })
+            .limit(200)
+            .build();
+        let cursor = self
+            .tokens
+            .find(doc! {}, opts)
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+        cursor.try_collect().await.map_err(Self::mongo_err_to_oauth)
+    }
+
     async fn healthcheck(&self) -> Result<(), OAuth2Error> {
         self.db
             .run_command(doc! { "ping": 1 }, None)

@@ -14,8 +14,11 @@ pub struct DashboardData {
 
 #[derive(Serialize)]
 pub struct ClientInfo {
+    pub id: String,
     pub client_id: String,
     pub name: String,
+    pub scope: String,
+    pub grant_types: String,
     pub created_at: String,
 }
 
@@ -27,33 +30,105 @@ pub struct TokenInfo {
     pub scope: String,
     pub expires_at: String,
     pub revoked: bool,
+    pub expired: bool,
+}
+
+#[derive(Serialize)]
+pub struct UserInfo {
+    pub id: String,
+    pub username: String,
+    pub email: String,
+    pub role: String,
+    pub enabled: bool,
+    pub created_at: String,
 }
 
 /// Admin dashboard - shows overview statistics
-pub async fn dashboard(_db: web::Data<DynStorage>) -> Result<HttpResponse> {
-    // In a real implementation, fetch actual stats from storage.
+pub async fn dashboard(db: web::Data<DynStorage>) -> Result<HttpResponse> {
+    let clients = db.list_all_clients().await.unwrap_or_default();
+    let users = db.list_all_users().await.unwrap_or_default();
+    let tokens = db.list_all_tokens().await.unwrap_or_default();
+
+    let active_tokens = tokens.iter().filter(|t| t.is_valid()).count() as i64;
+
     let data = DashboardData {
-        total_clients: 0,
-        total_users: 0,
-        total_tokens: 0,
-        active_tokens: 0,
+        total_clients: clients.len() as i64,
+        total_users: users.len() as i64,
+        total_tokens: tokens.len() as i64,
+        active_tokens,
     };
 
     Ok(HttpResponse::Ok().json(data))
 }
 
 /// List all registered clients
-pub async fn list_clients(_db: web::Data<DynStorage>) -> Result<HttpResponse> {
-    // In a real implementation, fetch from storage.
-    let clients: Vec<ClientInfo> = vec![];
-    Ok(HttpResponse::Ok().json(clients))
+pub async fn list_clients(db: web::Data<DynStorage>) -> Result<HttpResponse> {
+    let clients = db
+        .list_all_clients()
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+
+    let infos: Vec<ClientInfo> = clients
+        .into_iter()
+        .map(|c| ClientInfo {
+            id: c.id,
+            client_id: c.client_id,
+            name: c.name,
+            scope: c.scope,
+            grant_types: c.grant_types,
+            created_at: c.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(infos))
 }
 
 /// List all active tokens
-pub async fn list_tokens(_db: web::Data<DynStorage>) -> Result<HttpResponse> {
-    // In a real implementation, fetch from storage.
-    let tokens: Vec<TokenInfo> = vec![];
-    Ok(HttpResponse::Ok().json(tokens))
+pub async fn list_tokens(db: web::Data<DynStorage>) -> Result<HttpResponse> {
+    let tokens = db
+        .list_all_tokens()
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+
+    let infos: Vec<TokenInfo> = tokens
+        .into_iter()
+        .map(|t| {
+            let expired = t.is_expired();
+            TokenInfo {
+                id: t.id,
+                client_id: t.client_id,
+                user_id: t.user_id.unwrap_or_default(),
+                scope: t.scope,
+                expires_at: t.expires_at.to_rfc3339(),
+                revoked: t.revoked,
+                expired,
+            }
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(infos))
+}
+
+/// List all users
+pub async fn list_users(db: web::Data<DynStorage>) -> Result<HttpResponse> {
+    let users = db
+        .list_all_users()
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+
+    let infos: Vec<UserInfo> = users
+        .into_iter()
+        .map(|u| UserInfo {
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            role: u.role,
+            enabled: u.enabled,
+            created_at: u.created_at.to_rfc3339(),
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(infos))
 }
 
 /// Revoke a token by ID (admin function)

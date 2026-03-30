@@ -12,32 +12,34 @@
         <header>
             <h1>OAuth2 Server Admin Dashboard</h1>
             <nav>
-                <a href="/admin">Dashboard</a>
-                <a href="/admin/clients">Clients</a>
-                <a href="/admin/tokens">Tokens</a>
-                <a href="/admin/users">Users</a>
+                <a href="/admin" data-page="dashboard" class="nav-link">Dashboard</a>
+                <a href="/admin/clients" data-page="clients" class="nav-link">Clients</a>
+                <a href="/admin/tokens" data-page="tokens" class="nav-link">Tokens</a>
+                <a href="/admin/users" data-page="users" class="nav-link">Users</a>
                 <a href="/metrics">Metrics</a>
                 <a href="/swagger-ui">API Docs</a>
+                <a href="/profile">My Profile</a>
             </nav>
         </header>
 
-        <main>
+        <!-- Dashboard Page -->
+        <main id="page-dashboard" class="page-section">
             <section class="stats-grid">
                 <div class="stat-card">
                     <h3>Total Clients</h3>
-                    <p class="stat-value" id="total-clients">0</p>
+                    <p class="stat-value" id="total-clients">-</p>
                 </div>
                 <div class="stat-card">
                     <h3>Total Users</h3>
-                    <p class="stat-value" id="total-users">0</p>
+                    <p class="stat-value" id="total-users">-</p>
                 </div>
                 <div class="stat-card">
                     <h3>Active Tokens</h3>
-                    <p class="stat-value" id="active-tokens">0</p>
+                    <p class="stat-value" id="active-tokens">-</p>
                 </div>
                 <div class="stat-card">
-                    <h3>Total Requests</h3>
-                    <p class="stat-value" id="total-requests">0</p>
+                    <h3>Total Tokens</h3>
+                    <p class="stat-value" id="total-tokens">-</p>
                 </div>
             </section>
 
@@ -51,23 +53,69 @@
                     <canvas id="requestChart"></canvas>
                 </div>
             </section>
+        </main>
 
+        <!-- Clients Page -->
+        <main id="page-clients" class="page-section" style="display:none;">
             <section class="recent-activity">
-                <h3>Recent Activity</h3>
-                <table id="activity-table">
+                <h3>Registered Clients</h3>
+                <table id="clients-table">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Event</th>
-                            <th>Client</th>
-                            <th>User</th>
-                            <th>Status</th>
+                            <th>Client ID</th>
+                            <th>Name</th>
+                            <th>Scope</th>
+                            <th>Grant Types</th>
+                            <th>Created</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
+                        <tr><td colspan="6">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+
+        <!-- Tokens Page -->
+        <main id="page-tokens" class="page-section" style="display:none;">
+            <section class="recent-activity">
+                <h3>Tokens</h3>
+                <table id="tokens-table">
+                    <thead>
                         <tr>
-                            <td colspan="5">Loading...</td>
+                            <th>ID</th>
+                            <th>Client</th>
+                            <th>User</th>
+                            <th>Scope</th>
+                            <th>Expires</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                         </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="7">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </section>
+        </main>
+
+        <!-- Users Page -->
+        <main id="page-users" class="page-section" style="display:none;">
+            <section class="recent-activity">
+                <h3>Users</h3>
+                <table id="users-table">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Enabled</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5">Loading...</td></tr>
                     </tbody>
                 </table>
             </section>

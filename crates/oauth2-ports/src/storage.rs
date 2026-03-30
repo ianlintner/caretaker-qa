@@ -42,6 +42,25 @@ pub trait Storage: Send + Sync {
     ) -> Result<Option<AuthorizationCode>, OAuth2Error>;
     async fn mark_authorization_code_used(&self, code: &str) -> Result<(), OAuth2Error>;
 
+    // Listing / counting operations for admin dashboard.
+    // Default implementations return empty / zero so that backends can opt in
+    // incrementally.
+
+    /// List all registered clients.
+    async fn list_all_clients(&self) -> Result<Vec<Client>, OAuth2Error> {
+        Ok(vec![])
+    }
+
+    /// List all users.
+    async fn list_all_users(&self) -> Result<Vec<User>, OAuth2Error> {
+        Ok(vec![])
+    }
+
+    /// List all tokens (active and revoked).
+    async fn list_all_tokens(&self) -> Result<Vec<Token>, OAuth2Error> {
+        Ok(vec![])
+    }
+
     /// Lightweight liveness/readiness check.
     ///
     /// Implementations may override to do something cheaper than `init()`.

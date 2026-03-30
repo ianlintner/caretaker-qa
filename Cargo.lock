@@ -3789,6 +3789,7 @@ name = "oauth2-storage-mongo"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "futures",
  "mongodb",
  "oauth2-core",
  "oauth2-ports",
