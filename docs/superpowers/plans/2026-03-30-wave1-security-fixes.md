@@ -12,20 +12,21 @@
 
 ## Files Modified
 
-| File | Change |
-|------|--------|
-| `crates/oauth2-config/src/lib.rs` | Add `allowed_origins: Vec<String>` to `ServerConfig`; env var `OAUTH2_ALLOWED_ORIGINS` |
-| `crates/oauth2-server/src/lib.rs` | CORS: build from config origins; startup: hard-error on insecure JWT secret; gate `/clients/register` behind admin session check |
-| `crates/oauth2-core/src/models/user.rs` | Remove `username == "admin"` shortcut from `is_admin()` |
-| `crates/oauth2-actix/src/handlers/login.rs` | Add `is_safe_redirect()` validator; apply to `return_to` |
-| `crates/oauth2-social-login/src/handlers/auth.rs` | Apply `is_safe_redirect()` to `return_to`; make absent CSRF state a hard error |
-| `tests/security_http.rs` | New tests for each fix |
+| File                                              | Change                                                                                                                           |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/oauth2-config/src/lib.rs`                 | Add `allowed_origins: Vec<String>` to `ServerConfig`; env var `OAUTH2_ALLOWED_ORIGINS`                                           |
+| `crates/oauth2-server/src/lib.rs`                 | CORS: build from config origins; startup: hard-error on insecure JWT secret; gate `/clients/register` behind admin session check |
+| `crates/oauth2-core/src/models/user.rs`           | Remove `username == "admin"` shortcut from `is_admin()`                                                                          |
+| `crates/oauth2-actix/src/handlers/login.rs`       | Add `is_safe_redirect()` validator; apply to `return_to`                                                                         |
+| `crates/oauth2-social-login/src/handlers/auth.rs` | Apply `is_safe_redirect()` to `return_to`; make absent CSRF state a hard error                                                   |
+| `tests/security_http.rs`                          | New tests for each fix                                                                                                           |
 
 ---
 
 ## Task 1: H2 — Remove Admin-by-Username Bypass
 
 **Files:**
+
 - Modify: `crates/oauth2-core/src/models/user.rs:47`
 - Test: `tests/security_http.rs` (append new test)
 
@@ -136,6 +137,7 @@ Fixes: H2 (security review 2026-03-30)"
 ## Task 2: H1 — Hard-Fail Startup on Insecure JWT Secret
 
 **Files:**
+
 - Modify: `crates/oauth2-server/src/lib.rs:82-86`
 
 Currently `validate_for_production()` is called but its error is only logged as a warning — the server starts anyway. This means a misconfigured production deployment silently uses a publicly-known signing key. The fix: in non-test environments, make a failed validation abort startup.
@@ -281,6 +283,7 @@ Fixes: H1 (security review 2026-03-30)"
 ## Task 3: C5 — Prevent Open Redirect After Login
 
 **Files:**
+
 - Modify: `crates/oauth2-actix/src/handlers/login.rs:143-149`
 - Modify: `crates/oauth2-social-login/src/handlers/auth.rs:133-142` and `198-207`
 - Test: `tests/security_http.rs`
@@ -288,6 +291,7 @@ Fixes: H1 (security review 2026-03-30)"
 Both the password login handler and social login callback read `return_to` from the session and redirect to it without validation. An attacker who can set the session `return_to` value (e.g., via the authorize endpoint storing `req.query_string()`) can redirect authenticated users to external sites. The fix: validate that the `return_to` URL is a safe relative path before using it.
 
 A "safe" relative path:
+
 - Starts with `/`
 - Does NOT start with `//` (protocol-relative URLs redirect to attacker-controlled hosts)
 - Does NOT start with `/\` (some browser quirks)
@@ -463,12 +467,14 @@ Fixes: C5, H3 (security review 2026-03-30)"
 ## Task 4: C3 — Require Admin Auth for Client Registration
 
 **Files:**
+
 - Modify: `crates/oauth2-server/src/lib.rs:567-571`
 - Test: `tests/security_http.rs`
 
 `POST /clients/register` is accessible to anyone — no authentication required. This lets an adversary register arbitrary OAuth2 clients, potentially with broad scopes. The fix: gate registration behind admin session authentication, matching the existing `/admin/*` pattern.
 
 There is a design choice here:
+
 - **Option A (used here):** Require admin session — same middleware already used for `/admin/*` routes. Simple, consistent.
 - **Option B:** Require a bearer `Registration-Token` from `OAUTH2_REGISTRATION_TOKEN` env var — better for machine-to-machine registration scenarios.
 
@@ -576,6 +582,7 @@ Fixes: C3 (security review 2026-03-30)"
 ## Task 5: C1 — Restrict CORS to Configured Origins
 
 **Files:**
+
 - Modify: `crates/oauth2-config/src/lib.rs` — add `allowed_origins` to `ServerConfig`
 - Modify: `crates/oauth2-server/src/lib.rs:426-430` — build CORS from config
 - Test: `tests/security_http.rs`
@@ -583,6 +590,7 @@ Fixes: C3 (security review 2026-03-30)"
 CORS is currently `allow_any_origin()` which allows any website to make credentialed requests to the OAuth2 server. The fix: read allowed origins from `OAUTH2_ALLOWED_ORIGINS` (comma-separated) and build a strict allowlist.
 
 **Your input needed:** What CORS behavior do you want when `OAUTH2_ALLOWED_ORIGINS` is not set?
+
 - **Option A (secure default):** Deny all cross-origin requests (no `Access-Control-Allow-Origin` header). Safest for a pure server-side app.
 - **Option B (dev-friendly default):** Allow `http://localhost:*` only when the env var is unset.
 
@@ -704,16 +712,16 @@ Fixes: C1 (security review 2026-03-30)"
 
 ## Self-Review Checklist
 
-| Requirement | Task |
-|-------------|------|
-| C1: CORS open | Task 5 |
-| C3: Unauth client registration | Task 4 |
-| C5: Open redirect after login | Task 3 |
-| H1: JWT secret hard-abort | Task 2 |
-| H2: Admin username bypass | Task 1 |
-| H3: Social login CSRF gap | Task 3 (CSRF block included) |
-| All existing tests still pass | Each task runs full suite |
-| `.env.example` updated with new vars | Tasks 2, 5 |
+| Requirement                          | Task                         |
+| ------------------------------------ | ---------------------------- |
+| C1: CORS open                        | Task 5                       |
+| C3: Unauth client registration       | Task 4                       |
+| C5: Open redirect after login        | Task 3                       |
+| H1: JWT secret hard-abort            | Task 2                       |
+| H2: Admin username bypass            | Task 1                       |
+| H3: Social login CSRF gap            | Task 3 (CSRF block included) |
+| All existing tests still pass        | Each task runs full suite    |
+| `.env.example` updated with new vars | Tasks 2, 5                   |
 
 All tasks have complete code. No TBDs. Types are consistent across tasks.
 
