@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: oauth2_e2e_postgres
+    environment:
+      POSTGRES_DB: oauth2
+      POSTGRES_USER: oauth2_user
+      POSTGRES_PASSWORD: oauth2_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_e2e_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oauth2_user -d oauth2"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  flyway_e2e:
+    image: flyway/flyway:10-alpine
+    container_name: oauth2_e2e_flyway
+    command: migrate
+    volumes:
+      - ./migrations/sql:/flyway/sql/base
+      - ./e2e/sql:/flyway/sql/e2e
+    environment:
+      - FLYWAY_URL=jdbc:postgresql://postgres:5432/oauth2
+      - FLYWAY_USER=oauth2_user
+      - FLYWAY_PASSWORD=oauth2_password
+      - FLYWAY_SCHEMAS=public
+      - FLYWAY_LOCATIONS=filesystem:/flyway/sql/base,filesystem:/flyway/sql/e2e
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  oauth2_server_e2e:
+    build: .
+    container_name: oauth2_e2e_server
+    ports:
+      - "8081:8080"
+    environment:
+      - OAUTH2_SERVER_HOST=0.0.0.0
+      - OAUTH2_SERVER_PORT=8080
+      - OAUTH2_DATABASE_URL=postgresql://oauth2_user:oauth2_password@postgres:5432/oauth2
+      - OAUTH2_JWT_SECRET=${OAUTH2_JWT_SECRET:-insecure-default-for-testing-only-change-in-production}
+      - OAUTH2_SEED_USERNAME=${OAUTH2_SEED_USERNAME:-admin}
+      - OAUTH2_SEED_PASSWORD=${OAUTH2_SEED_PASSWORD:-changeme}
+      - OAUTH2_SEED_EMAIL=${OAUTH2_SEED_EMAIL:-admin@example.com}
+      - RUST_LOG=${RUST_LOG:-info}
+    depends_on:
+      flyway_e2e:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  profile_upstream:
+    image: traefik/whoami:v1.11
+    container_name: oauth2_e2e_profile_upstream
+    expose:
+      - "80"
+
+  oauth2_proxy_e2e:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.13.0
+    container_name: oauth2_e2e_proxy
+    command:
+      - --http-address=0.0.0.0:4180
+      - --provider=oidc
+      - --skip-oidc-discovery=true
+      - --oidc-issuer-url=http://oauth2_server_e2e:8080
+      - --login-url=http://oauth2_server_e2e:8080/oauth/authorize
+      - --redeem-url=http://oauth2_server_e2e:8080/oauth/token
+      - --oidc-jwks-url=http://oauth2_server_e2e:8080/.well-known/jwks.json
+      - --insecure-oidc-skip-issuer-verification=true
+      - --code-challenge-method=S256
+      - --client-id=e2e_proxy_client
+      - --client-secret=e2e_proxy_secret
+      - --redirect-url=http://localhost:4180/_oauth2/callback
+      - --scope=openid profile email read
+      - --email-domain=*
+      - --cookie-secret=ZTEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+      - --cookie-secure=false
+      - --cookie-samesite=lax
+      - --skip-provider-button=true
+      - --reverse-proxy=true
+      - --set-xauthrequest=true
+      - --pass-user-headers=true
+      - --pass-access-token=true
+      - --set-authorization-header=true
+      - --pass-authorization-header=true
+      - --upstream=http://profile_upstream:80
+      - --ping-path=/ping
+    ports:
+      - "4180:4180"
+    depends_on:
+      oauth2_server_e2e:
+        condition: service_healthy
+      profile_upstream:
+        condition: service_started
+
+volumes:
+  postgres_e2e_data:

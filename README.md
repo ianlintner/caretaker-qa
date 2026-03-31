@@ -169,6 +169,37 @@ cargo run --release
 docker-compose up -d
 ```
 
+### Using Docker Compose (E2E stack with oauth2-proxy)
+
+For local end-to-end validation of `oauth2-server + oauth2-proxy + protected upstream`:
+
+```bash
+docker compose -f docker-compose.e2e.yml up -d --build
+```
+
+This stack brings up:
+
+- `oauth2_server_e2e` on `http://localhost:8081`
+- `oauth2_proxy_e2e` on `http://localhost:4180`
+- `profile_upstream` (a simple protected upstream)
+- Postgres + Flyway with an E2E-specific OAuth client seed (`e2e/sql/V999__e2e_proxy_client.sql`)
+
+Quick checks:
+
+```bash
+# oauth2-proxy should redirect unauthenticated requests to auth flow
+curl -i http://localhost:4180/
+
+# auth check endpoint should return 401 without session
+curl -i http://localhost:4180/_oauth2/auth
+```
+
+Tear down:
+
+```bash
+docker compose -f docker-compose.e2e.yml down -v
+```
+
 ### Using the prebuilt Docker image (no compile)
 
 If you want to run the server **without compiling**, use the prebuilt image on Docker Hub.
