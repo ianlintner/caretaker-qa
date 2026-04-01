@@ -84,8 +84,7 @@ where
 
             // Check admin privileges:
             // 1. Session role == "admin"
-            // 2. Session username == "admin"
-            // 3. Session email matches OAUTH2_ADMIN_EMAILS
+            // 2. Session email matches OAUTH2_ADMIN_EMAILS
             let role: String = session
                 .get("role")
                 .unwrap_or(None)
@@ -93,7 +92,7 @@ where
             let username: String = session.get("username").unwrap_or(None).unwrap_or_default();
             let email: String = session.get("email").unwrap_or(None).unwrap_or_default();
 
-            let is_admin = role == "admin" || username == "admin" || is_admin_email(&email);
+            let is_admin = role == "admin" || is_admin_email(&email);
 
             if !is_admin {
                 // Authenticated but not admin — redirect to profile site

@@ -45,7 +45,7 @@ pub async fn openid_configuration(oidc: web::Data<OidcConfig>) -> Result<HttpRes
         "token_revocation_endpoint": format!("{}/oauth/revoke", base),
         "userinfo_endpoint": format!("{}/oauth/userinfo", base),
         "jwks_uri": format!("{}/.well-known/jwks.json", base),
-        "registration_endpoint": format!("{}/clients/register", base),
+        "registration_endpoint": format!("{}/admin/clients/register", base),
         "scopes_supported": ["openid", "profile", "email", "read", "write", "admin"],
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "client_credentials"],

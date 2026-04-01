@@ -79,10 +79,14 @@ pub async fn run() -> std::io::Result<()> {
         }
     }
 
-    // Validate configuration for production
+    // Validate configuration for production — fail startup if misconfigured.
+    // Set OAUTH2_ALLOW_INSECURE_DEFAULTS=1 to skip in test/dev environments.
     if let Err(e) = config.validate_for_production() {
-        tracing::warn!("Configuration validation warning: {}", e);
-        tracing::warn!("This configuration should only be used for testing!");
+        tracing::error!("FATAL: insecure configuration detected: {}", e);
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("Insecure configuration: {e}"),
+        ));
     }
 
     tracing::info!("Configuration loaded");
@@ -423,11 +427,21 @@ pub async fn run() -> std::io::Result<()> {
 
     // Start HTTP server
     let server = HttpServer::new(move || {
-        let cors = Cors::default()
-            .allow_any_origin()
-            .allow_any_method()
-            .allow_any_header()
-            .max_age(3600);
+        let cors = {
+            let origins = server_config.allowed_origins.clone();
+            let mut cors_builder = Cors::default()
+                .allow_any_method()
+                .allow_any_header()
+                .max_age(3600);
+            if origins.is_empty() {
+                cors_builder
+            } else {
+                for origin in &origins {
+                    cors_builder = cors_builder.allowed_origin(origin);
+                }
+                cors_builder
+            }
+        };
 
         let mut app = App::new()
             // Middleware
@@ -564,11 +578,6 @@ pub async fn run() -> std::io::Result<()> {
                         web::post().to(oauth2_actix::handlers::wellknown::userinfo),
                     ),
             )
-            // Client management endpoints
-            .service(web::scope("/clients").route(
-                "/register",
-                web::post().to(oauth2_actix::handlers::client::register_client),
-            ))
             // Well-known endpoints
             .service(
                 web::scope("/.well-known")
@@ -589,6 +598,10 @@ pub async fn run() -> std::io::Result<()> {
                     .route("/clients", web::get().to(admin_dashboard))
                     .route("/tokens", web::get().to(admin_dashboard))
                     .route("/users", web::get().to(admin_dashboard))
+                    .route(
+                        "/clients/register",
+                        web::post().to(oauth2_actix::handlers::client::register_client),
+                    )
                     .service(
                         web::scope("/api")
                             .route(

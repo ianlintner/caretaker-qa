@@ -1169,3 +1169,211 @@ async fn pkce_rejects_short_verifier() {
     let body: OAuth2Error = test::read_body_json(resp).await;
     assert_eq!(body.error, "invalid_grant");
 }
+
+#[test]
+fn admin_check_requires_role_not_username() {
+    use oauth2_core::User;
+    use chrono::Utc;
+
+    // A user named "admin" with role "user" must NOT be admin
+    let impersonator = User {
+        id: "u1".to_string(),
+        username: "admin".to_string(),
+        password_hash: "x".to_string(),
+        email: "hacker@evil.com".to_string(),
+        enabled: true,
+        role: "user".to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+    assert!(!impersonator.is_admin(), "username='admin' with role='user' must not grant admin");
+
+    // A user with role "admin" but a different username MUST be admin
+    let real_admin = User {
+        id: "u2".to_string(),
+        username: "alice".to_string(),
+        password_hash: "x".to_string(),
+        email: "alice@corp.com".to_string(),
+        enabled: true,
+        role: "admin".to_string(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+    assert!(real_admin.is_admin(), "role='admin' must grant admin regardless of username");
+}
+
+#[test]
+fn insecure_jwt_secret_is_rejected_without_opt_in() {
+    // Without OAUTH2_ALLOW_INSECURE_DEFAULTS=1, the known default must fail validation.
+    // With it set, validation should pass (allows test environments to work).
+    use oauth2_config::{Config, INSECURE_DEFAULT_JWT_SECRET};
+
+    // RAII guard: removes OAUTH2_ALLOW_INSECURE_DEFAULTS on drop (including on panic),
+    // preventing env-var pollution from leaking into concurrently-running tests.
+    struct EnvCleanup;
+    impl Drop for EnvCleanup {
+        fn drop(&mut self) {
+            std::env::remove_var("OAUTH2_ALLOW_INSECURE_DEFAULTS");
+        }
+    }
+    let _guard = EnvCleanup;
+
+    std::env::remove_var("OAUTH2_ALLOW_INSECURE_DEFAULTS");
+    let mut config = Config::default();
+    config.jwt.secret = INSECURE_DEFAULT_JWT_SECRET.to_string();
+
+    let result = config.validate_for_production();
+    assert!(result.is_err(), "insecure secret must fail validation without opt-in");
+    assert!(
+        result.unwrap_err().contains("OAUTH2_JWT_SECRET"),
+        "error must reference OAUTH2_JWT_SECRET"
+    );
+
+    std::env::set_var("OAUTH2_ALLOW_INSECURE_DEFAULTS", "1");
+    let result2 = config.validate_for_production();
+    assert!(
+        result2.is_ok(),
+        "insecure secret must be allowed with OAUTH2_ALLOW_INSECURE_DEFAULTS=1"
+    );
+}
+
+#[test]
+fn open_redirect_validation_rejects_external_urls() {
+    use oauth2_actix::handlers::login::is_safe_redirect;
+
+    let safe = ["/profile", "/oauth/authorize?client_id=x", "/admin"];
+    let unsafe_urls = [
+        "https://evil.com",
+        "//evil.com",
+        "/\\evil.com",
+        "javascript:alert(1)",
+        "http://localhost@evil.com",
+        "  https://evil.com",
+    ];
+
+    for url in &safe {
+        assert!(is_safe_redirect(url), "Expected safe: {url}");
+    }
+    for url in &unsafe_urls {
+        assert!(!is_safe_redirect(url), "Expected unsafe: {url}");
+    }
+}
+
+#[actix_web::test]
+async fn client_registration_requires_admin_session() {
+    use actix_session::{storage::CookieSessionStore, SessionMiddleware};
+    use actix_web::{cookie::Key, test, web, App};
+    use oauth2_actix::handlers::client::register_client;
+    use oauth2_actix::middleware::admin_guard::AdminGuard;
+
+    // Minimal storage for the handler
+    let storage = oauth2_storage_factory::create_storage("sqlite::memory:")
+        .await
+        .expect("create storage");
+    storage.init().await.expect("init storage");
+    let dyn_storage: oauth2_ports::storage::DynStorage = std::sync::Arc::new(storage);
+
+    let session_key = Key::generate();
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(dyn_storage))
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                session_key.clone(),
+            ))
+            .service(
+                web::scope("/admin")
+                    .wrap(AdminGuard)
+                    .route(
+                        "/clients/register",
+                        web::post().to(register_client),
+                    ),
+            ),
+    )
+    .await;
+
+    let req = test::TestRequest::post()
+        .uri("/admin/clients/register")
+        .set_json(serde_json::json!({
+            "client_name": "malicious-client",
+            "redirect_uris": ["https://attacker.com/callback"],
+            "grant_types": ["authorization_code"],
+            "scope": "openid profile"
+        }))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    let status = resp.status().as_u16();
+
+    // AdminGuard redirects unauthenticated users to /auth/login (302).
+    // It must never return 201 Created.
+    assert_ne!(status, 201, "unauthenticated client registration must be rejected, got {status}");
+    assert_eq!(status, 302, "unauthenticated request should redirect to login, got {status}");
+}
+
+#[actix_web::test]
+async fn cors_empty_allowed_origins_denies_cross_origin() {
+    use actix_cors::Cors;
+
+    // Cors::default() with no .allowed_origin() calls is fail-closed: it emits no
+    // Access-Control-Allow-Origin header, effectively denying all cross-origin requests.
+    let cors = Cors::default()
+        .allow_any_method()
+        .allow_any_header()
+        .max_age(3600);
+
+    let app = test::init_service(
+        App::new()
+            .wrap(cors)
+            .route("/", web::get().to(|| async { HttpResponse::Ok().finish() })),
+    )
+    .await;
+
+    let req = test::TestRequest::get()
+        .uri("/")
+        .insert_header(("Origin", "https://evil.example.com"))
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+
+    assert!(
+        !resp.headers().contains_key("access-control-allow-origin"),
+        "Cors::default() with no allowed origins should not emit Access-Control-Allow-Origin"
+    );
+}
+
+#[test]
+fn cors_allowed_origins_parsed_correctly() {
+    use oauth2_config::Config;
+
+    // Note: std::env::set_var is not thread-safe when tests run in parallel.
+    // The serial_test crate is not a dependency here; take care if parallelism is a concern.
+    // SAFETY: This test sets and immediately restores OAUTH2_ALLOWED_ORIGINS.  It is
+    // intentionally a single-threaded unit test (no async runtime, no shared state beyond
+    // the process environment), so the risk of races with other tests is low in practice.
+    unsafe {
+        std::env::set_var(
+            "OAUTH2_ALLOWED_ORIGINS",
+            "https://app.example.com, https://admin.example.com, ",
+        );
+    }
+
+    // Config::default() tries application.conf first (HOCON), then falls back to
+    // from_env_fallback().  Either code path reads OAUTH2_ALLOWED_ORIGINS and applies
+    // the same split/trim/filter logic, so both exercise the real production path.
+    let config = Config::default();
+
+    unsafe {
+        std::env::remove_var("OAUTH2_ALLOWED_ORIGINS");
+    }
+
+    let origins = &config.server.allowed_origins;
+    assert_eq!(
+        origins.len(),
+        2,
+        "Expected exactly 2 origins after parsing (trailing comma/space must be stripped), got: {:?}",
+        origins
+    );
+    assert_eq!(origins[0], "https://app.example.com");
+    assert_eq!(origins[1], "https://admin.example.com");
+}

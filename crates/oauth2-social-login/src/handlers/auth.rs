@@ -135,8 +135,14 @@ pub async fn auth_callback(
         .get("csrf_token")
         .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
 
-    if let Some(state) = &query.state {
-        if Some(state.clone()) != stored_csrf {
+    match (&query.state, &stored_csrf) {
+        (Some(state), Some(expected)) if state == expected => {
+            // CSRF check passed — continue
+        }
+        (None, _) => {
+            return Err(OAuth2Error::access_denied("CSRF state parameter is required"));
+        }
+        _ => {
             return Err(OAuth2Error::access_denied("CSRF token mismatch"));
         }
     }
@@ -200,11 +206,29 @@ pub async fn auth_callback(
         .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
     session.remove("return_to");
 
-    let redirect_url = return_to.unwrap_or_else(|| "/profile".to_string());
+    // Only allow safe relative redirects; anything untrusted falls back to /profile.
+    let redirect_url = return_to
+        .filter(|u| is_safe_redirect(u))
+        .unwrap_or_else(|| "/profile".to_string());
 
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect_url))
         .finish())
+}
+
+/// Validate that a redirect target is a safe relative path on this server.
+fn is_safe_redirect(url: &str) -> bool {
+    let url = url.trim();
+    if !url.starts_with('/') {
+        return false;
+    }
+    if url.starts_with("//") {
+        return false;
+    }
+    if url.starts_with("/\\") {
+        return false;
+    }
+    true
 }
 
 /// Look up a local user by the social username (e.g. "github:12345").

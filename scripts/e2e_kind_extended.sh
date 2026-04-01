@@ -317,7 +317,7 @@ done
 curl -fsS "${RS_URL}/public" >/dev/null
 
 echo "==> Registering test client (client_credentials)"
-client_json=$(curl -fsS -X POST "${BASE_URL}/clients/register" \
+client_json=$(curl -fsS -X POST "${BASE_URL}/admin/clients/register" \
   -H "Content-Type: application/json" \
   -d '{
     "client_name": "E2E Service Client",

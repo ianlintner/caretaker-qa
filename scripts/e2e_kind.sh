@@ -282,7 +282,7 @@ curl -fsS "${BASE_URL}/ready" >/dev/null
 curl -fsS "${BASE_URL}/.well-known/openid-configuration" >/dev/null
 
 echo "==> Registering test client"
-client_json=$(curl -fsS -X POST "${BASE_URL}/clients/register" \
+client_json=$(curl -fsS -X POST "${BASE_URL}/admin/clients/register" \
   -H "Content-Type: application/json" \
   -d '{
     "client_name": "Test Client",

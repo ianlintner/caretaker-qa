@@ -2,6 +2,12 @@ use hocon::HoconLoader;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// The well-known insecure JWT secret used as a fallback when `OAUTH2_JWT_SECRET`
+/// is not set. Detected by `validate_for_production()` to prevent accidental
+/// use in production deployments.
+pub const INSECURE_DEFAULT_JWT_SECRET: &str =
+    "insecure-default-for-testing-only-change-in-production";
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub server: ServerConfig,
@@ -35,6 +41,10 @@ pub struct ServerConfig {
     /// Public issuer URL for OIDC discovery. Falls back to `http://{host}:{port}`.
     #[serde(default)]
     pub public_url: Option<String>,
+    /// Allowlist of origins permitted to make cross-origin requests.
+    /// When empty, CORS is fail-closed (all cross-origin requests are denied).
+    #[serde(default)]
+    pub allowed_origins: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -196,6 +206,18 @@ impl Config {
         // Handle social provider configuration from environment variables
         config.load_social_from_env();
 
+        // Handle OAUTH2_ALLOWED_ORIGINS environment variable if set
+        // HOCON doesn't support array substitution from env vars directly
+        if let Ok(val) = std::env::var("OAUTH2_ALLOWED_ORIGINS") {
+            if !val.trim().is_empty() {
+                config.server.allowed_origins = val
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+            }
+        }
+
         Ok(config)
     }
 
@@ -236,6 +258,7 @@ impl Config {
                     .or_else(|| std::env::var("OAUTH2_ISSUER_URL").ok())
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty()),
+                allowed_origins: vec![],
             },
             database: DatabaseConfig {
                 url: std::env::var("OAUTH2_DATABASE_URL")
@@ -245,7 +268,7 @@ impl Config {
                 secret: std::env::var("OAUTH2_JWT_SECRET").unwrap_or_else(|_| {
                     eprintln!("WARNING: OAUTH2_JWT_SECRET not set. Using insecure default for testing only!");
                     eprintln!("NEVER use this in production! Set OAUTH2_JWT_SECRET environment variable.");
-                    "insecure-default-for-testing-only-change-in-production".to_string()
+                    INSECURE_DEFAULT_JWT_SECRET.to_string()
                 }),
             },
             events: EventConfig {
@@ -284,6 +307,17 @@ impl Config {
         };
 
         config.normalize_event_config();
+
+        if let Ok(val) = std::env::var("OAUTH2_ALLOWED_ORIGINS") {
+            if !val.trim().is_empty() {
+                config.server.allowed_origins = val
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+            }
+        }
+
         config
     }
 
@@ -373,17 +407,34 @@ impl Config {
         }
     }
 
-    /// Validate configuration for production use
+    /// Validate configuration for production use.
+    ///
+    /// Returns `Ok(())` if:
+    /// - JWT secret is not the insecure default and is ≥32 bytes, OR
+    /// - `OAUTH2_ALLOW_INSECURE_DEFAULTS=1` is explicitly set (test/dev opt-in).
+    ///
+    /// **Warning**: The opt-in flag bypasses ALL validation, including the minimum
+    /// length check. It is intended solely for test and local development environments.
     pub fn validate_for_production(&self) -> Result<(), String> {
-        // Check JWT secret is not the default
-        if self.jwt.secret == "insecure-default-for-testing-only-change-in-production" {
-            return Err("OAUTH2_JWT_SECRET must be explicitly set for production. Generate a secure random string (minimum 32 characters).".to_string());
+        // Allow test/dev environments to skip validation via explicit opt-in.
+        if std::env::var("OAUTH2_ALLOW_INSECURE_DEFAULTS").as_deref() == Ok("1") {
+            return Ok(());
         }
 
-        // Check JWT secret length
+        // Check JWT secret is not the default
+        if self.jwt.secret == INSECURE_DEFAULT_JWT_SECRET {
+            return Err(
+                "OAUTH2_JWT_SECRET must be explicitly set for production. \
+                Generate a secure random string (minimum 32 characters). \
+                Set OAUTH2_ALLOW_INSECURE_DEFAULTS=1 to suppress this in test environments."
+                    .to_string(),
+            );
+        }
+
+        // Check JWT secret length (measured in bytes, which is correct for HMAC keys)
         if self.jwt.secret.len() < 32 {
             return Err(format!(
-                "OAUTH2_JWT_SECRET must be at least 32 characters long (current: {} characters)",
+                "OAUTH2_JWT_SECRET must be at least 32 bytes long (current: {} bytes)",
                 self.jwt.secret.len()
             ));
         }

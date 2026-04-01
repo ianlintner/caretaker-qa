@@ -143,7 +143,10 @@ pub async fn login_submit(
     let return_to: Option<String> = session.get("return_to").unwrap_or(None);
     session.remove("return_to");
 
-    let redirect_url = return_to.unwrap_or_else(|| "/profile".to_string());
+    // Only allow safe relative redirects; anything else falls back to /profile.
+    let redirect_url = return_to
+        .filter(|u| is_safe_redirect(u))
+        .unwrap_or_else(|| "/profile".to_string());
 
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect_url))
@@ -169,4 +172,27 @@ fn html_escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&#x27;")
+}
+
+/// Validate that a redirect target is a safe relative path on this server.
+///
+/// Accepts only paths starting with `/` that are not `//` (protocol-relative),
+/// `/\` (backslash quirk), or any scheme-bearing string (`scheme:`).
+/// This prevents open-redirect attacks where `return_to` points to an
+/// external attacker-controlled site.
+pub fn is_safe_redirect(url: &str) -> bool {
+    let url = url.trim();
+    // Must start with a single forward-slash
+    if !url.starts_with('/') {
+        return false;
+    }
+    // Reject protocol-relative URLs like //evil.com
+    if url.starts_with("//") {
+        return false;
+    }
+    // Reject backslash quirk: /\evil.com
+    if url.starts_with("/\\") {
+        return false;
+    }
+    true
 }

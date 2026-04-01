@@ -40,11 +40,11 @@ impl User {
 
     /// Check if the user has admin privileges.
     ///
-    /// A user is considered admin if their `role` field is `"admin"`, their
-    /// username is `"admin"`, or their email appears in the `OAUTH2_ADMIN_EMAILS`
-    /// environment variable (comma-separated list).
+    /// A user is admin if their `role` field is `"admin"` or their email appears
+    /// in the `OAUTH2_ADMIN_EMAILS` environment variable (comma-separated list).
+    /// Username alone never grants admin — set the role field in the database.
     pub fn is_admin(&self) -> bool {
-        if self.role == "admin" || self.username == "admin" {
+        if self.role == "admin" {
             return true;
         }
         if let Ok(admin_emails) = std::env::var("OAUTH2_ADMIN_EMAILS") {

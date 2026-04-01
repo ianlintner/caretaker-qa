@@ -43,7 +43,7 @@ class OAuth2Client {
    * Register a new OAuth2 client
    */
   async registerClient(data) {
-    const response = await this.axios.post('/clients/register', data);
+    const response = await this.axios.post('/admin/clients/register', data);
     return response.data;
   }
 

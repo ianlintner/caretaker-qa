@@ -48,7 +48,7 @@ pub async fn profile_page(session: Session) -> Result<HttpResponse> {
     };
 
     // Admin link (only for admins)
-    let admin_link = if role == "admin" || username == "admin" || is_admin_email(&email) {
+    let admin_link = if role == "admin" || is_admin_email(&email) {
         r#"<a href="/admin" class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
             <div class="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-lg">
               <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
