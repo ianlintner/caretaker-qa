@@ -1170,8 +1170,8 @@ async fn pkce_rejects_short_verifier() {
     assert_eq!(body.error, "invalid_grant");
 }
 
-#[test]
-fn admin_check_requires_role_not_username() {
+#[actix_web::test]
+async fn admin_check_requires_role_not_username() {
     use oauth2_core::User;
     use chrono::Utc;
 
@@ -1202,8 +1202,8 @@ fn admin_check_requires_role_not_username() {
     assert!(real_admin.is_admin(), "role='admin' must grant admin regardless of username");
 }
 
-#[test]
-fn insecure_jwt_secret_is_rejected_without_opt_in() {
+#[actix_web::test]
+async fn insecure_jwt_secret_is_rejected_without_opt_in() {
     // Without OAUTH2_ALLOW_INSECURE_DEFAULTS=1, the known default must fail validation.
     // With it set, validation should pass (allows test environments to work).
     use oauth2_config::{Config, INSECURE_DEFAULT_JWT_SECRET};
@@ -1237,8 +1237,8 @@ fn insecure_jwt_secret_is_rejected_without_opt_in() {
     );
 }
 
-#[test]
-fn open_redirect_validation_rejects_external_urls() {
+#[actix_web::test]
+async fn open_redirect_validation_rejects_external_urls() {
     use oauth2_actix::handlers::login::is_safe_redirect;
 
     let safe = ["/profile", "/oauth/authorize?client_id=x", "/admin"];
@@ -1271,7 +1271,7 @@ async fn client_registration_requires_admin_session() {
         .await
         .expect("create storage");
     storage.init().await.expect("init storage");
-    let dyn_storage: oauth2_ports::storage::DynStorage = std::sync::Arc::new(storage);
+    let dyn_storage: oauth2_ports::storage::DynStorage = storage;
 
     let session_key = Key::generate();
     let app = test::init_service(
@@ -1334,7 +1334,7 @@ async fn cors_empty_allowed_origins_denies_cross_origin() {
         .insert_header(("Origin", "https://evil.example.com"))
         .to_request();
 
-    let resp = test::call_service(&app, req).await;
+    let resp: actix_web::dev::ServiceResponse<_> = test::call_service(&app, req).await;
 
     assert!(
         !resp.headers().contains_key("access-control-allow-origin"),
@@ -1342,8 +1342,8 @@ async fn cors_empty_allowed_origins_denies_cross_origin() {
     );
 }
 
-#[test]
-fn cors_allowed_origins_parsed_correctly() {
+#[actix_web::test]
+async fn cors_allowed_origins_parsed_correctly() {
     use oauth2_config::Config;
 
     // Note: std::env::set_var is not thread-safe when tests run in parallel.
