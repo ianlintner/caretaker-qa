@@ -4908,6 +4908,7 @@ name = "rust_oauth2_server"
 version = "0.0.10"
 dependencies = [
  "actix",
+ "actix-cors",
  "actix-rt",
  "actix-session",
  "actix-web",
