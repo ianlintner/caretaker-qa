@@ -120,6 +120,7 @@ pub async fn login_submit(
     }
 
     // --- Credentials valid — establish session ---
+    session.renew(); // Rotate session ID to prevent session fixation attacks
     session
         .insert("user_id", &user.id)
         .map_err(|e| actix_web::error::ErrorInternalServerError(e.to_string()))?;

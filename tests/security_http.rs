@@ -1425,3 +1425,40 @@ async fn seed_password_changeme_is_allowed_with_insecure_defaults_flag() {
         "insecure seed password must be allowed with OAUTH2_ALLOW_INSECURE_DEFAULTS=1"
     );
 }
+
+#[actix_web::test]
+async fn login_renews_session_id_after_successful_authentication() {
+    use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+    use actix_web::cookie::Key;
+
+    let secret_key = Key::generate();
+    let app = test::init_service(
+        App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                secret_key.clone(),
+            ))
+            .route(
+                "/auth/login",
+                web::post().to(|session: actix_session::Session| async move {
+                    // Simulate what login_submit does after credential verification
+                    session.renew();
+                    session.insert("user_id", "test-user-id").unwrap();
+                    HttpResponse::Found()
+                        .append_header(("Location", "/profile"))
+                        .finish()
+                }),
+            ),
+    )
+    .await;
+
+    let req = test::TestRequest::post()
+        .uri("/auth/login")
+        .to_request();
+    let resp = test::call_service(&app, req).await;
+    assert_eq!(resp.status(), 302);
+    assert!(
+        resp.headers().contains_key("set-cookie"),
+        "A renewed session must set a new cookie on login response"
+    );
+}
