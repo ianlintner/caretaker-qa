@@ -1462,3 +1462,45 @@ async fn login_renews_session_id_after_successful_authentication() {
         "A renewed session must set a new cookie on login response"
     );
 }
+
+#[actix_web::test]
+async fn security_headers_present_on_responses() {
+    use actix_web::middleware::DefaultHeaders;
+
+    let app = test::init_service(
+        App::new()
+            .wrap(
+                DefaultHeaders::new()
+                    .add(("X-Frame-Options", "DENY"))
+                    .add(("X-Content-Type-Options", "nosniff"))
+                    .add(("Referrer-Policy", "no-referrer"))
+                    .add(("Content-Security-Policy", "default-src 'self'")),
+            )
+            .route("/", web::get().to(|| async { HttpResponse::Ok().finish() })),
+    )
+    .await;
+
+    let req = test::TestRequest::get().uri("/").to_request();
+    let resp = test::call_service(&app, req).await;
+
+    assert_eq!(
+        resp.headers().get("x-frame-options").and_then(|v| v.to_str().ok()),
+        Some("DENY"),
+        "X-Frame-Options: DENY must be present"
+    );
+    assert_eq!(
+        resp.headers().get("x-content-type-options").and_then(|v| v.to_str().ok()),
+        Some("nosniff"),
+        "X-Content-Type-Options: nosniff must be present"
+    );
+    assert_eq!(
+        resp.headers().get("referrer-policy").and_then(|v| v.to_str().ok()),
+        Some("no-referrer"),
+        "Referrer-Policy: no-referrer must be present"
+    );
+    assert_eq!(
+        resp.headers().get("content-security-policy").and_then(|v| v.to_str().ok()),
+        Some("default-src 'self'"),
+        "Content-Security-Policy: default-src 'self' must be present"
+    );
+}

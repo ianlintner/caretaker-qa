@@ -481,6 +481,13 @@ pub async fn run() -> std::io::Result<()> {
                 metrics.clone(),
             ))
             .wrap(cors)
+            .wrap(
+                actix_middleware::DefaultHeaders::new()
+                    .add(("X-Frame-Options", "DENY"))
+                    .add(("X-Content-Type-Options", "nosniff"))
+                    .add(("Referrer-Policy", "no-referrer"))
+                    .add(("Content-Security-Policy", "default-src 'self'")),
+            )
             // Shared state
             .app_data(web::Data::new(token_actor.clone()))
             .app_data(web::Data::new(client_actor.clone()))
