@@ -65,6 +65,11 @@ spec:
                 secretKeyRef:
                   name: oauth2-server-secret
                   key: OAUTH2_JWT_SECRET
+            - name: OAUTH2_SEED_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-server-secret
+                  key: OAUTH2_SEED_PASSWORD
             - name: RUST_LOG
               valueFrom:
                 configMapKeyRef:
