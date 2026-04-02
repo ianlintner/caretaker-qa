@@ -5,6 +5,7 @@ use actix_web::{cookie::Key, test, web, App, HttpResponse};
 use oauth2_actix::handlers::wellknown::OidcConfig;
 use oauth2_core::{Client, OAuth2Error, TokenResponse, User};
 use oauth2_observability::Metrics;
+use oauth2_server::validate_seed_password_for_production;
 
 fn s256_challenge(verifier: &str) -> String {
     use base64::{engine::general_purpose, Engine as _};
@@ -1376,4 +1377,51 @@ async fn cors_allowed_origins_parsed_correctly() {
     );
     assert_eq!(origins[0], "https://app.example.com");
     assert_eq!(origins[1], "https://admin.example.com");
+}
+
+#[actix_web::test]
+async fn seed_password_default_changeme_is_rejected_in_production() {
+    // RAII guard: removes env vars on drop (including on panic).
+    struct EnvCleanup;
+    impl Drop for EnvCleanup {
+        fn drop(&mut self) {
+            std::env::remove_var("OAUTH2_ALLOW_INSECURE_DEFAULTS");
+            std::env::remove_var("OAUTH2_SEED_PASSWORD");
+        }
+    }
+    let _guard = EnvCleanup;
+
+    std::env::remove_var("OAUTH2_ALLOW_INSECURE_DEFAULTS");
+    std::env::remove_var("OAUTH2_SEED_PASSWORD");
+
+    let result = validate_seed_password_for_production("changeme");
+    assert!(
+        result.is_err(),
+        "insecure default seed password must fail validation without opt-in"
+    );
+    assert!(
+        result.unwrap_err().contains("OAUTH2_SEED_PASSWORD"),
+        "error must reference OAUTH2_SEED_PASSWORD"
+    );
+}
+
+#[actix_web::test]
+async fn seed_password_changeme_is_allowed_with_insecure_defaults_flag() {
+    // RAII guard: removes env vars on drop (including on panic).
+    struct EnvCleanup;
+    impl Drop for EnvCleanup {
+        fn drop(&mut self) {
+            std::env::remove_var("OAUTH2_ALLOW_INSECURE_DEFAULTS");
+            std::env::remove_var("OAUTH2_SEED_PASSWORD");
+        }
+    }
+    let _guard = EnvCleanup;
+
+    std::env::set_var("OAUTH2_ALLOW_INSECURE_DEFAULTS", "1");
+
+    let result = validate_seed_password_for_production("changeme");
+    assert!(
+        result.is_ok(),
+        "insecure seed password must be allowed with OAUTH2_ALLOW_INSECURE_DEFAULTS=1"
+    );
 }

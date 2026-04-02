@@ -12,6 +12,26 @@ use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+/// The known-insecure default seed password shipped with the server.
+pub const INSECURE_DEFAULT_SEED_PASSWORD: &str = "changeme";
+
+/// Rejects the well-known insecure default seed password unless
+/// `OAUTH2_ALLOW_INSECURE_DEFAULTS=1` is set in the environment.
+pub fn validate_seed_password_for_production(password: &str) -> Result<(), String> {
+    if std::env::var("OAUTH2_ALLOW_INSECURE_DEFAULTS").as_deref() == Ok("1") {
+        return Ok(());
+    }
+    if password == INSECURE_DEFAULT_SEED_PASSWORD {
+        return Err(
+            "OAUTH2_SEED_PASSWORD must be explicitly set for production. \
+            Set it to a strong random password. \
+            Set OAUTH2_ALLOW_INSECURE_DEFAULTS=1 to suppress this in test environments."
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 #[derive(Clone, Copy)]
 struct OtelRootSpanBuilder;
 
@@ -125,9 +145,14 @@ pub async fn run() -> std::io::Result<()> {
         let seed_username =
             std::env::var("OAUTH2_SEED_USERNAME").unwrap_or_else(|_| "admin".to_string());
         let seed_password =
-            std::env::var("OAUTH2_SEED_PASSWORD").unwrap_or_else(|_| "changeme".to_string());
+            std::env::var("OAUTH2_SEED_PASSWORD").unwrap_or_else(|_| INSECURE_DEFAULT_SEED_PASSWORD.to_string());
         let seed_email =
             std::env::var("OAUTH2_SEED_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
+
+        validate_seed_password_for_production(&seed_password).map_err(|e| {
+            tracing::error!("{}", e);
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, e)
+        })?;
 
         match storage.get_user_by_username(&seed_username).await {
             Ok(None) => {
