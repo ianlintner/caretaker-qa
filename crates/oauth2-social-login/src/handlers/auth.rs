@@ -7,6 +7,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use oauth2_core::{OAuth2Error, User};
+use oauth2_core::utils::redirect::is_safe_redirect;
 use oauth2_ports::DynStorage;
 
 use crate::models::{SocialLoginConfig, SocialUserInfo};
@@ -214,21 +215,6 @@ pub async fn auth_callback(
     Ok(HttpResponse::Found()
         .append_header(("Location", redirect_url))
         .finish())
-}
-
-/// Validate that a redirect target is a safe relative path on this server.
-fn is_safe_redirect(url: &str) -> bool {
-    let url = url.trim();
-    if !url.starts_with('/') {
-        return false;
-    }
-    if url.starts_with("//") {
-        return false;
-    }
-    if url.starts_with("/\\") {
-        return false;
-    }
-    true
 }
 
 /// Look up a local user by the social username (e.g. "github:12345").

@@ -4,5 +4,6 @@
 //! fork the main `rust-oauth2-server` repository.
 
 pub mod models;
+pub mod utils;
 
 pub use models::*;

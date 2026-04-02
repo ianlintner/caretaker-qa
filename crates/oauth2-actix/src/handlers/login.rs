@@ -10,6 +10,7 @@ use actix_web::{web, HttpResponse};
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use serde::Deserialize;
 
+use oauth2_core::utils::redirect::is_safe_redirect;
 use oauth2_ports::DynStorage;
 
 /// Query parameters accepted by `GET /auth/login`.
@@ -175,25 +176,3 @@ fn html_escape(s: &str) -> String {
         .replace('\'', "&#x27;")
 }
 
-/// Validate that a redirect target is a safe relative path on this server.
-///
-/// Accepts only paths starting with `/` that are not `//` (protocol-relative),
-/// `/\` (backslash quirk), or any scheme-bearing string (`scheme:`).
-/// This prevents open-redirect attacks where `return_to` points to an
-/// external attacker-controlled site.
-pub fn is_safe_redirect(url: &str) -> bool {
-    let url = url.trim();
-    // Must start with a single forward-slash
-    if !url.starts_with('/') {
-        return false;
-    }
-    // Reject protocol-relative URLs like //evil.com
-    if url.starts_with("//") {
-        return false;
-    }
-    // Reject backslash quirk: /\evil.com
-    if url.starts_with("/\\") {
-        return false;
-    }
-    true
-}

@@ -1240,7 +1240,7 @@ async fn insecure_jwt_secret_is_rejected_without_opt_in() {
 
 #[actix_web::test]
 async fn open_redirect_validation_rejects_external_urls() {
-    use oauth2_actix::handlers::login::is_safe_redirect;
+    use oauth2_core::utils::redirect::is_safe_redirect;
 
     let safe = ["/profile", "/oauth/authorize?client_id=x", "/admin"];
     let unsafe_urls = [
@@ -1503,4 +1503,18 @@ async fn security_headers_present_on_responses() {
         Some("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:"),
         "Content-Security-Policy must allow CDN resources used by templates"
     );
+}
+
+// ── Task 4 (M-redirect-dedup) ──────────────────────────────────────────────
+
+#[actix_web::test]
+async fn is_safe_redirect_is_importable_from_oauth2_core() {
+    use oauth2_core::utils::redirect::is_safe_redirect;
+
+    assert!(is_safe_redirect("/oauth/authorize?response_type=code"));
+    assert!(is_safe_redirect("/profile"));
+    assert!(!is_safe_redirect("https://evil.example.com"));
+    assert!(!is_safe_redirect("//evil.example.com"));
+    assert!(!is_safe_redirect("/\\evil.example.com"));
+    assert!(!is_safe_redirect("javascript:alert(1)"));
 }
