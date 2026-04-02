@@ -65,19 +65,13 @@ nav:
       - Quick Start: getting-started/quickstart.md
       - Configuration: getting-started/configuration.md
       - Social Login Setup: getting-started/social-login-setup.md
-  - Guides:
+  - Using the Server:
       - OAuth2 Flows:
           - Authorization Code: flows/authorization-code.md
           - Client Credentials: flows/client-credentials.md
           - Password Grant: flows/password.md
           - Refresh Token: flows/refresh-token.md
-      - Eventing:
-          - Overview: eventing.md
-          - Examples: examples/eventing.md
-      - Examples & Cookbooks:
-          - Service-to-service (Introspection): examples/service-to-service.md
-  - Reference:
-      - API:
+      - API Reference:
           - Endpoints: api/endpoints.md
           - OpenAPI (Swagger UI): api/openapi.md
           - Authentication: api/authentication.md
@@ -86,24 +80,25 @@ nav:
           - Dashboard: admin/dashboard.md
           - Client Management: admin/clients.md
           - Token Management: admin/tokens.md
-  - Architecture:
-      - Overview: architecture/overview.md
-      - Actor Model: architecture/actors.md
-      - Database: architecture/database.md
-  - Observability:
-      - Metrics: observability/metrics.md
-      - SLOs: observability/slos.md
-      - Tracing: observability/tracing.md
-      - Logging: observability/logging.md
-      - Health Checks: observability/health.md
-  - Deployment:
+      - Eventing:
+          - Overview: eventing.md
+          - Examples: examples/eventing.md
+      - Cookbook:
+          - Service-to-Service: examples/service-to-service.md
+  - Deploying & Operating:
       - Docker Hub Image: deployment/dockerhub.md
       - Docker: deployment/docker.md
       - Kubernetes: deployment/kubernetes.md
-      - Production: deployment/production.md
-  - Operations:
+      - Production & Security: deployment/production.md
+      - Metrics: observability/metrics.md
+      - SLOs: observability/slos.md
+      - Tracing & Logging: observability/tracing-and-logging.md
+      - Health Checks: observability/health.md
       - Runbooks: operations/runbooks.md
   - Development:
+      - Architecture Overview: architecture/overview.md
+      - Actor Model: architecture/actors.md
+      - Database: architecture/database.md
       - Contributing: development/contributing.md
       - Testing: development/testing.md
       - CI/CD: development/cicd.md

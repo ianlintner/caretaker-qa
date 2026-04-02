@@ -1,17 +1,35 @@
 # Admin Dashboard
 
-The server includes a simple admin UI:
+## Accessing the Dashboard
 
-- `GET /admin`
+Navigate to `/admin` in your browser. The admin panel requires authentication via the `AdminGuard` middleware — unauthenticated requests are redirected to `/auth/login`.
 
-## What it shows
+You must be logged in with an admin-role account.
 
-Typical panels include:
+## Available Views
 
-- Request/latency metrics
-- Active tokens and clients (where available)
-- Basic health status
+The dashboard provides:
 
-## API endpoints
+- **Clients** — registered OAuth2 clients and their configuration
+- **Tokens** — active tokens, recent issuances, and revocation controls
+- **Users** — registered user accounts
 
-The admin UI also consumes JSON endpoints (implementation-specific). See [API Endpoints](../api/endpoints.md) for a full listing.
+## Admin API Endpoints
+
+The admin UI consumes these JSON endpoints (all require admin authentication):
+
+| Endpoint                          | Method   | Description            |
+| --------------------------------- | -------- | ---------------------- |
+| `/admin/api/dashboard`            | `GET`    | Dashboard summary data |
+| `/admin/api/clients`              | `GET`    | List all clients       |
+| `/admin/clients/register`         | `POST`   | Register a new client  |
+| `/admin/api/clients/{id}`         | `DELETE` | Delete a client        |
+| `/admin/api/tokens`               | `GET`    | List tokens            |
+| `/admin/api/tokens/{id}/revoke`   | `POST`   | Revoke a token         |
+| `/admin/api/users`                | `GET`    | List users             |
+
+## See Also
+
+- [Client Management](clients.md)
+- [Token Management](tokens.md)
+- [API Endpoints](../api/endpoints.md)

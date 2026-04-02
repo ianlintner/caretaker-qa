@@ -59,6 +59,9 @@ This guide walks you through setting up social login providers for the OAuth2 se
 
 ## Okta Setup
 
+!!! warning "Not Yet Implemented"
+    Okta social login is not yet fully implemented. The login endpoint currently returns HTTP 503. Configuration details are provided here for future use.
+
 1. Sign up for [Okta Developer Account](https://developer.okta.com/)
 2. Go to "Applications" > "Create App Integration"
 3. Select "OIDC - OpenID Connect"
@@ -77,6 +80,9 @@ This guide walks you through setting up social login providers for the OAuth2 se
    ```
 
 ## Auth0 Setup
+
+!!! warning "Not Yet Implemented"
+    Auth0 social login is not yet fully implemented. The login endpoint currently returns HTTP 503. Configuration details are provided here for future use.
 
 1. Sign up for [Auth0](https://auth0.com/)
 2. Go to "Applications" > "Create Application"

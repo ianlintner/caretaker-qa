@@ -187,7 +187,7 @@ rust_oauth2_server/
 
 ### Client Management
 
-- `POST /clients/register` - Register new client
+- `POST /admin/clients/register` - Register new client (admin auth required)
 
 ### Discovery
 

@@ -56,6 +56,74 @@ graph TB
 
 ## Security Configuration {#security}
 
+### Application Security Features
+
+The server includes several built-in security features that are active by default.
+
+#### Startup Validation
+
+The server validates critical security settings at startup and **aborts** if they are not met:
+
+- `validate_for_production()` — aborts if the JWT secret is the insecure default or fewer than 32 bytes
+- `validate_seed_password_for_production()` — aborts if `OAUTH2_SEED_PASSWORD` is `"changeme"`
+
+To bypass these checks during development:
+
+```bash
+export OAUTH2_ALLOW_INSECURE_DEFAULTS=1
+```
+
+!!! danger "Never set `OAUTH2_ALLOW_INSECURE_DEFAULTS` in production"
+    This flag exists solely for local development. The server intentionally refuses to start with weak secrets in production.
+
+#### HTTP Security Headers
+
+The following headers are applied to all responses via Actix-web `DefaultHeaders` middleware:
+
+| Header                    | Value                                              |
+| ------------------------- | -------------------------------------------------- |
+| `X-Frame-Options`         | `DENY`                                             |
+| `X-Content-Type-Options`  | `nosniff`                                          |
+| `Referrer-Policy`         | `no-referrer`                                      |
+| `Content-Security-Policy` | Configured to allow CDN resources used by templates |
+
+These are applied automatically — no configuration required.
+
+#### CORS Policy
+
+CORS is **fail-closed by default**: if `OAUTH2_ALLOWED_ORIGINS` is not set, all cross-origin requests are denied.
+
+```bash
+# Allow specific origins (comma-separated)
+export OAUTH2_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"
+```
+
+#### Open Redirect Prevention
+
+The `is_safe_redirect()` function validates all `return_to` query parameters. Only redirects to the server's own origin are allowed — external URLs are rejected.
+
+#### Session Security
+
+- **Session fixation prevention**: The session ID is renewed after successful login
+- **Secure cookie attributes**: In production, session cookies are marked `Secure` and `HttpOnly`
+- **Session key**: Must be a persistent 128 hex-character (64-byte) key in production
+
+#### Admin Authentication
+
+All `/admin/*` routes are protected by the `AdminGuard` middleware:
+
+- Unauthenticated requests are redirected to `/auth/login`
+- Only users with the admin role can access admin endpoints
+- This applies to both the admin UI and all `/admin/api/*` JSON endpoints
+
+#### JWT Secret Enforcement
+
+The JWT signing secret (`OAUTH2_JWT_SECRET`) must meet these requirements:
+
+- At least 32 characters long
+- Must not be the hardcoded insecure default value
+- The server refuses to start if either condition is violated
+
 ### 1. HTTPS/TLS
 
 **Always use HTTPS in production.**

@@ -166,8 +166,9 @@ See [Kubernetes README](k8s/README.md) and [Operations Runbooks](docs/operations
 
 **Using API:**
 ```bash
-curl -X POST http://localhost:8080/clients/register \
+curl -X POST http://localhost:8080/admin/clients/register \
   -H "Content-Type: application/json" \
+  -b "session_cookie=YOUR_ADMIN_SESSION" \
   -d '{
     "client_name": "My Application",
     "redirect_uris": ["http://localhost:3000/callback"],

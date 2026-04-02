@@ -66,21 +66,23 @@ cargo fmt && cargo clippy -- -D warnings && cargo test
 ### Project Structure
 
 ```
-rust_oauth2_server/
-├── src/
-│   ├── actors/          # Actor implementations
-│   ├── handlers/        # HTTP request handlers
-│   ├── models/          # Data models
-│   ├── middleware/      # Middleware components
-│   ├── services/        # Business logic
-│   ├── db/              # Database access
-│   ├── config/          # Configuration
-│   ├── metrics.rs       # Prometheus metrics
-│   └── main.rs          # Application entry point
-├── tests/               # Integration tests
-├── migrations/          # Database migrations
-├── docs/                # Documentation
-└── Cargo.toml           # Dependencies
+rust-oauth2-server/
+├── crates/
+│   ├── oauth2-core/           # Domain types, traits, ports
+│   ├── oauth2-ports/          # Port interfaces (storage, auth)
+│   ├── oauth2-config/         # Configuration and validation
+│   ├── oauth2-actix/          # Actix-web handlers, middleware
+│   ├── oauth2-server/         # Server assembly and startup
+│   ├── oauth2-storage-sqlx/   # SQLx storage adapter (SQLite/Postgres)
+│   ├── oauth2-storage-factory/# Storage factory
+│   ├── oauth2-observability/  # Metrics, tracing, health
+│   ├── oauth2-events/         # Event system (actors)
+│   └── oauth2-social-login/   # Social login providers
+├── tests/                     # Integration tests
+├── migrations/                # Flyway database migrations
+├── docs/                      # MkDocs documentation
+├── scripts/                   # Build and migration scripts
+└── Cargo.toml                 # Workspace root
 ```
 
 ### Writing Code

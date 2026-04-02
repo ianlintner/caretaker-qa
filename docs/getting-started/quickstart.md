@@ -30,8 +30,9 @@ cargo run --release
 Every application that wants to use your OAuth2 server needs to register as a client.
 
 ```bash
-curl -X POST http://localhost:8080/clients/register \
+curl -X POST http://localhost:8080/admin/clients/register \
   -H "Content-Type: application/json" \
+  -b "session_cookie=YOUR_ADMIN_SESSION" \
   -d '{
     "client_name": "My First App",
     "redirect_uris": ["http://localhost:3000/callback"],

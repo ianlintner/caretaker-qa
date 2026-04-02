@@ -95,16 +95,16 @@ All references to `POST /clients/register` must become `POST /admin/clients/regi
 
 ### Files to update
 
-| File | Location |
-|------|----------|
-| README.md | Lines 541, 611 |
-| docs/index.md | Lines 183, 296 |
-| docs/getting-started/quickstart.md | Line 33 |
-| docs/api/endpoints.md | Line 238 |
-| docs/admin/clients.md | Line 5 |
-| docs/examples/eventing.md | Line 72 |
-| SUMMARY.md | Line 190 |
-| AGENTIC_QUICKSTART.md | Line 169 |
+| File                               | Location       |
+| ---------------------------------- | -------------- |
+| README.md                          | Lines 541, 611 |
+| docs/index.md                      | Lines 183, 296 |
+| docs/getting-started/quickstart.md | Line 33        |
+| docs/api/endpoints.md              | Line 238       |
+| docs/admin/clients.md              | Line 5         |
+| docs/examples/eventing.md          | Line 72        |
+| SUMMARY.md                         | Line 190       |
+| AGENTIC_QUICKSTART.md              | Line 169       |
 
 All curl examples must include admin authentication (session cookie or equivalent).
 
@@ -159,15 +159,15 @@ All curl examples must include admin authentication (session cookie or equivalen
 
 Add to README endpoint list:
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET/POST /oauth/userinfo` | OpenID Connect UserInfo |
-| `GET /.well-known/jwks.json` | JSON Web Key Set |
-| `GET /profile` | User profile page |
-| `POST /auth/login` | Login form submission |
-| `POST /events/ingest` | Event ingestion |
-| `GET /events/health` | Event system health |
-| `/admin/api/*` routes | Admin API (dashboard, clients, tokens, users) |
+| Endpoint                     | Description                                   |
+| ---------------------------- | --------------------------------------------- |
+| `GET/POST /oauth/userinfo`   | OpenID Connect UserInfo                       |
+| `GET /.well-known/jwks.json` | JSON Web Key Set                              |
+| `GET /profile`               | User profile page                             |
+| `POST /auth/login`           | Login form submission                         |
+| `POST /events/ingest`        | Event ingestion                               |
+| `GET /events/health`         | Event system health                           |
+| `/admin/api/*` routes        | Admin API (dashboard, clients, tokens, users) |
 
 ---
 
@@ -228,15 +228,15 @@ Replace current Security bullets (README lines 102-111) with updated list includ
 
 Add to `docs/getting-started/configuration.md`:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OAUTH2_ALLOW_INSECURE_DEFAULTS` | Skip production validation (dev only) | unset |
-| `OAUTH2_SEED_PASSWORD` | Initial admin user password | "changeme" (aborts in prod) |
-| `OAUTH2_SEED_USERNAME` | Initial admin username | — |
-| `OAUTH2_SEED_EMAIL` | Initial admin email | — |
-| `OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM` | RS256 private key for id_token signing | — |
-| `OAUTH2_ID_TOKEN_KID` | Key ID for JWKS | — |
-| `OAUTH2_ID_TOKEN_ALG` | Signing algorithm (RS256/HS256) | HS256 |
+| Variable                          | Description                            | Default                     |
+| --------------------------------- | -------------------------------------- | --------------------------- |
+| `OAUTH2_ALLOW_INSECURE_DEFAULTS`  | Skip production validation (dev only)  | unset                       |
+| `OAUTH2_SEED_PASSWORD`            | Initial admin user password            | "changeme" (aborts in prod) |
+| `OAUTH2_SEED_USERNAME`            | Initial admin username                 | —                           |
+| `OAUTH2_SEED_EMAIL`               | Initial admin email                    | —                           |
+| `OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM` | RS256 private key for id_token signing | —                           |
+| `OAUTH2_ID_TOKEN_KID`             | Key ID for JWKS                        | —                           |
+| `OAUTH2_ID_TOKEN_ALG`             | Signing algorithm (RS256/HS256)        | HS256                       |
 
 ### 6d. Architecture overview update
 
@@ -249,6 +249,7 @@ Add security features to the feature list in `docs/architecture/overview.md`.
 Combine `docs/observability/tracing.md` and `docs/observability/logging.md` into `docs/observability/tracing-and-logging.md`.
 
 Structure:
+
 - Intro (both use `tracing` + `tracing-subscriber`)
 - Structured Logging section (from logging.md)
 - Distributed Tracing section (from tracing.md)
@@ -319,6 +320,7 @@ Expand the three admin stub pages with actual content:
 ### `docs/admin/dashboard.md` (currently 17 lines)
 
 Add:
+
 - How to access (`/admin`, requires admin role)
 - AdminGuard authentication requirement
 - Available dashboard views (clients, tokens, users)
@@ -327,6 +329,7 @@ Add:
 ### `docs/admin/clients.md` (currently 13 lines)
 
 Add:
+
 - Corrected endpoint: `POST /admin/clients/register`
 - Admin authentication requirement
 - Client registration request/response examples
@@ -335,6 +338,7 @@ Add:
 ### `docs/admin/tokens.md` (currently 15 lines)
 
 Add:
+
 - Token listing via admin API
 - Token revocation via `POST /admin/api/tokens/{id}/revoke`
 - Admin authentication requirement
@@ -343,18 +347,18 @@ Add:
 
 ## Summary of Changes
 
-| Category | Files affected | Type |
-|----------|---------------|------|
-| Nav restructure | mkdocs.yml | Edit |
-| Stale paths | 8 files | Edit |
-| Critical mismatches | 4 files | Edit |
-| Missing endpoints | README.md | Edit |
-| Missing metrics | README.md | Edit |
-| Security docs | production.md, configuration.md, overview.md, README.md | Edit + new content |
-| Tracing + logging merge | New file, nav update | New + edit |
-| README slimming | README.md | Major edit |
-| Index slimming | docs/index.md | Major edit |
-| Admin stubs | 3 files | Expand |
-| Contributing structure | contributing.md | Edit |
+| Category                | Files affected                                          | Type               |
+| ----------------------- | ------------------------------------------------------- | ------------------ |
+| Nav restructure         | mkdocs.yml                                              | Edit               |
+| Stale paths             | 8 files                                                 | Edit               |
+| Critical mismatches     | 4 files                                                 | Edit               |
+| Missing endpoints       | README.md                                               | Edit               |
+| Missing metrics         | README.md                                               | Edit               |
+| Security docs           | production.md, configuration.md, overview.md, README.md | Edit + new content |
+| Tracing + logging merge | New file, nav update                                    | New + edit         |
+| README slimming         | README.md                                               | Major edit         |
+| Index slimming          | docs/index.md                                           | Major edit         |
+| Admin stubs             | 3 files                                                 | Expand             |
+| Contributing structure  | contributing.md                                         | Edit               |
 
 Total: ~20 files touched, 1 new file created, 0 files deleted.

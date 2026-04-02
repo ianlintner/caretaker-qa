@@ -507,11 +507,17 @@ graph TD
 2. **Secure Token Storage**: Tokens hashed in database
 3. **Scope-Based Authorization**: Fine-grained access control
 4. **Token Revocation**: Immediate token invalidation
-5. **Session Security**: Secure, HTTP-only cookies
+5. **Session Security**: Secure HTTP-only cookies with session fixation prevention
 6. **Password Hashing**: Argon2 for password storage
 7. **SQL Injection Prevention**: Parameterized queries via SQLx
 8. **XSS Prevention**: Input sanitization and CSP headers
 9. **CSRF Protection**: State parameter validation
+10. **HTTP Security Headers**: X-Frame-Options, X-Content-Type-Options, Referrer-Policy, CSP
+11. **CORS Fail-Closed**: Denies all cross-origin requests unless explicitly configured
+12. **Open Redirect Prevention**: `is_safe_redirect()` validates `return_to` parameters
+13. **JWT Secret Enforcement**: Rejects insecure defaults and short secrets at startup
+14. **Startup Validation**: Aborts on insecure JWT secrets or default seed passwords
+15. **Admin Authentication**: `AdminGuard` middleware protects all `/admin/*` routes
 
 ## Performance Characteristics
 

@@ -69,8 +69,9 @@ cargo run
 ### 2. Register a client:
 
 ```bash
-curl -X POST http://localhost:8080/clients/register \
+curl -X POST http://localhost:8080/admin/clients/register \
   -H "Content-Type: application/json" \
+  -b "session_cookie=YOUR_ADMIN_SESSION" \
   -d '{
     "client_name": "Test Application",
     "redirect_uris": ["http://localhost:3000/callback"],

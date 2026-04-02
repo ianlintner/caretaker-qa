@@ -1,10 +1,6 @@
 # Rust OAuth2 Server
 
-Welcome to the comprehensive documentation for the Rust OAuth2 Server - a production-ready, high-performance OAuth2 authorization server built with Rust and Actix-web.
-
-## 🌟 What is Rust OAuth2 Server?
-
-The Rust OAuth2 Server is a complete OAuth2 implementation designed for modern cloud-native applications. It combines Rust's safety guarantees with the actor model for concurrent, fault-tolerant authentication and authorization services.
+Welcome to the documentation for the Rust OAuth2 Server — a production-ready, high-performance OAuth2 authorization server built with Rust and Actix-web.
 
 ```mermaid
 graph TB
@@ -43,53 +39,17 @@ graph TB
     style Tokens fill:#2196f3,color:#fff
 ```
 
-## 🚀 Features
+## Highlights
 
-- ✅ OAuth2 authorization server with secure defaults
-- 🎭 Actor model for concurrent request handling
-- 🔒 Type-safe Rust implementation
-- 📊 Prometheus metrics and OpenTelemetry tracing
-- 📚 OpenAPI documentation with Swagger UI
-- 🎨 Admin control panel
-- 🗄️ Flyway database migrations
-- 🐳 Docker and Kubernetes ready
+- **OAuth2 + OIDC** — Authorization Code (PKCE), Client Credentials, Refresh Token, Password Grant, Discovery, UserInfo, JWKS
+- **Secure by default** — JWT secret enforcement, startup validation, HTTP security headers, CORS fail-closed, open redirect prevention
+- **Actor model** — Concurrent, fault-tolerant request handling via Actix actors
+- **Observable** — Prometheus metrics, OpenTelemetry tracing, structured logging, health checks
+- **Cloud-native** — Docker, Kubernetes, stateless design, horizontal scaling
 
-## Architecture Overview
+## OAuth2 Flows
 
-```mermaid
-graph TB
-    Client[OAuth2 Client] -->|HTTP Request| Gateway[Actix Web Server]
-    Gateway --> Middleware[Middleware Layer]
-    Middleware --> Metrics[Metrics Middleware]
-    Middleware --> Auth[Auth Middleware]
-    Middleware --> Tracing[Tracing Middleware]
-
-    Metrics --> Prometheus[Prometheus Exporter]
-    Tracing --> OTLP[OpenTelemetry Collector]
-
-    Gateway --> Handlers[HTTP Handlers]
-    Handlers --> TokenHandler[Token Handler]
-    Handlers --> AuthHandler[Auth Handler]
-    Handlers --> ClientHandler[Client Handler]
-
-    TokenHandler --> TokenActor[Token Actor]
-    AuthHandler --> AuthActor[Auth Actor]
-    ClientHandler --> ClientActor[Client Actor]
-
-    TokenActor --> DB[(Database)]
-    AuthActor --> DB
-    ClientActor --> DB
-
-    style Client fill:#e1f5ff
-    style Gateway fill:#fff3e0
-    style DB fill:#f3e5f5
-    style Prometheus fill:#e8f5e9
-    style OTLP fill:#fff9c4
-```
-
-## OAuth2 Flows Supported
-
-### 1. Authorization Code Flow (with PKCE)
+### Authorization Code Flow (with PKCE)
 
 The most secure flow for web and mobile applications:
 
@@ -113,7 +73,7 @@ sequenceDiagram
 
 [Learn more →](flows/authorization-code.md)
 
-### 2. Client Credentials Flow
+### Client Credentials Flow
 
 For service-to-service authentication:
 
@@ -132,225 +92,47 @@ sequenceDiagram
 
 [Learn more →](flows/client-credentials.md)
 
-### 3. Refresh Token Flow
+### Refresh Token Flow
 
 !!! warning "Disabled by Default"
 The `refresh_token` grant is disabled by default (OAuth 2.0 Security BCP). Requests will be rejected with `unsupported_grant_type`.
 
-Obtain new access tokens without re-authentication:
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant OAuth2 as OAuth2 Server
-
-    Note over Client: Access token expired
-    Note right of Client: grant_type=refresh_token
-    Client->>OAuth2: POST /oauth/token
-    OAuth2->>Client: New access token
-```
-
-**When to use:** Extending user sessions, mobile apps
-
 [Learn more →](flows/refresh-token.md)
 
-### 4. Password Grant Flow
+### Password Grant Flow
 
 !!! warning "Disabled by Default"
-The Resource Owner Password Credentials (ROPC) grant (`password`) is disabled by default. Requests will be rejected with `unsupported_grant_type`.
+The Resource Owner Password Credentials (ROPC) grant is disabled by default.
 
 [Learn more →](flows/password.md)
 
 ## Quick Start
 
-### 1. Install and Setup
-
 ```bash
-# Clone the repository
 git clone https://github.com/ianlintner/rust_oauth2_server.git
 cd rust_oauth2_server
-
-# Run database migrations
 ./scripts/migrate.sh
-
-# Start the server
 cargo run
 ```
 
-### 2. Register Your First Client
+Register a client and get a token:
 
 ```bash
-curl -X POST http://localhost:8080/clients/register \
+# Register (requires admin session)
+curl -X POST http://localhost:8080/admin/clients/register \
   -H "Content-Type: application/json" \
-  -d '{
-    "client_name": "My App",
-    "redirect_uris": ["http://localhost:3000/callback"],
-    "grant_types": ["authorization_code"],
-    "scope": "read write"
-  }'
-```
+  -b "session_cookie=YOUR_ADMIN_SESSION" \
+  -d '{"client_name":"My App","redirect_uris":["http://localhost:3000/callback"],"grant_types":["authorization_code"],"scope":"read write"}'
 
-### 3. Get Access Token
-
-```bash
-# Client credentials flow example
+# Get token (client credentials)
 curl -X POST http://localhost:8080/oauth/token \
-  -d "grant_type=client_credentials" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET"
+  -d "grant_type=client_credentials&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET"
 ```
-
-## Documentation Structure
-
-### Getting Started
-
-- **[Installation](getting-started/installation.md)** - Set up the OAuth2 server
-- **[Quick Start](getting-started/quickstart.md)** - Your first OAuth2 flow
-- **[Configuration](getting-started/configuration.md)** - Complete configuration guide
-- **[Social Login Setup](getting-started/social-login-setup.md)** - Configure social providers
-
-### Architecture
-
-- **[Overview](architecture/overview.md)** - System architecture and design
-- **[Actor Model](architecture/actors.md)** - Actor-based concurrency
-- **[Database](architecture/database.md)** - Schema and data access patterns
-
-### OAuth2 Flows
-
-- **[Authorization Code](flows/authorization-code.md)** - Standard authorization flow
-- **[Client Credentials](flows/client-credentials.md)** - Service-to-service auth
-- **[Refresh Token](flows/refresh-token.md)** - Token refresh mechanism (disabled by default)
-- **[Password Grant](flows/password.md)** - Resource owner password credentials (disabled by default)
-
-### API Reference
-
-- **[Endpoints](api/endpoints.md)** - Complete API documentation
-- **[Authentication](api/authentication.md)** - Token usage and scopes
-- **[Error Handling](api/errors.md)** - Error responses and codes
-
-### Observability
-
-- **[Metrics](observability/metrics.md)** - Prometheus metrics
-- **[Tracing](observability/tracing.md)** - OpenTelemetry tracing
-- **[Logging](observability/logging.md)** - Structured logging
-- **[Health Checks](observability/health.md)** - Health and readiness endpoints
-
-### Admin Panel
-
-- **[Dashboard](admin/dashboard.md)** - Admin web interface
-- **[Client Management](admin/clients.md)** - Managing OAuth2 clients
-- **[Token Management](admin/tokens.md)** - Token administration
-
-### Deployment
-
-- **[Docker](deployment/docker.md)** - Container deployment
-- **[Kubernetes](deployment/kubernetes.md)** - K8s manifests
-- **[Production](deployment/production.md)** - Best practices and security
-
-### Development
-
-- **[Contributing](development/contributing.md)** - How to contribute
-- **[Testing](development/testing.md)** - Testing guide
-- **[CI/CD](development/cicd.md)** - Continuous integration
-
-## Key Features
-
-### 🔒 Security First
-
-- PKCE required for Authorization Code flow (`S256` only)
-- Secure token storage with hashing
-- Scope-based authorization
-- Token revocation support
-- CSRF protection
-- Rate limiting (planned)
-
-### ⚡ High Performance
-
-- Async I/O with Tokio
-- Actor-based concurrency
-- Connection pooling
-- Efficient request handling
-- Minimal memory footprint
-
-### 📊 Observable
-
-- Prometheus metrics
-- OpenTelemetry tracing
-- Structured JSON logging
-- Health check endpoints
-- Admin dashboard
-
-### 🌐 Cloud Native
-
-- Stateless design
-- Docker container support
-- Kubernetes ready
-- Horizontal scaling
-- Zero-downtime deployments
-
-## Example Usage
-
-### Register a Client
-
-```bash
-curl -X POST http://localhost:8080/clients/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "client_name": "My Application",
-    "redirect_uris": ["http://localhost:3000/callback"],
-    "grant_types": ["authorization_code"],
-    "scope": "read write"
-  }'
-```
-
-### Get Access Token
-
-```bash
-curl -X POST http://localhost:8080/oauth/token \
-  -d "grant_type=client_credentials" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET"
-```
-
-### Use Access Token
-
-```bash
-curl http://your-api.com/protected/resource \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-## Monitoring
-
-Access the admin dashboard at `http://localhost:8080/admin` to view:
-
-- Active tokens and clients
-- Request metrics and latency
-- System health status
-- Recent activity logs
-
-View Prometheus metrics at `http://localhost:8080/metrics`
-
-View Swagger UI at `http://localhost:8080/swagger-ui`
-
-## Support and Community
-
-- **Documentation**: You're reading it!
-- **Issues**: [GitHub Issues](https://github.com/ianlintner/rust_oauth2_server/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/ianlintner/rust_oauth2_server/discussions)
-- **Source Code**: [GitHub Repository](https://github.com/ianlintner/rust_oauth2_server)
 
 ## Next Steps
 
-1. **[Install the server](getting-started/installation.md)** - Get up and running
-2. **[Follow the quick start](getting-started/quickstart.md)** - Complete your first flow
-3. **[Explore OAuth2 flows](flows/authorization-code.md)** - Understand the protocols
-4. **[Configure for production](deployment/production.md)** - Deploy securely
-5. **[Set up monitoring](observability/metrics.md)** - Track performance
-
-## License
-
-This project is dual-licensed under MIT OR Apache-2.0.
-
----
-
-**Ready to get started?** Head over to the [Installation Guide](getting-started/installation.md)!
+1. **[Install the server](getting-started/installation.md)** — Prerequisites and setup
+2. **[Quick start guide](getting-started/quickstart.md)** — Complete your first OAuth2 flow
+3. **[Configuration](getting-started/configuration.md)** — Environment variables, social login, OIDC
+4. **[API reference](api/endpoints.md)** — All endpoints and error codes
+5. **[Deploy to production](deployment/production.md)** — Docker, Kubernetes, security hardening
