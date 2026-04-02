@@ -144,8 +144,8 @@ pub async fn run() -> std::io::Result<()> {
 
         let seed_username =
             std::env::var("OAUTH2_SEED_USERNAME").unwrap_or_else(|_| "admin".to_string());
-        let seed_password =
-            std::env::var("OAUTH2_SEED_PASSWORD").unwrap_or_else(|_| INSECURE_DEFAULT_SEED_PASSWORD.to_string());
+        let seed_password = std::env::var("OAUTH2_SEED_PASSWORD")
+            .unwrap_or_else(|_| INSECURE_DEFAULT_SEED_PASSWORD.to_string());
         let seed_email =
             std::env::var("OAUTH2_SEED_EMAIL").unwrap_or_else(|_| "admin@example.com".to_string());
 

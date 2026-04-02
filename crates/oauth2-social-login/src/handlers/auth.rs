@@ -6,8 +6,8 @@ use oauth2::{
 use serde::Deserialize;
 use std::sync::Arc;
 
-use oauth2_core::{OAuth2Error, User};
 use oauth2_core::utils::redirect::is_safe_redirect;
+use oauth2_core::{OAuth2Error, User};
 use oauth2_ports::DynStorage;
 
 use crate::models::{SocialLoginConfig, SocialUserInfo};
@@ -141,7 +141,9 @@ pub async fn auth_callback(
             // CSRF check passed — continue
         }
         (None, _) => {
-            return Err(OAuth2Error::access_denied("CSRF state parameter is required"));
+            return Err(OAuth2Error::access_denied(
+                "CSRF state parameter is required",
+            ));
         }
         _ => {
             return Err(OAuth2Error::access_denied("CSRF token mismatch"));

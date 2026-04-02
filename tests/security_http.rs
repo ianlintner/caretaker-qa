@@ -1173,8 +1173,8 @@ async fn pkce_rejects_short_verifier() {
 
 #[actix_web::test]
 async fn admin_check_requires_role_not_username() {
-    use oauth2_core::User;
     use chrono::Utc;
+    use oauth2_core::User;
 
     // A user named "admin" with role "user" must NOT be admin
     let impersonator = User {
@@ -1187,7 +1187,10 @@ async fn admin_check_requires_role_not_username() {
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    assert!(!impersonator.is_admin(), "username='admin' with role='user' must not grant admin");
+    assert!(
+        !impersonator.is_admin(),
+        "username='admin' with role='user' must not grant admin"
+    );
 
     // A user with role "admin" but a different username MUST be admin
     let real_admin = User {
@@ -1200,7 +1203,10 @@ async fn admin_check_requires_role_not_username() {
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    assert!(real_admin.is_admin(), "role='admin' must grant admin regardless of username");
+    assert!(
+        real_admin.is_admin(),
+        "role='admin' must grant admin regardless of username"
+    );
 }
 
 #[actix_web::test]
@@ -1224,7 +1230,10 @@ async fn insecure_jwt_secret_is_rejected_without_opt_in() {
     config.jwt.secret = INSECURE_DEFAULT_JWT_SECRET.to_string();
 
     let result = config.validate_for_production();
-    assert!(result.is_err(), "insecure secret must fail validation without opt-in");
+    assert!(
+        result.is_err(),
+        "insecure secret must fail validation without opt-in"
+    );
     assert!(
         result.unwrap_err().contains("OAUTH2_JWT_SECRET"),
         "error must reference OAUTH2_JWT_SECRET"
@@ -1285,10 +1294,7 @@ async fn client_registration_requires_admin_session() {
             .service(
                 web::scope("/admin")
                     .wrap(AdminGuard)
-                    .route(
-                        "/clients/register",
-                        web::post().to(register_client),
-                    ),
+                    .route("/clients/register", web::post().to(register_client)),
             ),
     )
     .await;
@@ -1308,8 +1314,14 @@ async fn client_registration_requires_admin_session() {
 
     // AdminGuard redirects unauthenticated users to /auth/login (302).
     // It must never return 201 Created.
-    assert_ne!(status, 201, "unauthenticated client registration must be rejected, got {status}");
-    assert_eq!(status, 302, "unauthenticated request should redirect to login, got {status}");
+    assert_ne!(
+        status, 201,
+        "unauthenticated client registration must be rejected, got {status}"
+    );
+    assert_eq!(
+        status, 302,
+        "unauthenticated request should redirect to login, got {status}"
+    );
 }
 
 #[actix_web::test]
@@ -1428,7 +1440,7 @@ async fn seed_password_changeme_is_allowed_with_insecure_defaults_flag() {
 
 #[actix_web::test]
 async fn login_renews_session_id_after_successful_authentication() {
-    use actix_session::{SessionMiddleware, storage::CookieSessionStore};
+    use actix_session::{storage::CookieSessionStore, SessionMiddleware};
     use actix_web::cookie::Key;
 
     let secret_key = Key::generate();
@@ -1452,9 +1464,7 @@ async fn login_renews_session_id_after_successful_authentication() {
     )
     .await;
 
-    let req = test::TestRequest::post()
-        .uri("/auth/login")
-        .to_request();
+    let req = test::TestRequest::post().uri("/auth/login").to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 302);
     assert!(
@@ -1484,17 +1494,23 @@ async fn security_headers_present_on_responses() {
     let resp = test::call_service(&app, req).await;
 
     assert_eq!(
-        resp.headers().get("x-frame-options").and_then(|v| v.to_str().ok()),
+        resp.headers()
+            .get("x-frame-options")
+            .and_then(|v| v.to_str().ok()),
         Some("DENY"),
         "X-Frame-Options: DENY must be present"
     );
     assert_eq!(
-        resp.headers().get("x-content-type-options").and_then(|v| v.to_str().ok()),
+        resp.headers()
+            .get("x-content-type-options")
+            .and_then(|v| v.to_str().ok()),
         Some("nosniff"),
         "X-Content-Type-Options: nosniff must be present"
     );
     assert_eq!(
-        resp.headers().get("referrer-policy").and_then(|v| v.to_str().ok()),
+        resp.headers()
+            .get("referrer-policy")
+            .and_then(|v| v.to_str().ok()),
         Some("no-referrer"),
         "Referrer-Policy: no-referrer must be present"
     );

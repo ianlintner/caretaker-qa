@@ -34,7 +34,9 @@ mod tests {
     fn safe_relative_paths_are_accepted() {
         assert!(is_safe_redirect("/"));
         assert!(is_safe_redirect("/profile"));
-        assert!(is_safe_redirect("/oauth/authorize?response_type=code&client_id=x"));
+        assert!(is_safe_redirect(
+            "/oauth/authorize?response_type=code&client_id=x"
+        ));
     }
 
     #[test]

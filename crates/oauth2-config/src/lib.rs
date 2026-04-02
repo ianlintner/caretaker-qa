@@ -423,12 +423,10 @@ impl Config {
 
         // Check JWT secret is not the default
         if self.jwt.secret == INSECURE_DEFAULT_JWT_SECRET {
-            return Err(
-                "OAUTH2_JWT_SECRET must be explicitly set for production. \
+            return Err("OAUTH2_JWT_SECRET must be explicitly set for production. \
                 Generate a secure random string (minimum 32 characters). \
                 Set OAUTH2_ALLOW_INSECURE_DEFAULTS=1 to suppress this in test environments."
-                    .to_string(),
-            );
+                .to_string());
         }
 
         // Check JWT secret length (measured in bytes, which is correct for HMAC keys)
