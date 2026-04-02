@@ -486,7 +486,7 @@ pub async fn run() -> std::io::Result<()> {
                     .add(("X-Frame-Options", "DENY"))
                     .add(("X-Content-Type-Options", "nosniff"))
                     .add(("Referrer-Policy", "no-referrer"))
-                    .add(("Content-Security-Policy", "default-src 'self'")),
+                    .add(("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:")),
             )
             // Shared state
             .app_data(web::Data::new(token_actor.clone()))

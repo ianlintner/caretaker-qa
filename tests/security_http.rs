@@ -1474,7 +1474,7 @@ async fn security_headers_present_on_responses() {
                     .add(("X-Frame-Options", "DENY"))
                     .add(("X-Content-Type-Options", "nosniff"))
                     .add(("Referrer-Policy", "no-referrer"))
-                    .add(("Content-Security-Policy", "default-src 'self'")),
+                    .add(("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:")),
             )
             .route("/", web::get().to(|| async { HttpResponse::Ok().finish() })),
     )
@@ -1500,7 +1500,7 @@ async fn security_headers_present_on_responses() {
     );
     assert_eq!(
         resp.headers().get("content-security-policy").and_then(|v| v.to_str().ok()),
-        Some("default-src 'self'"),
-        "Content-Security-Policy: default-src 'self' must be present"
+        Some("default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:"),
+        "Content-Security-Policy must allow CDN resources used by templates"
     );
 }
