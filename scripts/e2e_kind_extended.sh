@@ -318,15 +318,39 @@ curl -fsS "${RS_URL}/public" >/dev/null
 
 echo "==> Authenticating as seed admin"
 COOKIE_JAR="/tmp/e2e-cookies.txt"
-curl -fsS -X POST "${BASE_URL}/auth/login" \
+LOGIN_HEADERS="/tmp/e2e-login-headers.txt"
+redirect_target=""
+if ! login_status=$(curl -sS -X POST "${BASE_URL}/auth/login" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "username=${OAUTH2_SEED_USERNAME:-admin}" \
   --data-urlencode "password=${OAUTH2_SEED_PASSWORD:-changeme}" \
   -c "${COOKIE_JAR}" \
-  -o /dev/null
+  -D "${LOGIN_HEADERS}" \
+  -o /dev/null \
+  -w '%{http_code}'); then
+  echo "Admin login request failed before an HTTP response was received." >&2
+  _diag
+  exit 1
+fi
+
+if [[ -f "${LOGIN_HEADERS}" ]]; then
+  redirect_target=$(awk 'BEGIN { IGNORECASE = 1 } /^Location:/ { sub(/\r$/, "", $0); sub(/^Location:[[:space:]]*/, "", $0); print; exit }' "${LOGIN_HEADERS}")
+fi
+
+if [[ "${login_status}" != "302" ]]; then
+  echo "Admin login failed: expected HTTP 302, got ${login_status}." >&2
+  if [[ -n "${redirect_target}" ]]; then
+    echo "Login redirect target: ${redirect_target}" >&2
+  fi
+  _diag
+  exit 1
+fi
 
 if ! awk 'NF && $1 !~ /^#/' "${COOKIE_JAR}" | grep -q .; then
-  echo "Admin login did not produce a session cookie." >&2
+  echo "Admin login did not produce a session cookie (HTTP ${login_status})." >&2
+  if [[ -n "${redirect_target}" ]]; then
+    echo "Login redirect target: ${redirect_target}" >&2
+  fi
   _diag
   exit 1
 fi
