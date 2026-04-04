@@ -3707,9 +3707,11 @@ name = "oauth2-core"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "aes-gcm",
  "base64 0.22.1",
  "chrono",
  "jsonwebtoken",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2",
@@ -3795,6 +3797,7 @@ dependencies = [
  "actix-files",
  "actix-session",
  "actix-web",
+ "chrono",
  "env_logger",
  "hex",
  "oauth2-actix",
@@ -3807,6 +3810,7 @@ dependencies = [
  "oauth2-social-login",
  "oauth2-storage-factory",
  "serde_json",
+ "tokio",
  "tracing",
  "tracing-actix-web",
  "utoipa",

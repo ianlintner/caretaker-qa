@@ -475,20 +475,17 @@ pub async fn run() -> std::io::Result<()> {
             expires_at: None,
         });
 
-        // Seed RS256 key if configured
-        if let Ok(pem) = std::env::var("OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM") {
-            if !pem.trim().is_empty() {
-                let kid = std::env::var("OAUTH2_ID_TOKEN_KID")
-                    .unwrap_or_else(|_| "rs256-initial".to_string());
-                ks.add(SigningKey {
-                    kid,
-                    algorithm: KeyAlgorithm::RS256,
-                    key_material: pem.into_bytes(),
-                    is_current: true,
-                    created_at: chrono::Utc::now(),
-                    expires_at: None,
-                });
-            }
+        // Seed RS256 key if configured (reuse already-parsed PEM with \n handling)
+        if let Some(ref pem) = id_token_private_key_pem {
+            let kid = id_token_kid.clone().unwrap_or_else(|| "rs256-initial".to_string());
+            ks.add(SigningKey {
+                kid,
+                algorithm: KeyAlgorithm::RS256,
+                key_material: pem.as_bytes().to_vec(),
+                is_current: true,
+                created_at: chrono::Utc::now(),
+                expires_at: None,
+            });
         }
 
         Arc::new(RwLock::new(ks))
@@ -505,7 +502,7 @@ pub async fn run() -> std::io::Result<()> {
     tracing::info!("Metrics endpoint at http://{}/metrics", bind_addr);
 
     let server_config = config.server.clone();
-    let key_rotation_grace_hours = config.jwt.key_rotation_grace_hours;
+    let key_rotation_grace_hours = oauth2_actix::handlers::admin_keys::KeyRotationGraceHours(config.jwt.key_rotation_grace_hours);
 
     // Start HTTP server
     let server = HttpServer::new(move || {

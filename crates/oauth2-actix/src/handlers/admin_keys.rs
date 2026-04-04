@@ -11,6 +11,10 @@ use tokio::sync::RwLock;
 
 use oauth2_core::models::key_set::{Algorithm, KeySet, SigningKey};
 
+/// Newtype for key rotation grace period to avoid `web::Data<u64>` collisions.
+#[derive(Clone, Copy)]
+pub struct KeyRotationGraceHours(pub u64);
+
 /// Request body for `POST /admin/api/keys/rotate`.
 #[derive(Debug, Deserialize)]
 pub struct RotateRequest {
@@ -24,12 +28,11 @@ pub struct RotateRequest {
 ///
 /// Generates new key material, inserts it as the current key,
 /// and sets old keys of the same algorithm to expire after the grace period.
-/// Persists all changes to the signing_keys table.
+/// Note: changes are in-memory only; DB persistence is not yet implemented.
 pub async fn rotate_key(
     keyset: web::Data<Arc<RwLock<KeySet>>>,
     body: web::Json<RotateRequest>,
-    grace_hours: web::Data<u64>, // injected from config
-    _jwt_secret: web::Data<String>, // for encrypting key material (used during DB persistence)
+    grace_hours: web::Data<KeyRotationGraceHours>,
 ) -> Result<HttpResponse> {
     let algorithm = if let Some(ref alg_str) = body.algorithm {
         alg_str
@@ -45,7 +48,7 @@ pub async fn rotate_key(
         alg
     };
 
-    let grace_period_hours = body.grace_period_hours.unwrap_or(**grace_hours);
+    let grace_period_hours = body.grace_period_hours.unwrap_or(grace_hours.0);
     let grace_period = Duration::from_secs(grace_period_hours * 3600);
 
     let timestamp = Utc::now().timestamp();
