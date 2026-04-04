@@ -8,9 +8,9 @@ The server uses the [`tracing`](https://docs.rs/tracing) crate for both structur
 
 Logs can be emitted in structured JSON format (recommended for production) or pretty-printed for development.
 
-| Variable            | Type   | Default | Description                 |
-| ------------------- | ------ | ------- | --------------------------- |
-| `RUST_LOG`          | String | `info`  | Log level filter            |
+| Variable            | Type   | Default | Description                  |
+| ------------------- | ------ | ------- | ---------------------------- |
+| `RUST_LOG`          | String | `info`  | Log level filter             |
 | `OAUTH2_LOG_FORMAT` | String | `json`  | Log format (`json`/`pretty`) |
 
 ### Filtering
@@ -37,12 +37,12 @@ The server supports distributed tracing via OpenTelemetry.
 
 ### OTLP export
 
-| Variable                      | Type    | Default                 | Description                      |
-| ----------------------------- | ------- | ----------------------- | -------------------------------- |
-| `OAUTH2_OTLP_ENDPOINT`        | String  | `http://localhost:4317` | OTLP gRPC endpoint               |
+| Variable                      | Type    | Default                 | Description                          |
+| ----------------------------- | ------- | ----------------------- | ------------------------------------ |
+| `OAUTH2_OTLP_ENDPOINT`        | String  | `http://localhost:4317` | OTLP gRPC endpoint                   |
 | `OAUTH2_OTLP_PROTOCOL`        | String  | `grpc`                  | Protocol (`grpc` or `http/protobuf`) |
-| `OAUTH2_OTLP_TRACES_ENABLED`  | Boolean | `true`                  | Enable trace export              |
-| `OAUTH2_OTLP_METRICS_ENABLED` | Boolean | `true`                  | Enable metrics export            |
+| `OAUTH2_OTLP_TRACES_ENABLED`  | Boolean | `true`                  | Enable trace export                  |
+| `OAUTH2_OTLP_METRICS_ENABLED` | Boolean | `true`                  | Enable metrics export                |
 
 A common local setup is Jaeger all-in-one:
 

@@ -123,11 +123,11 @@ export OAUTH2_AUTHORIZATION_CODE_EXPIRATION=600
 
 ### Session Configuration
 
-| Variable                 | Type    | Default        | Description                           |
-| ------------------------ | ------- | -------------- | ------------------------------------- |
+| Variable                 | Type    | Default        | Description                                                         |
+| ------------------------ | ------- | -------------- | ------------------------------------------------------------------- |
 | `OAUTH2_SESSION_KEY`     | String  | Auto-generated | Session encryption key (128 hex characters / 64 bytes, hex-encoded) |
-| `OAUTH2_SESSION_TIMEOUT` | Integer | `3600`         | Session timeout (seconds)             |
-| `OAUTH2_SESSION_SECURE`  | Boolean | `false`        | Require HTTPS for cookies             |
+| `OAUTH2_SESSION_TIMEOUT` | Integer | `3600`         | Session timeout (seconds)                                           |
+| `OAUTH2_SESSION_SECURE`  | Boolean | `false`        | Require HTTPS for cookies                                           |
 
 !!! warning "Production Requirement"
 In production, `OAUTH2_SESSION_KEY` must be set to a persistent value. Auto-generated keys will invalidate all sessions on server restart.
@@ -253,25 +253,25 @@ export OAUTH2_LOG_FORMAT=pretty
 
 ### Security & Startup Validation
 
-| Variable                         | Type   | Default   | Description                                                                                     |
-| -------------------------------- | ------ | --------- | ----------------------------------------------------------------------------------------------- |
+| Variable                         | Type   | Default   | Description                                                                                                    |
+| -------------------------------- | ------ | --------- | -------------------------------------------------------------------------------------------------------------- |
 | `OAUTH2_ALLOW_INSECURE_DEFAULTS` | String | _(unset)_ | Set to `1` to skip JWT-secret and seed-password safety checks. **Development only — never set in production.** |
 
 !!! danger "Development Only"
-    When `OAUTH2_ALLOW_INSECURE_DEFAULTS=1` the server will **not** abort on an insecure JWT secret or the default seed password (`changeme`). This flag exists solely for local development.
+When `OAUTH2_ALLOW_INSECURE_DEFAULTS=1` the server will **not** abort on an insecure JWT secret or the default seed password (`changeme`). This flag exists solely for local development.
 
 ### Admin Seed User
 
 On first startup the server creates an initial admin account if no user with the given username exists.
 
-| Variable               | Type   | Default              | Description                                                                |
-| ---------------------- | ------ | -------------------- | -------------------------------------------------------------------------- |
-| `OAUTH2_SEED_USERNAME` | String | `admin`              | Username for the initial admin account                                     |
-| `OAUTH2_SEED_PASSWORD` | String | `changeme`           | Password for the initial admin account — **must be changed in production** |
-| `OAUTH2_SEED_EMAIL`    | String | `admin@example.com`  | Email for the initial admin account                                        |
+| Variable               | Type   | Default             | Description                                                                |
+| ---------------------- | ------ | ------------------- | -------------------------------------------------------------------------- |
+| `OAUTH2_SEED_USERNAME` | String | `admin`             | Username for the initial admin account                                     |
+| `OAUTH2_SEED_PASSWORD` | String | `changeme`          | Password for the initial admin account — **must be changed in production** |
+| `OAUTH2_SEED_EMAIL`    | String | `admin@example.com` | Email for the initial admin account                                        |
 
 !!! danger "Change the default password"
-    The server aborts at startup if `OAUTH2_SEED_PASSWORD` is still `changeme` unless `OAUTH2_ALLOW_INSECURE_DEFAULTS=1` is set.
+The server aborts at startup if `OAUTH2_SEED_PASSWORD` is still `changeme` unless `OAUTH2_ALLOW_INSECURE_DEFAULTS=1` is set.
 
 **Example:**
 
@@ -285,11 +285,11 @@ export OAUTH2_SEED_EMAIL=admin@company.com
 
 These settings control OpenID Connect id_token signing and the JWKS endpoint.
 
-| Variable                          | Type   | Default                                           | Description                                        |
-| --------------------------------- | ------ | ------------------------------------------------- | -------------------------------------------------- |
-| `OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM` | String | _(unset)_                                         | RSA private key (PEM) for RS256 id_token signing   |
-| `OAUTH2_ID_TOKEN_KID`            | String | _(unset)_                                         | Key ID published in the JWKS endpoint              |
-| `OAUTH2_ID_TOKEN_ALG`            | String | `RS256` if PEM key is set, otherwise `HS256`      | Signing algorithm (`RS256` or `HS256`)             |
+| Variable                          | Type   | Default                                      | Description                                      |
+| --------------------------------- | ------ | -------------------------------------------- | ------------------------------------------------ |
+| `OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM` | String | _(unset)_                                    | RSA private key (PEM) for RS256 id_token signing |
+| `OAUTH2_ID_TOKEN_KID`             | String | _(unset)_                                    | Key ID published in the JWKS endpoint            |
+| `OAUTH2_ID_TOKEN_ALG`             | String | `RS256` if PEM key is set, otherwise `HS256` | Signing algorithm (`RS256` or `HS256`)           |
 
 When no PEM key is provided, id_tokens are signed with HS256 using `OAUTH2_JWT_SECRET` and the JWKS endpoint returns an empty key set.
 
@@ -303,15 +303,15 @@ export OAUTH2_ID_TOKEN_ALG=RS256
 
 ### CORS Configuration
 
-| Variable                     | Type    | Default                       | Description                             |
-| ---------------------------- | ------- | ----------------------------- | --------------------------------------- |
-| `OAUTH2_ALLOWED_ORIGINS`     | String  | _(empty — deny all)_         | Comma-separated list of allowed origins |
+| Variable                      | Type    | Default                       | Description                             |
+| ----------------------------- | ------- | ----------------------------- | --------------------------------------- |
+| `OAUTH2_ALLOWED_ORIGINS`      | String  | _(empty — deny all)_          | Comma-separated list of allowed origins |
 | `OAUTH2_CORS_ALLOWED_METHODS` | String  | `GET,POST,PUT,DELETE,OPTIONS` | Allowed HTTP methods                    |
 | `OAUTH2_CORS_ALLOWED_HEADERS` | String  | `*`                           | Allowed headers                         |
 | `OAUTH2_CORS_MAX_AGE`         | Integer | `3600`                        | Preflight cache duration (seconds)      |
 
 !!! warning "Fail-Closed Default"
-    CORS is denied by default. If `OAUTH2_ALLOWED_ORIGINS` is not set, all cross-origin requests are rejected.
+CORS is denied by default. If `OAUTH2_ALLOWED_ORIGINS` is not set, all cross-origin requests are rejected.
 
 **Example:**
 
@@ -580,24 +580,20 @@ export OAUTH2_RATE_LIMIT_BURST=10
 ## Best Practices
 
 1. **Never commit secrets to version control**
-
    - Use `.gitignore` for `.env` files
    - Use secret management services in production
 
 2. **Use strong secrets**
-
    - Generate cryptographically random secrets
    - Use minimum recommended lengths
    - Rotate secrets periodically
 
 3. **Environment-specific configuration**
-
    - Separate dev, staging, and production configs
    - Use different secrets for each environment
    - Document required variables
 
 4. **Database configuration**
-
    - Use PostgreSQL in production
    - Configure appropriate connection pools
    - Enable SSL for database connections

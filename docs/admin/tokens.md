@@ -8,20 +8,20 @@ All token management endpoints require admin authentication via the `AdminGuard`
 
 These endpoints are available to all authenticated clients:
 
-| Endpoint              | Method | Description                 |
-| --------------------- | ------ | --------------------------- |
-| `/oauth/token`        | `POST` | Issue a new token           |
-| `/oauth/introspect`   | `POST` | Introspect (validate) token |
-| `/oauth/revoke`       | `POST` | Revoke a token              |
+| Endpoint            | Method | Description                 |
+| ------------------- | ------ | --------------------------- |
+| `/oauth/token`      | `POST` | Issue a new token           |
+| `/oauth/introspect` | `POST` | Introspect (validate) token |
+| `/oauth/revoke`     | `POST` | Revoke a token              |
 
 ## Admin Token Endpoints
 
 These endpoints are restricted to admin users:
 
-| Endpoint                        | Method | Description        |
-| ------------------------------- | ------ | ------------------ |
-| `/admin/api/tokens`             | `GET`  | List all tokens    |
-| `/admin/api/tokens/{id}/revoke` | `POST` | Revoke a token     |
+| Endpoint                        | Method | Description     |
+| ------------------------------- | ------ | --------------- |
+| `/admin/api/tokens`             | `GET`  | List all tokens |
+| `/admin/api/tokens/{id}/revoke` | `POST` | Revoke a token  |
 
 ### List Tokens
 

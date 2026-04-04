@@ -18,15 +18,15 @@ The dashboard provides:
 
 The admin UI consumes these JSON endpoints (all require admin authentication):
 
-| Endpoint                          | Method   | Description            |
-| --------------------------------- | -------- | ---------------------- |
-| `/admin/api/dashboard`            | `GET`    | Dashboard summary data |
-| `/admin/api/clients`              | `GET`    | List all clients       |
-| `/admin/clients/register`         | `POST`   | Register a new client  |
-| `/admin/api/clients/{id}`         | `DELETE` | Delete a client        |
-| `/admin/api/tokens`               | `GET`    | List tokens            |
-| `/admin/api/tokens/{id}/revoke`   | `POST`   | Revoke a token         |
-| `/admin/api/users`                | `GET`    | List users             |
+| Endpoint                        | Method   | Description            |
+| ------------------------------- | -------- | ---------------------- |
+| `/admin/api/dashboard`          | `GET`    | Dashboard summary data |
+| `/admin/api/clients`            | `GET`    | List all clients       |
+| `/admin/clients/register`       | `POST`   | Register a new client  |
+| `/admin/api/clients/{id}`       | `DELETE` | Delete a client        |
+| `/admin/api/tokens`             | `GET`    | List tokens            |
+| `/admin/api/tokens/{id}/revoke` | `POST`   | Revoke a token         |
+| `/admin/api/users`              | `GET`    | List users             |
 
 ## See Also
 

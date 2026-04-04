@@ -60,6 +60,7 @@ Configure your AI assistant (e.g., Claude Desktop) to use the MCP server for OAu
 ### First Time Setup
 
 1. **Clone and Build**
+
    ```bash
    git clone https://github.com/ianlintner/rust_oauth2_server.git
    cd rust_oauth2_server
@@ -67,11 +68,13 @@ Configure your AI assistant (e.g., Claude Desktop) to use the MCP server for OAu
    ```
 
 2. **Run Database Migrations**
+
    ```bash
    ./scripts/migrate.sh
    ```
 
 3. **Start the Server**
+
    ```bash
    export OAUTH2_JWT_SECRET="your-secret-key-at-least-32-characters-long"
    cargo run
@@ -85,6 +88,7 @@ Configure your AI assistant (e.g., Claude Desktop) to use the MCP server for OAu
 ### Development Workflow
 
 1. **Create a Feature Branch**
+
    ```bash
    git checkout -b feature/my-feature
    ```
@@ -95,12 +99,14 @@ Configure your AI assistant (e.g., Claude Desktop) to use the MCP server for OAu
    - Run tests frequently: `cargo test`
 
 3. **Lint and Format**
+
    ```bash
    cargo fmt
    cargo clippy
    ```
 
 4. **Commit and Push**
+
    ```bash
    git add .
    git commit -m "Description of changes"
@@ -123,11 +129,13 @@ For repeatable end-to-end testing that matches CI (KIND + Postgres + Flyway + re
 ```
 
 Notes:
+
 - Uses `kubectl port-forward` to avoid host port conflicts.
 - Builds the container image via `Dockerfile` (Linux build) so it works on macOS.
 - Cleans up the namespace and cluster by default (set `--keep-cluster` / `--keep-namespace` to debug).
 
 1. **Install KIND**
+
    ```bash
    curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
    chmod +x ./kind
@@ -135,17 +143,20 @@ Notes:
    ```
 
 2. **Create Cluster**
+
    ```bash
    kind create cluster --name oauth2-test
    ```
 
 3. **Build and Load Image**
+
    ```bash
    docker build -t docker.io/ianlintner068/oauth2-server:test .
    kind load docker-image docker.io/ianlintner068/oauth2-server:test --name oauth2-test
    ```
 
 4. **Deploy**
+
    ```bash
    kubectl apply -k k8s/base
    ```
@@ -165,6 +176,7 @@ See [Kubernetes README](k8s/README.md) and [Operations Runbooks](docs/operations
 ### Register a New OAuth2 Client
 
 **Using API:**
+
 ```bash
 curl -X POST http://localhost:8080/admin/clients/register \
   -H "Content-Type: application/json" \
@@ -178,11 +190,13 @@ curl -X POST http://localhost:8080/admin/clients/register \
 ```
 
 **Using MCP Server (via AI):**
+
 > "Register a new OAuth2 client called 'My Application' with redirect URI http://localhost:3000/callback"
 
 ### Get Access Token
 
 **Using API:**
+
 ```bash
 curl -X POST http://localhost:8080/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -190,20 +204,24 @@ curl -X POST http://localhost:8080/oauth/token \
 ```
 
 **Using MCP Server (via AI):**
+
 > "Get an access token for client ID abc123 with scope read"
 
 ### Check Server Health
 
 **Using API:**
+
 ```bash
 curl http://localhost:8080/health | jq
 curl http://localhost:8080/metrics
 ```
 
 **Using MCP Server (via AI):**
+
 > "Check the health status of the OAuth2 server"
 
 **Using K8s:**
+
 ```bash
 kubectl get pods -n oauth2-server
 kubectl logs -f deployment/oauth2-server -n oauth2-server
@@ -212,16 +230,19 @@ kubectl logs -f deployment/oauth2-server -n oauth2-server
 ### Deploy to Kubernetes
 
 **Development:**
+
 ```bash
 kubectl apply -k k8s/overlays/dev
 ```
 
 **Staging:**
+
 ```bash
 kubectl apply -k k8s/overlays/staging
 ```
 
 **Production:**
+
 ```bash
 kubectl apply -k k8s/overlays/production
 ```
@@ -331,6 +352,7 @@ npm start
 ## Resources
 
 ### Documentation
+
 - [Main README](README.md) - Project overview
 - [API Documentation](docs/api/endpoints.md) - API reference
 - [K8s Guide](k8s/README.md) - Kubernetes deployment
@@ -338,12 +360,14 @@ npm start
 - [Runbooks](docs/operations/runbooks.md) - Operational procedures
 
 ### Agent Instructions
+
 - [Development](.github/agents/development.md) - Coding guidelines
 - [Operations](.github/agents/operations.md) - Deployment & ops
 - [Database](.github/agents/database.md) - Database management
 - [Security](.github/agents/security.md) - Security best practices
 
 ### External Resources
+
 - [OAuth 2.0 RFC 6749](https://tools.ietf.org/html/rfc6749)
 - [Rust Documentation](https://doc.rust-lang.org/)
 - [Actix Web](https://actix.rs/)
@@ -362,6 +386,7 @@ npm start
 ## Contributing
 
 See [Development Agent](.github/agents/development.md) for:
+
 - Coding standards
 - Testing guidelines
 - Pull request process

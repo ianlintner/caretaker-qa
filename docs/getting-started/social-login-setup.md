@@ -60,7 +60,7 @@ This guide walks you through setting up social login providers for the OAuth2 se
 ## Okta Setup
 
 !!! warning "Not Yet Implemented"
-    Okta social login is not yet fully implemented. The login endpoint currently returns HTTP 503. Configuration details are provided here for future use.
+Okta social login is not yet fully implemented. The login endpoint currently returns HTTP 503. Configuration details are provided here for future use.
 
 1. Sign up for [Okta Developer Account](https://developer.okta.com/)
 2. Go to "Applications" > "Create App Integration"
@@ -82,7 +82,7 @@ This guide walks you through setting up social login providers for the OAuth2 se
 ## Auth0 Setup
 
 !!! warning "Not Yet Implemented"
-    Auth0 social login is not yet fully implemented. The login endpoint currently returns HTTP 503. Configuration details are provided here for future use.
+Auth0 social login is not yet fully implemented. The login endpoint currently returns HTTP 503. Configuration details are provided here for future use.
 
 1. Sign up for [Auth0](https://auth0.com/)
 2. Go to "Applications" > "Create Application"
@@ -180,17 +180,14 @@ oauth2_server:
 ### Common Issues
 
 1. **Redirect URI Mismatch**
-
    - Ensure the redirect URI configured in the provider matches exactly
    - Check for trailing slashes and protocol (http vs https)
 
 2. **CSRF Token Mismatch**
-
    - Clear browser cookies
    - Check session middleware configuration
 
 3. **Invalid Client Credentials**
-
    - Verify client ID and secret are correct
    - Check if credentials have expired or been revoked
 

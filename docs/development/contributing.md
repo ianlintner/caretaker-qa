@@ -123,10 +123,10 @@ use thiserror::Error;
 pub enum OAuth2Error {
     #[error("Invalid client credentials")]
     InvalidClient,
-    
+
     #[error("Invalid grant: {0}")]
     InvalidGrant(String),
-    
+
     #[error("Database error: {0}")]
     DatabaseError(#[from] sqlx::Error),
 }
@@ -156,13 +156,13 @@ let (tokens, client) = tokio::join!(
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_generate_client_id() {
         let id = generate_client_id();
         assert_eq!(id.len(), 32);
     }
-    
+
     #[tokio::test]
     async fn test_create_token() {
         let token = create_token(&mock_request()).await.unwrap();
@@ -182,7 +182,7 @@ async fn test_token_endpoint() {
     let app = test::init_service(
         App::new().service(token_endpoint)
     ).await;
-    
+
     let req = test::TestRequest::post()
         .uri("/oauth/token")
         .set_form(&[
@@ -191,7 +191,7 @@ async fn test_token_endpoint() {
             ("client_secret", "test_secret"),
         ])
         .to_request();
-    
+
     let resp = test::call_service(&app, req).await;
     assert!(resp.status().is_success());
 }
@@ -201,7 +201,7 @@ async fn test_token_endpoint() {
 
 #### Code Comments
 
-```rust
+````rust
 /// Validates an OAuth2 authorization request.
 ///
 /// This function checks:
@@ -232,7 +232,7 @@ pub async fn validate_authorization_request(
 ) -> Result<(), OAuth2Error> {
     // Implementation
 }
-```
+````
 
 #### README and Docs
 
@@ -310,20 +310,25 @@ git commit -m "test(auth): add integration tests for auth flow"
 
    ```markdown
    ## Description
+
    Brief description of changes
-   
+
    ## Motivation and Context
+
    Why is this change needed? What problem does it solve?
-   
+
    ## Changes Made
+
    - Change 1
    - Change 2
    - Change 3
-   
+
    ## Testing
+
    How was this tested?
-   
+
    ## Checklist
+
    - [ ] Code follows style guidelines
    - [ ] Self-review completed
    - [ ] Comments added for complex code
@@ -353,6 +358,7 @@ Create an issue with:
 A clear description of what the bug is.
 
 **To Reproduce**
+
 1. Start server with...
 2. Call endpoint...
 3. See error...
@@ -364,6 +370,7 @@ What you expected to happen.
 What actually happened.
 
 **Environment:**
+
 - OS: [e.g., Ubuntu 22.04]
 - Rust version: [e.g., 1.75]
 - Server version: [e.g., 0.1.0]

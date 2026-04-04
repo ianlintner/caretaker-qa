@@ -238,7 +238,7 @@ Register a new OAuth2 client.
 **Endpoint:** `POST /admin/clients/register`
 
 !!! note "Admin Authentication Required"
-    This endpoint requires admin authentication. Log in at `/auth/login` and use the session cookie.
+This endpoint requires admin authentication. Log in at `/auth/login` and use the session cookie.
 
 **Request Body:**
 

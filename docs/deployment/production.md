@@ -24,30 +24,30 @@ graph TB
     Internet[Internet] --> CDN[CDN/CloudFront]
     CDN --> WAF[Web Application Firewall]
     WAF --> LB[Load Balancer]
-    
+
     LB --> OAuth1[OAuth2 Server 1]
     LB --> OAuth2[OAuth2 Server 2]
     LB --> OAuth3[OAuth2 Server 3]
-    
+
     OAuth1 --> DBPrimary[(PostgreSQL Primary)]
     OAuth2 --> DBPrimary
     OAuth3 --> DBPrimary
     DBPrimary --> DBReplica1[(Replica 1)]
     DBPrimary --> DBReplica2[(Replica 2)]
-    
+
     OAuth1 --> Redis[(Redis Cache)]
     OAuth2 --> Redis
     OAuth3 --> Redis
-    
+
     OAuth1 --> OTLP[OTLP Collector]
     OAuth2 --> OTLP
     OAuth3 --> OTLP
     OTLP --> Jaeger[Jaeger]
-    
+
     Prometheus[Prometheus] --> OAuth1
     Prometheus --> OAuth2
     Prometheus --> OAuth3
-    
+
     style WAF fill:#f44336,color:#fff
     style LB fill:#ff9800,color:#fff
     style DBPrimary fill:#4caf50,color:#fff
@@ -74,17 +74,17 @@ export OAUTH2_ALLOW_INSECURE_DEFAULTS=1
 ```
 
 !!! danger "Never set `OAUTH2_ALLOW_INSECURE_DEFAULTS` in production"
-    This flag exists solely for local development. The server intentionally refuses to start with weak secrets in production.
+This flag exists solely for local development. The server intentionally refuses to start with weak secrets in production.
 
 #### HTTP Security Headers
 
 The following headers are applied to all responses via Actix-web `DefaultHeaders` middleware:
 
-| Header                    | Value                                              |
-| ------------------------- | -------------------------------------------------- |
-| `X-Frame-Options`         | `DENY`                                             |
-| `X-Content-Type-Options`  | `nosniff`                                          |
-| `Referrer-Policy`         | `no-referrer`                                      |
+| Header                    | Value                                               |
+| ------------------------- | --------------------------------------------------- |
+| `X-Frame-Options`         | `DENY`                                              |
+| `X-Content-Type-Options`  | `nosniff`                                           |
+| `Referrer-Policy`         | `no-referrer`                                       |
 | `Content-Security-Policy` | Configured to allow CDN resources used by templates |
 
 These are applied automatically — no configuration required.
@@ -134,25 +134,25 @@ The JWT signing secret (`OAUTH2_JWT_SECRET`) must meet these requirements:
 server {
     listen 443 ssl http2;
     server_name oauth.yourdomain.com;
-    
+
     # SSL certificates
     ssl_certificate /etc/nginx/certs/fullchain.pem;
     ssl_certificate_key /etc/nginx/certs/privkey.pem;
-    
+
     # SSL configuration
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384';
     ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
-    
+
     # Security headers
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Frame-Options "DENY" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    
+
     # Proxy to OAuth2 server
     location / {
         proxy_pass http://oauth2_backend;
@@ -160,13 +160,13 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
+
         # Timeouts
         proxy_connect_timeout 60s;
         proxy_send_timeout 60s;
         proxy_read_timeout 60s;
     }
-    
+
     # Health check endpoint (no auth required)
     location /health {
         proxy_pass http://oauth2_backend;
@@ -179,7 +179,7 @@ upstream oauth2_backend {
     server oauth2_1:8080 max_fails=3 fail_timeout=30s;
     server oauth2_2:8080 max_fails=3 fail_timeout=30s;
     server oauth2_3:8080 max_fails=3 fail_timeout=30s;
-    
+
     keepalive 32;
 }
 
@@ -326,7 +326,7 @@ find $BACKUP_DIR -name "backup_*.sql.gz" -mtime +30 -delete
 global
     log /dev/log local0
     maxconn 4096
-    
+
 defaults
     log global
     mode http
@@ -335,24 +335,24 @@ defaults
     timeout connect 5000
     timeout client 50000
     timeout server 50000
-    
+
 frontend oauth2_frontend
     bind *:443 ssl crt /etc/ssl/certs/oauth2.pem
     default_backend oauth2_servers
-    
+
     # Health check
     acl is_health path /health
     use_backend health_backend if is_health
-    
+
 backend oauth2_servers
     balance roundrobin
     option httpchk GET /health
     http-check expect status 200
-    
+
     server oauth2_1 10.0.1.10:8080 check
     server oauth2_2 10.0.1.11:8080 check
     server oauth2_3 10.0.1.12:8080 check
-    
+
 backend health_backend
     server oauth2_1 10.0.1.10:8080
 ```
@@ -444,7 +444,7 @@ groups:
         annotations:
           summary: "High error rate detected"
           description: "Error rate is {{ $value }} requests/sec"
-      
+
       - alert: HighLatency
         expr: histogram_quantile(0.95, rate(oauth2_server_http_request_duration_seconds_bucket[5m])) > 1
         for: 5m
@@ -453,7 +453,7 @@ groups:
         annotations:
           summary: "High request latency"
           description: "P95 latency is {{ $value }}s"
-      
+
       - alert: DatabaseConnectionPoolExhausted
         expr: oauth2_server_db_connections_active >= oauth2_server_db_connections_max * 0.9
         for: 5m
@@ -461,7 +461,7 @@ groups:
           severity: warning
         annotations:
           summary: "Database connection pool near capacity"
-      
+
       - alert: TokenRevocationRateHigh
         expr: rate(oauth2_server_oauth_token_revoked_total[5m]) > 10
         for: 5m
@@ -502,10 +502,10 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
+          cpus: "4"
           memory: 4G
         reservations:
-          cpus: '2'
+          cpus: "2"
           memory: 2G
 ```
 

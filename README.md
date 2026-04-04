@@ -47,18 +47,18 @@ graph LR
 
 This repository is a Cargo workspace. You can reuse the OAuth2 domain types and integrate your own DAO without forking.
 
-| Crate | Purpose |
-| --- | --- |
-| `oauth2-core` | Framework-agnostic domain types (`Client`, `Token`, `AuthorizationCode`, `OAuth2Error`) |
-| `oauth2-ports` | Integration traits (`Storage`) that your DAO implements |
-| `oauth2-config` | Configuration loading and validation |
-| `oauth2-storage-sqlx` | Reference SQLx adapter (SQLite/Postgres) |
-| `oauth2-storage-factory` | Backend selection + `ObservedStorage` wrapper |
-| `oauth2-actix` | Actix-web HTTP handlers + actors |
-| `oauth2-observability` | Tracing, metrics, OpenTelemetry helpers |
-| `oauth2-events` | Auth event types + pluggable backends (in-memory, console, Redis, Kafka, RabbitMQ) |
-| `oauth2-social-login` | Social login provider integrations |
-| `oauth2-server` | Runnable server assembly |
+| Crate                    | Purpose                                                                                 |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| `oauth2-core`            | Framework-agnostic domain types (`Client`, `Token`, `AuthorizationCode`, `OAuth2Error`) |
+| `oauth2-ports`           | Integration traits (`Storage`) that your DAO implements                                 |
+| `oauth2-config`          | Configuration loading and validation                                                    |
+| `oauth2-storage-sqlx`    | Reference SQLx adapter (SQLite/Postgres)                                                |
+| `oauth2-storage-factory` | Backend selection + `ObservedStorage` wrapper                                           |
+| `oauth2-actix`           | Actix-web HTTP handlers + actors                                                        |
+| `oauth2-observability`   | Tracing, metrics, OpenTelemetry helpers                                                 |
+| `oauth2-events`          | Auth event types + pluggable backends (in-memory, console, Redis, Kafka, RabbitMQ)      |
+| `oauth2-social-login`    | Social login provider integrations                                                      |
+| `oauth2-server`          | Runnable server assembly                                                                |
 
 ## Quick Start
 
@@ -116,65 +116,65 @@ See the [Configuration Guide](docs/getting-started/configuration.md) for all env
 
 ### User Interface
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /` | Redirects to profile page |
-| `GET /auth/login` | Login page with social login options |
-| `GET /auth/profile` | User profile page |
-| `POST /auth/logout` | Logout |
+| Endpoint            | Description                          |
+| ------------------- | ------------------------------------ |
+| `GET /`             | Redirects to profile page            |
+| `GET /auth/login`   | Login page with social login options |
+| `GET /auth/profile` | User profile page                    |
+| `POST /auth/logout` | Logout                               |
 
 ### OAuth2
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /oauth/authorize` | Authorization endpoint |
-| `POST /oauth/token` | Token endpoint |
+| Endpoint                 | Description                    |
+| ------------------------ | ------------------------------ |
+| `GET /oauth/authorize`   | Authorization endpoint         |
+| `POST /oauth/token`      | Token endpoint                 |
 | `POST /oauth/introspect` | Token introspection (RFC 7662) |
-| `POST /oauth/revoke` | Token revocation (RFC 7009) |
-| `GET /oauth/userinfo` | OpenID Connect UserInfo |
+| `POST /oauth/revoke`     | Token revocation (RFC 7009)    |
+| `GET /oauth/userinfo`    | OpenID Connect UserInfo        |
 
 ### Discovery & OIDC
 
-| Endpoint | Description |
-| --- | --- |
+| Endpoint                                | Description                |
+| --------------------------------------- | -------------------------- |
 | `GET /.well-known/openid-configuration` | Server metadata (RFC 8414) |
-| `GET /.well-known/jwks.json` | JSON Web Key Set |
+| `GET /.well-known/jwks.json`            | JSON Web Key Set           |
 
 ### Social Login
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /auth/login/{provider}` | Initiate social login (google, microsoft, github, azure, okta, auth0) |
-| `GET /auth/callback/{provider}` | OAuth callback handler |
+| Endpoint                        | Description                                                           |
+| ------------------------------- | --------------------------------------------------------------------- |
+| `GET /auth/login/{provider}`    | Initiate social login (google, microsoft, github, azure, okta, auth0) |
+| `GET /auth/callback/{provider}` | OAuth callback handler                                                |
 
 ### Admin
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /admin` | Admin dashboard |
-| `GET /admin/api/dashboard` | Dashboard summary data |
-| `GET /admin/api/clients` | List clients |
-| `POST /admin/clients/register` | Register a new client |
-| `DELETE /admin/api/clients/{id}` | Delete a client |
-| `GET /admin/api/tokens` | List tokens |
-| `POST /admin/api/tokens/{id}/revoke` | Revoke a token |
-| `GET /admin/api/users` | List users |
+| Endpoint                             | Description            |
+| ------------------------------------ | ---------------------- |
+| `GET /admin`                         | Admin dashboard        |
+| `GET /admin/api/dashboard`           | Dashboard summary data |
+| `GET /admin/api/clients`             | List clients           |
+| `POST /admin/clients/register`       | Register a new client  |
+| `DELETE /admin/api/clients/{id}`     | Delete a client        |
+| `GET /admin/api/tokens`              | List tokens            |
+| `POST /admin/api/tokens/{id}/revoke` | Revoke a token         |
+| `GET /admin/api/users`               | List users             |
 
 ### Monitoring
 
-| Endpoint | Description |
-| --- | --- |
-| `GET /health` | Health check |
-| `GET /ready` | Readiness check |
-| `GET /metrics` | Prometheus metrics |
+| Endpoint          | Description          |
+| ----------------- | -------------------- |
+| `GET /health`     | Health check         |
+| `GET /ready`      | Readiness check      |
+| `GET /metrics`    | Prometheus metrics   |
 | `GET /swagger-ui` | Interactive API docs |
 
 ### Events
 
-| Endpoint | Description |
-| --- | --- |
+| Endpoint              | Description              |
+| --------------------- | ------------------------ |
 | `POST /events/ingest` | Event ingestion endpoint |
-| `GET /events/health` | Event system health |
+| `GET /events/health`  | Event system health      |
 
 ## Architecture
 
