@@ -79,6 +79,11 @@ impl KeySet {
         Self { keys }
     }
 
+    /// The current signing key (regardless of algorithm).
+    pub fn current(&self) -> Option<&SigningKey> {
+        self.keys.iter().find(|k| k.is_current && k.is_active())
+    }
+
     /// The current signing key for a specific algorithm.
     pub fn current_for_alg(&self, alg: Algorithm) -> Option<&SigningKey> {
         self.keys
@@ -246,6 +251,14 @@ mod tests {
             created_at: Utc::now(),
             expires_at: None,
         }
+    }
+
+    #[test]
+    fn current_returns_active_current_key() {
+        let mut ks = KeySet::new();
+        ks.add(make_key("hs-1", Algorithm::HS256, true));
+        ks.add(make_key("rs-1", Algorithm::RS256, false));
+        assert_eq!(ks.current().unwrap().kid, "hs-1");
     }
 
     #[test]
