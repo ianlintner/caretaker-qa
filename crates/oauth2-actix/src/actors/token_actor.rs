@@ -81,6 +81,18 @@ impl Handler<CreateToken> for TokenActor {
             async move {
                 let subject = msg.user_id.clone().unwrap_or_else(|| msg.client_id.clone());
 
+                // Resolve signing key once for both access and refresh tokens
+                let signing_key: Option<SigningKey> = if let Some(ref ks_lock) = keyset {
+                    let ks = ks_lock.read().await;
+                    let key = ks.current().cloned();
+                    if key.is_none() {
+                        tracing::warn!("KeySet has no current key; falling back to jwt_secret");
+                    }
+                    key
+                } else {
+                    None
+                };
+
                 // Create access token
                 let access_claims = Claims::new(
                     subject.clone(),
@@ -88,22 +100,12 @@ impl Handler<CreateToken> for TokenActor {
                     msg.scope.clone(),
                     3600, // 1 hour
                 );
-                let access_token = if let Some(ref keyset) = keyset {
-                    let ks = keyset.read().await;
-                    if let Some(key) = ks.current() {
-                        access_claims
-                            .encode_with_key(key)
-                            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
-                    } else {
-                        access_claims
-                            .encode(&jwt_secret)
-                            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
-                    }
+                let access_token = if let Some(ref key) = signing_key {
+                    access_claims.encode_with_key(key)
                 } else {
-                    access_claims
-                        .encode(&jwt_secret)
-                        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
-                };
+                    access_claims.encode(&jwt_secret)
+                }
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
 
                 // Create refresh token if requested
                 let refresh_token = if msg.include_refresh {
@@ -113,24 +115,13 @@ impl Handler<CreateToken> for TokenActor {
                         msg.scope.clone(),
                         2592000, // 30 days
                     );
-                    Some(
-                        if let Some(ref keyset) = keyset {
-                            let ks = keyset.read().await;
-                            if let Some(key) = ks.current() {
-                                refresh_claims
-                                    .encode_with_key(key)
-                                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
-                            } else {
-                                refresh_claims
-                                    .encode(&jwt_secret)
-                                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
-                            }
-                        } else {
-                            refresh_claims
-                                .encode(&jwt_secret)
-                                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
-                        },
-                    )
+                    let token = if let Some(ref key) = signing_key {
+                        refresh_claims.encode_with_key(key)
+                    } else {
+                        refresh_claims.encode(&jwt_secret)
+                    }
+                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+                    Some(token)
                 } else {
                     None
                 };
