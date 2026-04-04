@@ -16,11 +16,15 @@ impl TokenBucket {
     ///
     /// `refill_rate` = `max_tokens / window_secs` tokens per second.
     pub fn new(max_tokens: u32, window_secs: u64) -> Self {
+        if window_secs == 0 {
+            tracing::warn!("TokenBucket created with window_secs=0; defaulting to 1 second");
+        }
+        let window = window_secs.max(1); // clamp to minimum 1 second
         Self {
             tokens: max_tokens as f64,
             last_refill: Instant::now(),
             max_tokens,
-            refill_rate: max_tokens as f64 / window_secs as f64,
+            refill_rate: max_tokens as f64 / window as f64,
         }
     }
 
@@ -101,5 +105,14 @@ mod tests {
     fn window_secs_roundtrip() {
         let bucket = TokenBucket::new(100, 60);
         assert_eq!(bucket.window_secs(), 60);
+    }
+
+    #[test]
+    fn zero_window_secs_clamped_to_one() {
+        let mut bucket = TokenBucket::new(2, 0);
+        // refill_rate should be 2/1 = 2.0, not Infinity
+        assert!(bucket.try_consume().0);
+        assert!(bucket.try_consume().0);
+        assert!(!bucket.try_consume().0); // should reject, not silently allow
     }
 }
