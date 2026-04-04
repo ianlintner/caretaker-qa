@@ -14,37 +14,37 @@
 
 ### New Files
 
-| File | Responsibility |
-|------|---------------|
-| `oauth2-ratelimit/Cargo.toml` | Crate manifest (dashmap, tokio, async-trait, thiserror; optional redis) |
-| `oauth2-ratelimit/src/lib.rs` | `RateLimiter` trait, `RateLimitResult`, `RateLimitError` |
-| `oauth2-ratelimit/src/token_bucket.rs` | Storage-agnostic token bucket algorithm |
-| `oauth2-ratelimit/src/in_memory.rs` | `InMemoryRateLimiter` (DashMap + background cleanup) |
-| `oauth2-ratelimit/src/redis.rs` | `RedisRateLimiter` (behind `redis` feature flag) |
-| `crates/oauth2-actix/src/middleware/rate_limit.rs` | Actix Transform/Service middleware |
-| `crates/oauth2-core/src/models/key_set.rs` | `SigningKey`, `KeySet`, `Algorithm` types |
-| `crates/oauth2-actix/src/handlers/admin_keys.rs` | `POST /admin/api/keys/rotate` handler |
-| `migrations/sql/V8__add_signing_keys_table.sql` | signing_keys table DDL |
+| File                                               | Responsibility                                                          |
+| -------------------------------------------------- | ----------------------------------------------------------------------- |
+| `oauth2-ratelimit/Cargo.toml`                      | Crate manifest (dashmap, tokio, async-trait, thiserror; optional redis) |
+| `oauth2-ratelimit/src/lib.rs`                      | `RateLimiter` trait, `RateLimitResult`, `RateLimitError`                |
+| `oauth2-ratelimit/src/token_bucket.rs`             | Storage-agnostic token bucket algorithm                                 |
+| `oauth2-ratelimit/src/in_memory.rs`                | `InMemoryRateLimiter` (DashMap + background cleanup)                    |
+| `oauth2-ratelimit/src/redis.rs`                    | `RedisRateLimiter` (behind `redis` feature flag)                        |
+| `crates/oauth2-actix/src/middleware/rate_limit.rs` | Actix Transform/Service middleware                                      |
+| `crates/oauth2-core/src/models/key_set.rs`         | `SigningKey`, `KeySet`, `Algorithm` types                               |
+| `crates/oauth2-actix/src/handlers/admin_keys.rs`   | `POST /admin/api/keys/rotate` handler                                   |
+| `migrations/sql/V8__add_signing_keys_table.sql`    | signing_keys table DDL                                                  |
 
 ### Modified Files
 
-| File | Change |
-|------|--------|
-| `crates/oauth2-actix/src/handlers/login.rs:145` | Error propagation: `unwrap_or(None)` → `?` |
-| `Cargo.toml` (workspace root) | Add `oauth2-ratelimit` to workspace members |
-| `crates/oauth2-config/src/lib.rs` | Add `RateLimitConfig`, extend `JwtConfig` |
-| `application.conf` | Add `rate_limit {}` section, `key_rotation_grace_hours` |
-| `crates/oauth2-actix/src/middleware/mod.rs` | Add `pub mod rate_limit;` |
-| `crates/oauth2-observability/src/metrics.rs` | Add rate-limit counters/histograms |
-| `crates/oauth2-core/src/models/mod.rs` | Add `pub mod key_set;` |
-| `crates/oauth2-core/src/models/token.rs` | `Claims`/`IdTokenClaims` take `&SigningKey`/`&KeySet` |
-| `crates/oauth2-core/Cargo.toml` | Add `aes-gcm`, `chrono` deps |
-| `crates/oauth2-actix/src/handlers/wellknown.rs` | JWKS reads from `KeySet`; `userinfo` uses `KeySet` |
-| `crates/oauth2-actix/src/handlers/mod.rs` | Add `pub mod admin_keys;` |
-| `crates/oauth2-actix/src/actors/token_actor.rs` | Use `KeySet` for signing/validation |
-| `crates/oauth2-server/src/lib.rs` | Wire rate limiter, KeySet, admin keys route |
-| `crates/oauth2-actix/Cargo.toml` | Add `oauth2-ratelimit` dependency |
-| `crates/oauth2-server/Cargo.toml` | Add `oauth2-ratelimit` dependency |
+| File                                            | Change                                                  |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `crates/oauth2-actix/src/handlers/login.rs:145` | Error propagation: `unwrap_or(None)` → `?`              |
+| `Cargo.toml` (workspace root)                   | Add `oauth2-ratelimit` to workspace members             |
+| `crates/oauth2-config/src/lib.rs`               | Add `RateLimitConfig`, extend `JwtConfig`               |
+| `application.conf`                              | Add `rate_limit {}` section, `key_rotation_grace_hours` |
+| `crates/oauth2-actix/src/middleware/mod.rs`     | Add `pub mod rate_limit;`                               |
+| `crates/oauth2-observability/src/metrics.rs`    | Add rate-limit counters/histograms                      |
+| `crates/oauth2-core/src/models/mod.rs`          | Add `pub mod key_set;`                                  |
+| `crates/oauth2-core/src/models/token.rs`        | `Claims`/`IdTokenClaims` take `&SigningKey`/`&KeySet`   |
+| `crates/oauth2-core/Cargo.toml`                 | Add `aes-gcm`, `chrono` deps                            |
+| `crates/oauth2-actix/src/handlers/wellknown.rs` | JWKS reads from `KeySet`; `userinfo` uses `KeySet`      |
+| `crates/oauth2-actix/src/handlers/mod.rs`       | Add `pub mod admin_keys;`                               |
+| `crates/oauth2-actix/src/actors/token_actor.rs` | Use `KeySet` for signing/validation                     |
+| `crates/oauth2-server/src/lib.rs`               | Wire rate limiter, KeySet, admin keys route             |
+| `crates/oauth2-actix/Cargo.toml`                | Add `oauth2-ratelimit` dependency                       |
+| `crates/oauth2-server/Cargo.toml`               | Add `oauth2-ratelimit` dependency                       |
 
 ---
 
@@ -53,6 +53,7 @@
 ### Task 1: Fix Error Propagation in login.rs
 
 **Files:**
+
 - Modify: `crates/oauth2-actix/src/handlers/login.rs:145`
 
 - [ ] **Step 1: Fix the error propagation**
@@ -90,6 +91,7 @@ git commit -m "fix: propagate session errors in login return_to instead of silen
 ### Task 2: Rate Limit Crate — Scaffolding and Trait
 
 **Files:**
+
 - Create: `oauth2-ratelimit/Cargo.toml`
 - Create: `oauth2-ratelimit/src/lib.rs`
 - Modify: `Cargo.toml` (workspace root)
@@ -203,6 +205,7 @@ Run: `cargo check -p oauth2-ratelimit`
 Expected: compiles (token_bucket and in_memory modules will be empty stubs — add placeholder `// TODO` or empty file so the compiler doesn't fail). Actually, since the modules are declared but don't exist yet, we need empty files:
 
 Run:
+
 ```bash
 touch oauth2-ratelimit/src/token_bucket.rs
 touch oauth2-ratelimit/src/in_memory.rs
@@ -223,6 +226,7 @@ git commit -m "feat(ratelimit): scaffold oauth2-ratelimit crate with RateLimiter
 ### Task 3: Token Bucket Algorithm
 
 **Files:**
+
 - Create: `oauth2-ratelimit/src/token_bucket.rs`
 
 - [ ] **Step 1: Write tests for the token bucket**
@@ -354,6 +358,7 @@ git commit -m "feat(ratelimit): implement token bucket algorithm with tests"
 ### Task 4: InMemoryRateLimiter
 
 **Files:**
+
 - Create: `oauth2-ratelimit/src/in_memory.rs`
 
 - [ ] **Step 1: Implement InMemoryRateLimiter**
@@ -510,6 +515,7 @@ git commit -m "feat(ratelimit): implement InMemoryRateLimiter with DashMap and c
 ### Task 5: Rate Limit Configuration
 
 **Files:**
+
 - Modify: `crates/oauth2-config/src/lib.rs`
 - Modify: `application.conf`
 
@@ -618,6 +624,7 @@ git commit -m "feat(config): add RateLimitConfig with HOCON and env var support"
 ### Task 6: Rate Limit Actix Middleware
 
 **Files:**
+
 - Create: `crates/oauth2-actix/src/middleware/rate_limit.rs`
 - Modify: `crates/oauth2-actix/src/middleware/mod.rs`
 - Modify: `crates/oauth2-actix/Cargo.toml`
@@ -852,6 +859,7 @@ git commit -m "feat(ratelimit): add Actix rate limit middleware with IP extracti
 ### Task 7: Rate Limit — Server Wiring and Metrics
 
 **Files:**
+
 - Modify: `crates/oauth2-server/Cargo.toml`
 - Modify: `crates/oauth2-server/src/lib.rs`
 - Modify: `crates/oauth2-observability/src/metrics.rs`
@@ -1008,6 +1016,7 @@ git commit -m "feat(ratelimit): wire rate limiter into server with metrics and e
 ### Task 8: Rate Limit — Redis Backend (Feature Flag)
 
 **Files:**
+
 - Create: `oauth2-ratelimit/src/redis.rs`
 
 - [ ] **Step 1: Implement RedisRateLimiter**
@@ -1127,6 +1136,7 @@ git commit -m "feat(ratelimit): add Redis rate limiter backend behind feature fl
 ### Task 9: SigningKey and KeySet Types
 
 **Files:**
+
 - Create: `crates/oauth2-core/src/models/key_set.rs`
 - Modify: `crates/oauth2-core/src/models/mod.rs`
 - Modify: `crates/oauth2-core/Cargo.toml`
@@ -1416,6 +1426,7 @@ git commit -m "feat(jwt): add SigningKey and KeySet types with rotation and prun
 ### Task 10: Token Signing Changes — Claims and IdTokenClaims
 
 **Files:**
+
 - Modify: `crates/oauth2-core/src/models/token.rs`
 
 - [ ] **Step 1: Add new encode/decode methods that use SigningKey/KeySet**
@@ -1536,6 +1547,7 @@ git commit -m "feat(jwt): add KeySet-aware encode/decode methods to Claims and I
 ### Task 11: Database Migration — signing_keys Table
 
 **Files:**
+
 - Create: `migrations/sql/V8__add_signing_keys_table.sql`
 
 - [ ] **Step 1: Write the migration**
@@ -1576,6 +1588,7 @@ git commit -m "feat(jwt): add signing_keys table migration for key rotation pers
 ### Task 12: Key Persistence — Encryption and Storage
 
 **Files:**
+
 - Modify: `crates/oauth2-core/Cargo.toml`
 - Modify: `crates/oauth2-core/src/models/key_set.rs`
 
@@ -1717,6 +1730,7 @@ git commit -m "feat(jwt): add AES-256-GCM encryption for signing key persistence
 ### Task 13: JWKS Endpoint Update
 
 **Files:**
+
 - Modify: `crates/oauth2-actix/src/handlers/wellknown.rs`
 
 Update the JWKS endpoint to read from `Arc<RwLock<KeySet>>` instead of `OidcConfig` for key material, and update `userinfo` to use `decode_with_keyset`.
@@ -1839,6 +1853,7 @@ git commit -m "feat(jwt): update JWKS endpoint to serve keys from KeySet with ro
 ### Task 14: Admin Key Rotation Endpoint
 
 **Files:**
+
 - Create: `crates/oauth2-actix/src/handlers/admin_keys.rs`
 - Modify: `crates/oauth2-actix/src/handlers/mod.rs`
 
@@ -2052,6 +2067,7 @@ git commit -m "feat(jwt): add admin key rotation endpoint POST /admin/api/keys/r
 ### Task 15: Server Wiring — KeySet Initialization and Routes
 
 **Files:**
+
 - Modify: `crates/oauth2-server/src/lib.rs`
 - Modify: `crates/oauth2-config/src/lib.rs`
 
@@ -2200,6 +2216,7 @@ git commit -m "feat(jwt): wire KeySet into server with initial key seeding and a
 ### Task 16: TokenActor — Use KeySet for Signing
 
 **Files:**
+
 - Modify: `crates/oauth2-actix/src/actors/token_actor.rs`
 
 Update `TokenActor` to use `Arc<RwLock<KeySet>>` for token signing instead of a raw `jwt_secret` string.
@@ -2255,10 +2272,10 @@ git commit -m "feat(jwt): update TokenActor to use KeySet for token signing"
 
 ## Summary
 
-| Section | Tasks | Key Deliverables |
-|---------|-------|-----------------|
-| Cleanup | 1 | Error propagation fix in login.rs |
-| Rate Limiting | 2–8 | New crate, token bucket, in-memory + Redis backends, Actix middleware, config, metrics |
-| JWT Key Rotation | 9–16 | SigningKey/KeySet types, multi-key token signing, JWKS update, admin endpoint, DB migration, server wiring |
+| Section          | Tasks | Key Deliverables                                                                                           |
+| ---------------- | ----- | ---------------------------------------------------------------------------------------------------------- |
+| Cleanup          | 1     | Error propagation fix in login.rs                                                                          |
+| Rate Limiting    | 2–8   | New crate, token bucket, in-memory + Redis backends, Actix middleware, config, metrics                     |
+| JWT Key Rotation | 9–16  | SigningKey/KeySet types, multi-key token signing, JWKS update, admin endpoint, DB migration, server wiring |
 
 Each task is designed to produce a compilable, testable increment. Run `cargo test` after each task to verify no regressions.
