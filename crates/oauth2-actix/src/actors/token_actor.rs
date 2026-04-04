@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use actix::prelude::*;
-use oauth2_core::models::key_set::KeySet;
+use oauth2_core::models::key_set::{KeySet, SigningKey};
 use oauth2_events::{AuthEvent, EventBusHandle, EventEnvelope, EventSeverity, EventType};
 use oauth2_observability::annotate_span_with_trace_ids;
 use oauth2_ports::DynStorage;
