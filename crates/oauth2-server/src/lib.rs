@@ -5,6 +5,7 @@ use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
 use actix_web::{cookie::Key, middleware as actix_middleware, web, App, HttpResponse, HttpServer};
+use actix_web::middleware::Condition;
 use oauth2_openapi::ApiDoc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -375,6 +376,26 @@ pub async fn run() -> std::io::Result<()> {
             // Explicitly set to default to make it configurable without changing call sites.
             .with_max_entries(100_000);
 
+    // --- Rate limiting ---
+    let rate_limiter: Option<Arc<dyn oauth2_ratelimit::RateLimiter>> = {
+        let rl_config = config.rate_limit.clone().unwrap_or_default();
+        if rl_config.enabled {
+            tracing::info!(
+                max_requests = rl_config.max_requests,
+                window_secs = rl_config.window_secs,
+                backend = %rl_config.backend,
+                "Rate limiting enabled"
+            );
+            Some(Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                rl_config.max_requests,
+                rl_config.window_secs,
+            )))
+        } else {
+            tracing::info!("Rate limiting disabled");
+            None
+        }
+    };
+
     // Start actors with event system
     let token_actor = if let Some(ref event_bus) = event_bus {
         oauth2_actix::actors::TokenActor::with_events(
@@ -469,6 +490,17 @@ pub async fn run() -> std::io::Result<()> {
         };
 
         let mut app = App::new()
+            // Rate limiting (outermost middleware)
+            .wrap(Condition::new(
+                rate_limiter.is_some(),
+                oauth2_actix::middleware::rate_limit::RateLimitMiddleware::new(
+                    rate_limiter.clone().unwrap_or_else(|| {
+                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(1, 1))
+                    }),
+                    vec!["/health".into(), "/ready".into(), "/metrics".into()],
+                    server_config.trust_proxy_headers,
+                ),
+            ))
             // Middleware
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
