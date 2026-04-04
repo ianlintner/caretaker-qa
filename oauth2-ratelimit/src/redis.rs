@@ -1,4 +1,4 @@
-//! Redis-backed rate limiter using atomic INCR + EXPIRE.
+//! Redis-backed rate limiter using atomic Lua script.
 //!
 //! Enabled via the `redis-backend` feature flag.
 
@@ -11,7 +11,7 @@ use crate::{RateLimitError, RateLimitResult, RateLimiter};
 
 /// Rate limiter using Redis as the backend store.
 ///
-/// Uses a fixed-window counter per key with atomic INCR + EXPIRE.
+/// Uses a fixed-window counter per key with an atomic Lua script.
 /// Key format: `ratelimit:{key}`, TTL = `window_secs`.
 pub struct RedisRateLimiter {
     conn: ConnectionManager,
@@ -47,20 +47,22 @@ impl RateLimiter for RedisRateLimiter {
         let redis_key = format!("ratelimit:{key}");
         let mut conn = self.conn.clone();
 
-        // Atomic increment + set expiry if new key
-        let count: u32 = redis::cmd("INCR")
-            .arg(&redis_key)
-            .query_async(&mut conn)
+        // Atomic INCR + EXPIRE via Lua script to avoid race conditions.
+        // If the process crashes between INCR and EXPIRE, the key would
+        // persist forever with no TTL, permanently blocking that client.
+        let script = redis::Script::new(
+            r"local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count",
+        );
+        let count: u32 = script
+            .key(&redis_key)
+            .arg(self.window_secs as i64)
+            .invoke_async(&mut conn)
             .await
-            .map_err(|e| RateLimitError::Backend(format!("Redis INCR error: {e}")))?;
-
-        // Set TTL only on first request (count == 1)
-        if count == 1 {
-            let _: () = conn
-                .expire(&redis_key, self.window_secs as i64)
-                .await
-                .map_err(|e| RateLimitError::Backend(format!("Redis EXPIRE error: {e}")))?;
-        }
+            .map_err(|e| RateLimitError::Backend(format!("Redis Lua script error: {e}")))?;
 
         let ttl: i64 = conn
             .ttl(&redis_key)
