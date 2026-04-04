@@ -316,9 +316,25 @@ done
 
 curl -fsS "${RS_URL}/public" >/dev/null
 
+echo "==> Authenticating as seed admin"
+COOKIE_JAR="/tmp/e2e-cookies.txt"
+curl -fsS -X POST "${BASE_URL}/auth/login" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "username=${OAUTH2_SEED_USERNAME:-admin}" \
+  --data-urlencode "password=${OAUTH2_SEED_PASSWORD:-changeme}" \
+  -c "${COOKIE_JAR}" \
+  -o /dev/null
+
+if ! awk 'NF && $1 !~ /^#/' "${COOKIE_JAR}" | grep -q .; then
+  echo "Admin login did not produce a session cookie." >&2
+  _diag
+  exit 1
+fi
+
 echo "==> Registering test client (client_credentials)"
 client_json=$(curl -fsS -X POST "${BASE_URL}/admin/clients/register" \
   -H "Content-Type: application/json" \
+  -b "${COOKIE_JAR}" \
   -d '{
     "client_name": "E2E Service Client",
     "redirect_uris": ["http://localhost:3000/callback"],
