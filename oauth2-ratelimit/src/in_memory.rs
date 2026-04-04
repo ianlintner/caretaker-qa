@@ -69,9 +69,7 @@ impl RateLimiter for InMemoryRateLimiter {
         let retry_after = if allowed {
             None
         } else {
-            Some(Duration::from_secs_f64(
-                entry.bucket.seconds_until_refill(),
-            ))
+            Some(Duration::from_secs_f64(entry.bucket.seconds_until_refill()))
         };
 
         Ok(RateLimitResult {

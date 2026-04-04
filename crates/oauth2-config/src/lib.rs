@@ -179,10 +179,18 @@ pub struct RateLimitConfig {
     pub redis_url: Option<String>,
 }
 
-fn default_rate_limit_enabled() -> bool { true }
-fn default_max_requests() -> u32 { 100 }
-fn default_window_secs() -> u64 { 60 }
-fn default_rate_limit_backend() -> String { "in_memory".to_string() }
+fn default_rate_limit_enabled() -> bool {
+    true
+}
+fn default_max_requests() -> u32 {
+    100
+}
+fn default_window_secs() -> u64 {
+    60
+}
+fn default_rate_limit_backend() -> String {
+    "in_memory".to_string()
+}
 
 impl Default for RateLimitConfig {
     fn default() -> Self {

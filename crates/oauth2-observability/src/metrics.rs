@@ -154,11 +154,8 @@ impl Metrics {
         registry.register(Box::new(db_query_duration_seconds.clone()))?;
 
         let rate_limit_rejected_total = CounterVec::new(
-            Opts::new(
-                "rate_limit_rejected_total",
-                "Total rate-limited requests",
-            )
-            .namespace("oauth2_server"),
+            Opts::new("rate_limit_rejected_total", "Total rate-limited requests")
+                .namespace("oauth2_server"),
             &["ip_prefix"],
         )
         .expect("rate_limit_rejected_total metric");

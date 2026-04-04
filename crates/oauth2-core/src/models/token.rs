@@ -95,10 +95,7 @@ impl IdTokenClaims {
     }
 
     /// Encode ID token claims using a SigningKey (unified HS256/RS256 path).
-    pub fn encode_with_key(
-        &self,
-        key: &SigningKey,
-    ) -> Result<String, jsonwebtoken::errors::Error> {
+    pub fn encode_with_key(&self, key: &SigningKey) -> Result<String, jsonwebtoken::errors::Error> {
         let mut header = match key.algorithm {
             KeyAlgorithm::HS256 => Header::default(),
             KeyAlgorithm::RS256 => Header::new(jsonwebtoken::Algorithm::RS256),
@@ -155,10 +152,7 @@ impl Claims {
     }
 
     /// Encode claims using a SigningKey (supports HS256 and RS256 with kid).
-    pub fn encode_with_key(
-        &self,
-        key: &SigningKey,
-    ) -> Result<String, jsonwebtoken::errors::Error> {
+    pub fn encode_with_key(&self, key: &SigningKey) -> Result<String, jsonwebtoken::errors::Error> {
         let mut header = match key.algorithm {
             KeyAlgorithm::HS256 => Header::default(),
             KeyAlgorithm::RS256 => Header::new(jsonwebtoken::Algorithm::RS256),

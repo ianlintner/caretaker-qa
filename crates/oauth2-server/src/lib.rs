@@ -4,13 +4,13 @@ use actix_files::Files;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
-use actix_web::{cookie::Key, middleware as actix_middleware, web, App, HttpResponse, HttpServer};
 use actix_web::middleware::Condition;
+use actix_web::{cookie::Key, middleware as actix_middleware, web, App, HttpResponse, HttpServer};
+use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
 use oauth2_openapi::ApiDoc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
 use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -388,35 +388,32 @@ pub async fn run() -> std::io::Result<()> {
                 backend = %rl_config.backend,
                 "Rate limiting enabled"
             );
-            let limiter: Arc<dyn oauth2_ratelimit::RateLimiter> =
-                match rl_config.backend.as_str() {
-                    "in_memory" => {
-                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
-                            rl_config.max_requests,
-                            rl_config.window_secs,
-                        ))
-                    }
-                    "redis" => {
-                        tracing::warn!(
-                            "Redis rate limiting backend requested but not yet available \
+            let limiter: Arc<dyn oauth2_ratelimit::RateLimiter> = match rl_config.backend.as_str() {
+                "in_memory" => Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                    rl_config.max_requests,
+                    rl_config.window_secs,
+                )),
+                "redis" => {
+                    tracing::warn!(
+                        "Redis rate limiting backend requested but not yet available \
                              in this build; falling back to in_memory"
-                        );
-                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
-                            rl_config.max_requests,
-                            rl_config.window_secs,
-                        ))
-                    }
-                    other => {
-                        tracing::warn!(
-                            backend = %other,
-                            "Unknown rate limiting backend; falling back to in_memory"
-                        );
-                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
-                            rl_config.max_requests,
-                            rl_config.window_secs,
-                        ))
-                    }
-                };
+                    );
+                    Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                        rl_config.max_requests,
+                        rl_config.window_secs,
+                    ))
+                }
+                other => {
+                    tracing::warn!(
+                        backend = %other,
+                        "Unknown rate limiting backend; falling back to in_memory"
+                    );
+                    Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                        rl_config.max_requests,
+                        rl_config.window_secs,
+                    ))
+                }
+            };
             Some(limiter)
         } else {
             tracing::info!("Rate limiting disabled");
@@ -477,7 +474,9 @@ pub async fn run() -> std::io::Result<()> {
 
         // Seed RS256 key if configured (reuse already-parsed PEM with \n handling)
         if let Some(ref pem) = id_token_private_key_pem {
-            let kid = id_token_kid.clone().unwrap_or_else(|| "rs256-initial".to_string());
+            let kid = id_token_kid
+                .clone()
+                .unwrap_or_else(|| "rs256-initial".to_string());
             ks.add(SigningKey {
                 kid,
                 algorithm: KeyAlgorithm::RS256,
@@ -531,7 +530,9 @@ pub async fn run() -> std::io::Result<()> {
     tracing::info!("Metrics endpoint at http://{}/metrics", bind_addr);
 
     let server_config = config.server.clone();
-    let key_rotation_grace_hours = oauth2_actix::handlers::admin_keys::KeyRotationGraceHours(config.jwt.key_rotation_grace_hours);
+    let key_rotation_grace_hours = oauth2_actix::handlers::admin_keys::KeyRotationGraceHours(
+        config.jwt.key_rotation_grace_hours,
+    );
 
     // Start HTTP server
     let server = HttpServer::new(move || {

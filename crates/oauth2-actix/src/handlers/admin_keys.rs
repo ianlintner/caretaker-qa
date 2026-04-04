@@ -67,10 +67,11 @@ pub async fn rotate_key(
             use rsa::RsaPrivateKey;
             // Use OsRng from rsa's rand_core 0.6 (not rand 0.9's rand_core 0.9)
             // to satisfy the CryptoRngCore trait bound on RsaPrivateKey::new.
-            let private_key = RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048).map_err(|e| {
-                tracing::error!(error = %e, "RSA key generation failed");
-                actix_web::error::ErrorInternalServerError("Key generation failed")
-            })?;
+            let private_key =
+                RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048).map_err(|e| {
+                    tracing::error!(error = %e, "RSA key generation failed");
+                    actix_web::error::ErrorInternalServerError("Key generation failed")
+                })?;
             let pem = private_key
                 .to_pkcs8_pem(rsa::pkcs8::LineEnding::LF)
                 .map_err(|e| {

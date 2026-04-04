@@ -119,10 +119,8 @@ where
                         Ok(res.map_into_left_body())
                     } else {
                         // Rejected — return 429
-                        let retry_after = result
-                            .retry_after
-                            .map(|d| d.as_secs().max(1))
-                            .unwrap_or(1);
+                        let retry_after =
+                            result.retry_after.map(|d| d.as_secs().max(1)).unwrap_or(1);
 
                         let reset_unix = result
                             .reset_at

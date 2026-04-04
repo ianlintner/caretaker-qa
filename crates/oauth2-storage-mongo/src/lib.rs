@@ -228,10 +228,7 @@ impl Storage for MongoStorage {
 
     async fn mark_authorization_code_used(&self, code: &str) -> Result<(), OAuth2Error> {
         self.authorization_codes
-            .update_one(
-                doc! { "code": code },
-                doc! { "$set": { "used": true } },
-            )
+            .update_one(doc! { "code": code }, doc! { "$set": { "used": true } })
             .await
             .map(|_| ())
             .map_err(Self::mongo_err_to_oauth)

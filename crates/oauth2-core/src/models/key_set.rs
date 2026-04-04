@@ -148,19 +148,16 @@ impl KeySet {
 ///
 /// The JWT secret is used as the KEK (key-encryption-key).
 /// Returns `nonce || ciphertext` as a single byte vector.
-pub fn encrypt_key_material(
-    plaintext: &[u8],
-    jwt_secret: &str,
-) -> Result<Vec<u8>, String> {
+pub fn encrypt_key_material(plaintext: &[u8], jwt_secret: &str) -> Result<Vec<u8>, String> {
     use aes_gcm::{
         aead::{Aead, KeyInit, OsRng},
-        Aes256Gcm, AeadCore,
+        AeadCore, Aes256Gcm,
     };
 
     // Derive a 32-byte key from the JWT secret via SHA-256
     let key_bytes = sha256_hash(jwt_secret.as_bytes());
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
-        .map_err(|e| format!("AES key init error: {e}"))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| format!("AES key init error: {e}"))?;
 
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
@@ -174,10 +171,7 @@ pub fn encrypt_key_material(
 }
 
 /// Decrypt key material encrypted with `encrypt_key_material`.
-pub fn decrypt_key_material(
-    encrypted: &[u8],
-    jwt_secret: &str,
-) -> Result<Vec<u8>, String> {
+pub fn decrypt_key_material(encrypted: &[u8], jwt_secret: &str) -> Result<Vec<u8>, String> {
     use aes_gcm::{
         aead::{Aead, KeyInit},
         Aes256Gcm, Nonce,
@@ -188,14 +182,17 @@ pub fn decrypt_key_material(
     }
 
     let key_bytes = sha256_hash(jwt_secret.as_bytes());
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
-        .map_err(|e| format!("AES key init error: {e}"))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| format!("AES key init error: {e}"))?;
 
     let (nonce_bytes, ciphertext) = encrypted.split_at(12);
-    let nonce = Nonce::from_slice(nonce_bytes);
+    let nonce_arr: [u8; 12] = nonce_bytes
+        .try_into()
+        .map_err(|_| "Invalid nonce length".to_string())?;
+    let nonce = Nonce::from(nonce_arr);
 
     cipher
-        .decrypt(nonce, ciphertext)
+        .decrypt(&nonce, ciphertext)
         .map_err(|e| format!("Decryption error: {e}"))
 }
 
@@ -229,7 +226,8 @@ mod encryption_tests {
     #[test]
     fn wrong_secret_fails_to_decrypt() {
         let plaintext = b"sensitive-data";
-        let encrypted = encrypt_key_material(plaintext, "correct-secret-for-test-purposes-1234").unwrap();
+        let encrypted =
+            encrypt_key_material(plaintext, "correct-secret-for-test-purposes-1234").unwrap();
         let result = decrypt_key_material(&encrypted, "wrong-secret-for-testing-purposes-12345");
         assert!(result.is_err());
     }
@@ -270,10 +268,7 @@ mod tests {
         let mut ks = KeySet::new();
         ks.add(make_key("hs-1", Algorithm::HS256, true));
         ks.add(make_key("rs-1", Algorithm::RS256, true));
-        assert_eq!(
-            ks.current_for_alg(Algorithm::RS256).unwrap().kid,
-            "rs-1"
-        );
+        assert_eq!(ks.current_for_alg(Algorithm::RS256).unwrap().kid, "rs-1");
     }
 
     #[test]
