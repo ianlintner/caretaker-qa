@@ -5,6 +5,8 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
+
 #[cfg(feature = "openapi")]
 use utoipa::ToSchema;
 
@@ -91,6 +93,22 @@ impl IdTokenClaims {
         let key = EncodingKey::from_rsa_pem(private_key_pem.as_bytes())?;
         jsonwebtoken::encode(&header, self, &key)
     }
+
+    /// Encode ID token claims using a SigningKey (unified HS256/RS256 path).
+    pub fn encode_with_key(&self, key: &SigningKey) -> Result<String, jsonwebtoken::errors::Error> {
+        let mut header = match key.algorithm {
+            KeyAlgorithm::HS256 => Header::default(),
+            KeyAlgorithm::RS256 => Header::new(jsonwebtoken::Algorithm::RS256),
+        };
+        header.kid = Some(key.kid.clone());
+
+        let encoding_key = match key.algorithm {
+            KeyAlgorithm::HS256 => EncodingKey::from_secret(&key.key_material),
+            KeyAlgorithm::RS256 => EncodingKey::from_rsa_pem(&key.key_material)?,
+        };
+
+        jsonwebtoken::encode(&header, self, &encoding_key)
+    }
 }
 
 /// Base64url encode without padding (per RFC 7515).
@@ -131,6 +149,67 @@ impl Claims {
             &Validation::default(),
         )?;
         Ok(token_data.claims)
+    }
+
+    /// Encode claims using a SigningKey (supports HS256 and RS256 with kid).
+    pub fn encode_with_key(&self, key: &SigningKey) -> Result<String, jsonwebtoken::errors::Error> {
+        let mut header = match key.algorithm {
+            KeyAlgorithm::HS256 => Header::default(),
+            KeyAlgorithm::RS256 => Header::new(jsonwebtoken::Algorithm::RS256),
+        };
+        header.kid = Some(key.kid.clone());
+
+        let encoding_key = match key.algorithm {
+            KeyAlgorithm::HS256 => EncodingKey::from_secret(&key.key_material),
+            KeyAlgorithm::RS256 => EncodingKey::from_rsa_pem(&key.key_material)?,
+        };
+
+        jsonwebtoken::encode(&header, self, &encoding_key)
+    }
+
+    /// Decode and validate a token against a KeySet.
+    ///
+    /// If the token has a `kid` header, the matching key is used.
+    /// If no `kid`, tries all active HS256 keys (backward compat).
+    pub fn decode_with_keyset(
+        token: &str,
+        keyset: &KeySet,
+    ) -> Result<Self, jsonwebtoken::errors::Error> {
+        // Read the unverified header to get kid
+        let header = jsonwebtoken::decode_header(token)?;
+
+        if let Some(ref kid) = header.kid {
+            // Find the key by kid
+            if let Some(key) = keyset.find(kid) {
+                let decoding_key = match key.algorithm {
+                    KeyAlgorithm::HS256 => DecodingKey::from_secret(&key.key_material),
+                    KeyAlgorithm::RS256 => DecodingKey::from_rsa_pem(&key.key_material)?,
+                };
+                let validation = match key.algorithm {
+                    KeyAlgorithm::HS256 => Validation::default(),
+                    KeyAlgorithm::RS256 => Validation::new(jsonwebtoken::Algorithm::RS256),
+                };
+                let token_data = jsonwebtoken::decode::<Claims>(token, &decoding_key, &validation)?;
+                return Ok(token_data.claims);
+            }
+        }
+
+        // No kid or kid not found — try all active HS256 keys (backward compat)
+        let mut last_err = None;
+        for key in keyset.active_keys() {
+            if key.algorithm != KeyAlgorithm::HS256 {
+                continue;
+            }
+            let decoding_key = DecodingKey::from_secret(&key.key_material);
+            match jsonwebtoken::decode::<Claims>(token, &decoding_key, &Validation::default()) {
+                Ok(data) => return Ok(data.claims),
+                Err(e) => last_err = Some(e),
+            }
+        }
+
+        Err(last_err.unwrap_or_else(|| {
+            jsonwebtoken::errors::Error::from(jsonwebtoken::errors::ErrorKind::InvalidToken)
+        }))
     }
 }
 

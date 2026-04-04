@@ -49,6 +49,10 @@ pub struct Metrics {
     pub db_queries_total: Counter,
     #[allow(dead_code)]
     pub db_query_duration_seconds: Histogram,
+
+    // Rate limiting metrics
+    pub rate_limit_rejected_total: CounterVec,
+    pub rate_limit_remaining: Histogram,
 }
 
 impl Metrics {
@@ -149,6 +153,29 @@ impl Metrics {
         )?;
         registry.register(Box::new(db_query_duration_seconds.clone()))?;
 
+        let rate_limit_rejected_total = CounterVec::new(
+            Opts::new("rate_limit_rejected_total", "Total rate-limited requests")
+                .namespace("oauth2_server"),
+            &["ip_prefix"],
+        )
+        .expect("rate_limit_rejected_total metric");
+        registry
+            .register(Box::new(rate_limit_rejected_total.clone()))
+            .expect("register rate_limit_rejected_total");
+
+        let rate_limit_remaining = Histogram::with_opts(
+            HistogramOpts::new(
+                "rate_limit_remaining",
+                "Distribution of remaining tokens on allowed requests",
+            )
+            .namespace("oauth2_server")
+            .buckets(vec![0.0, 1.0, 5.0, 10.0, 25.0, 50.0, 75.0, 100.0]),
+        )
+        .expect("rate_limit_remaining metric");
+        registry
+            .register(Box::new(rate_limit_remaining.clone()))
+            .expect("register rate_limit_remaining");
+
         Ok(Self {
             registry: Arc::new(registry),
             http_requests_total,
@@ -163,6 +190,8 @@ impl Metrics {
             oauth_active_tokens,
             db_queries_total,
             db_query_duration_seconds,
+            rate_limit_rejected_total,
+            rate_limit_remaining,
         })
     }
 }

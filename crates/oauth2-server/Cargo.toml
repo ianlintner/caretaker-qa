@@ -14,6 +14,7 @@ oauth2-core = { path = "../oauth2-core" }
 oauth2-events = { path = "../oauth2-events" }
 oauth2-observability = { path = "../oauth2-observability", features = ["actix"] }
 oauth2-openapi = { path = "../oauth2-openapi" }
+oauth2-ratelimit = { path = "../../oauth2-ratelimit" }
 oauth2-social-login = { path = "../oauth2-social-login" }
 oauth2-storage-factory = { path = "../oauth2-storage-factory", default-features = false }
 
@@ -36,6 +37,8 @@ tracing-actix-web = "0.7"
 serde_json = "1.0"
 env_logger = "0.11"
 hex = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1.35", features = ["sync"] }
 
 [features]
 default = ["sqlx"]

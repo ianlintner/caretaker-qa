@@ -4,10 +4,13 @@ use actix_files::Files;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
+use actix_web::middleware::Condition;
 use actix_web::{cookie::Key, middleware as actix_middleware, web, App, HttpResponse, HttpServer};
+use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
 use oauth2_openapi::ApiDoc;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -375,31 +378,48 @@ pub async fn run() -> std::io::Result<()> {
             // Explicitly set to default to make it configurable without changing call sites.
             .with_max_entries(100_000);
 
-    // Start actors with event system
-    let token_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::TokenActor::with_events(
-            storage.clone(),
-            jwt_secret.clone(),
-            event_bus.clone(),
-        )
-        .start()
-    } else {
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone()).start()
+    // --- Rate limiting ---
+    let rate_limiter: Option<Arc<dyn oauth2_ratelimit::RateLimiter>> = {
+        let rl_config = config.rate_limit.clone().unwrap_or_default();
+        if rl_config.enabled {
+            tracing::info!(
+                max_requests = rl_config.max_requests,
+                window_secs = rl_config.window_secs,
+                backend = %rl_config.backend,
+                "Rate limiting enabled"
+            );
+            let limiter: Arc<dyn oauth2_ratelimit::RateLimiter> = match rl_config.backend.as_str() {
+                "in_memory" => Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                    rl_config.max_requests,
+                    rl_config.window_secs,
+                )),
+                "redis" => {
+                    tracing::warn!(
+                        "Redis rate limiting backend requested but not yet available \
+                             in this build; falling back to in_memory"
+                    );
+                    Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                        rl_config.max_requests,
+                        rl_config.window_secs,
+                    ))
+                }
+                other => {
+                    tracing::warn!(
+                        backend = %other,
+                        "Unknown rate limiting backend; falling back to in_memory"
+                    );
+                    Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                        rl_config.max_requests,
+                        rl_config.window_secs,
+                    ))
+                }
+            };
+            Some(limiter)
+        } else {
+            tracing::info!("Rate limiting disabled");
+            None
+        }
     };
-
-    let client_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone()).start()
-    } else {
-        oauth2_actix::actors::ClientActor::new(storage.clone()).start()
-    };
-
-    let auth_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::AuthActor::with_events(storage.clone(), event_bus.clone()).start()
-    } else {
-        oauth2_actix::actors::AuthActor::new(storage.clone()).start()
-    };
-
-    tracing::info!("Actors started");
 
     // Build OIDC configuration for discovery + id_token generation.
     let issuer = config
@@ -433,10 +453,71 @@ pub async fn run() -> std::io::Result<()> {
         issuer: issuer.clone(),
         jwt_secret: jwt_secret.clone(),
         id_token_alg,
-        id_token_kid,
-        id_token_private_key_pem,
+        id_token_kid: id_token_kid.clone(),
+        id_token_private_key_pem: id_token_private_key_pem.clone(),
     };
     tracing::info!(issuer = %issuer, "OIDC issuer configured");
+
+    // --- JWT KeySet ---
+    let keyset = {
+        let mut ks = KeySet::new();
+
+        // Seed HS256 key from JWT secret
+        ks.add(SigningKey {
+            kid: "hs256-initial".to_string(),
+            algorithm: KeyAlgorithm::HS256,
+            key_material: config.jwt.secret.as_bytes().to_vec(),
+            is_current: true,
+            created_at: chrono::Utc::now(),
+            expires_at: None,
+        });
+
+        // Seed RS256 key if configured (reuse already-parsed PEM with \n handling)
+        if let Some(ref pem) = id_token_private_key_pem {
+            let kid = id_token_kid
+                .clone()
+                .unwrap_or_else(|| "rs256-initial".to_string());
+            ks.add(SigningKey {
+                kid,
+                algorithm: KeyAlgorithm::RS256,
+                key_material: pem.as_bytes().to_vec(),
+                is_current: true,
+                created_at: chrono::Utc::now(),
+                expires_at: None,
+            });
+        }
+
+        Arc::new(RwLock::new(ks))
+    };
+
+    // Start actors with event system
+    let token_actor = if let Some(ref event_bus) = event_bus {
+        oauth2_actix::actors::TokenActor::with_events(
+            storage.clone(),
+            jwt_secret.clone(),
+            event_bus.clone(),
+        )
+        .with_keyset(keyset.clone())
+        .start()
+    } else {
+        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
+            .with_keyset(keyset.clone())
+            .start()
+    };
+
+    let client_actor = if let Some(ref event_bus) = event_bus {
+        oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone()).start()
+    } else {
+        oauth2_actix::actors::ClientActor::new(storage.clone()).start()
+    };
+
+    let auth_actor = if let Some(ref event_bus) = event_bus {
+        oauth2_actix::actors::AuthActor::with_events(storage.clone(), event_bus.clone()).start()
+    } else {
+        oauth2_actix::actors::AuthActor::new(storage.clone()).start()
+    };
+
+    tracing::info!("Actors started");
 
     // OpenAPI documentation
     let openapi = ApiDoc::openapi();
@@ -449,6 +530,9 @@ pub async fn run() -> std::io::Result<()> {
     tracing::info!("Metrics endpoint at http://{}/metrics", bind_addr);
 
     let server_config = config.server.clone();
+    let key_rotation_grace_hours = oauth2_actix::handlers::admin_keys::KeyRotationGraceHours(
+        config.jwt.key_rotation_grace_hours,
+    );
 
     // Start HTTP server
     let server = HttpServer::new(move || {
@@ -468,7 +552,32 @@ pub async fn run() -> std::io::Result<()> {
             }
         };
 
+        // Rate limiting middleware. When disabled, rate_limiter is None and
+        // Condition::new(false, ...) ensures the middleware is never invoked.
+        // The dummy InMemoryRateLimiter below is only constructed in the
+        // disabled path for type unification and does NOT get called.
+        let rl_middleware = {
+            let (enabled, limiter) = match rate_limiter.clone() {
+                Some(l) => (true, l),
+                None => (
+                    false,
+                    Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(1, 1))
+                        as Arc<dyn oauth2_ratelimit::RateLimiter>,
+                ),
+            };
+            Condition::new(
+                enabled,
+                oauth2_actix::middleware::rate_limit::RateLimitMiddleware::new(
+                    limiter,
+                    vec!["/health".into(), "/ready".into(), "/metrics".into()],
+                    server_config.trust_proxy_headers,
+                ),
+            )
+        };
+
         let mut app = App::new()
+            // Rate limiting (outermost middleware)
+            .wrap(rl_middleware)
             // Middleware
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
@@ -498,7 +607,9 @@ pub async fn run() -> std::io::Result<()> {
             .app_data(web::Data::new(social_config.clone()))
             // Server/public URL settings (used by well-known discovery and other URL builders)
             .app_data(web::Data::new(server_config.clone()))
-            .app_data(web::Data::new(oidc_config.clone()));
+            .app_data(web::Data::new(oidc_config.clone()))
+            .app_data(web::Data::new(keyset.clone()))
+            .app_data(web::Data::new(key_rotation_grace_hours));
 
         // Shared, best-effort in-memory idempotency cache for event ingest.
         app = app.app_data(web::Data::new(ingest_idempotency.clone()));
@@ -659,6 +770,11 @@ pub async fn run() -> std::io::Result<()> {
                             .route(
                                 "/clients/{id}",
                                 web::delete().to(oauth2_actix::handlers::admin::delete_client),
+                            )
+                            .service(
+                                web::scope("/keys")
+                                    .route("/rotate", web::post().to(oauth2_actix::handlers::admin_keys::rotate_key))
+                                    .route("", web::get().to(oauth2_actix::handlers::admin_keys::list_keys))
                             ),
                     ),
             )

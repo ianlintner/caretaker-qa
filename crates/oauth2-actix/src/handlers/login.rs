@@ -142,7 +142,7 @@ pub async fn login_submit(
 
     // Redirect to the OAuth authorize URL that was saved before the login redirect,
     // or fall back to the success page.
-    let return_to: Option<String> = session.get("return_to").unwrap_or(None);
+    let return_to: Option<String> = session.get("return_to")?;
     session.remove("return_to");
 
     // Only allow safe relative redirects; anything else falls back to /profile.
