@@ -46,7 +46,6 @@ services:
       - OAUTH2_SEED_USERNAME=${OAUTH2_SEED_USERNAME:-admin}
       - OAUTH2_SEED_PASSWORD=${OAUTH2_SEED_PASSWORD:-changeme}
       - OAUTH2_SEED_EMAIL=${OAUTH2_SEED_EMAIL:-admin@example.com}
-      - OAUTH2_ALLOW_INSECURE_DEFAULTS=1
       - RUST_LOG=${RUST_LOG:-info}
     depends_on:
       flyway_e2e:

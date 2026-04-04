@@ -1,0 +1,48 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "cargo-check-security-batch",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"check",
+				"--all-features"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "cargo-check-security-batch",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"check",
+				"--all-features"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "cargo-check-security-batch",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"check",
+				"--all-features"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "cargo-test-targeted-security",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"test",
+				"--test",
+				"security_http",
+				"--test",
+				"storage_contract_sqlx"
+			],
+			"isBackground": false
+		}
+	]
+}
