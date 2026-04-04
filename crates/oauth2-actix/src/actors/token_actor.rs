@@ -1,7 +1,11 @@
+use std::sync::Arc;
+
 use actix::prelude::*;
+use oauth2_core::models::key_set::KeySet;
 use oauth2_events::{AuthEvent, EventBusHandle, EventEnvelope, EventSeverity, EventType};
 use oauth2_observability::annotate_span_with_trace_ids;
 use oauth2_ports::DynStorage;
+use tokio::sync::RwLock;
 use tracing::Instrument;
 
 use oauth2_core::{Claims, OAuth2Error, Token};
@@ -10,6 +14,7 @@ pub struct TokenActor {
     db: DynStorage,
     jwt_secret: String,
     event_bus: Option<EventBusHandle>,
+    keyset: Option<Arc<RwLock<KeySet>>>,
 }
 
 impl TokenActor {
@@ -18,6 +23,7 @@ impl TokenActor {
             db,
             jwt_secret,
             event_bus: None,
+            keyset: None,
         }
     }
 
@@ -26,7 +32,13 @@ impl TokenActor {
             db,
             jwt_secret,
             event_bus: Some(event_bus),
+            keyset: None,
         }
+    }
+
+    pub fn with_keyset(mut self, keyset: Arc<RwLock<KeySet>>) -> Self {
+        self.keyset = Some(keyset);
+        self
     }
 }
 
@@ -51,6 +63,7 @@ impl Handler<CreateToken> for TokenActor {
         let db = self.db.clone();
         let jwt_secret = self.jwt_secret.clone();
         let event_bus = self.event_bus.clone();
+        let keyset = self.keyset.clone();
 
         let parent_span = msg.span.clone();
         let actor_span = tracing::info_span!(
@@ -75,9 +88,22 @@ impl Handler<CreateToken> for TokenActor {
                     msg.scope.clone(),
                     3600, // 1 hour
                 );
-                let access_token = access_claims
-                    .encode(&jwt_secret)
-                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+                let access_token = if let Some(ref keyset) = keyset {
+                    let ks = keyset.read().await;
+                    if let Some(key) = ks.current() {
+                        access_claims
+                            .encode_with_key(key)
+                            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                    } else {
+                        access_claims
+                            .encode(&jwt_secret)
+                            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                    }
+                } else {
+                    access_claims
+                        .encode(&jwt_secret)
+                        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                };
 
                 // Create refresh token if requested
                 let refresh_token = if msg.include_refresh {
@@ -88,9 +114,22 @@ impl Handler<CreateToken> for TokenActor {
                         2592000, // 30 days
                     );
                     Some(
-                        refresh_claims
-                            .encode(&jwt_secret)
-                            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?,
+                        if let Some(ref keyset) = keyset {
+                            let ks = keyset.read().await;
+                            if let Some(key) = ks.current() {
+                                refresh_claims
+                                    .encode_with_key(key)
+                                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                            } else {
+                                refresh_claims
+                                    .encode(&jwt_secret)
+                                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                            }
+                        } else {
+                            refresh_claims
+                                .encode(&jwt_secret)
+                                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                        },
                     )
                 } else {
                     None

@@ -398,32 +398,6 @@ pub async fn run() -> std::io::Result<()> {
         }
     };
 
-    // Start actors with event system
-    let token_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::TokenActor::with_events(
-            storage.clone(),
-            jwt_secret.clone(),
-            event_bus.clone(),
-        )
-        .start()
-    } else {
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone()).start()
-    };
-
-    let client_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone()).start()
-    } else {
-        oauth2_actix::actors::ClientActor::new(storage.clone()).start()
-    };
-
-    let auth_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::AuthActor::with_events(storage.clone(), event_bus.clone()).start()
-    } else {
-        oauth2_actix::actors::AuthActor::new(storage.clone()).start()
-    };
-
-    tracing::info!("Actors started");
-
     // Build OIDC configuration for discovery + id_token generation.
     let issuer = config
         .server
@@ -490,6 +464,35 @@ pub async fn run() -> std::io::Result<()> {
 
         Arc::new(RwLock::new(ks))
     };
+
+    // Start actors with event system
+    let token_actor = if let Some(ref event_bus) = event_bus {
+        oauth2_actix::actors::TokenActor::with_events(
+            storage.clone(),
+            jwt_secret.clone(),
+            event_bus.clone(),
+        )
+        .with_keyset(keyset.clone())
+        .start()
+    } else {
+        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
+            .with_keyset(keyset.clone())
+            .start()
+    };
+
+    let client_actor = if let Some(ref event_bus) = event_bus {
+        oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone()).start()
+    } else {
+        oauth2_actix::actors::ClientActor::new(storage.clone()).start()
+    };
+
+    let auth_actor = if let Some(ref event_bus) = event_bus {
+        oauth2_actix::actors::AuthActor::with_events(storage.clone(), event_bus.clone()).start()
+    } else {
+        oauth2_actix::actors::AuthActor::new(storage.clone()).start()
+    };
+
+    tracing::info!("Actors started");
 
     // OpenAPI documentation
     let openapi = ApiDoc::openapi();
