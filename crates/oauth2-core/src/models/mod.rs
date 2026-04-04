@@ -1,6 +1,7 @@
 pub mod authorization;
 pub mod client;
 pub mod error;
+pub mod key_set;
 pub mod scope;
 pub mod token;
 pub mod user;
