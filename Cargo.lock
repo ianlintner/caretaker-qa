@@ -3803,6 +3803,7 @@ dependencies = [
  "oauth2-events",
  "oauth2-observability",
  "oauth2-openapi",
+ "oauth2-ratelimit",
  "oauth2-social-login",
  "oauth2-storage-factory",
  "serde_json",
