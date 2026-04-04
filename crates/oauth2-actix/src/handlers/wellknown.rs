@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{web, HttpRequest, HttpResponse, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use rsa::pkcs1::DecodeRsaPrivateKey;
@@ -6,7 +8,9 @@ use rsa::traits::PublicKeyParts;
 use rsa::RsaPrivateKey;
 use serde::Deserialize;
 use serde_json::json;
+use tokio::sync::RwLock;
 
+use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet};
 use oauth2_core::Claims;
 
 /// Shared OIDC / server configuration injected as `web::Data<OidcConfig>`.
@@ -65,55 +69,75 @@ pub async fn openid_configuration(oidc: web::Data<OidcConfig>) -> Result<HttpRes
 
 /// JWKS endpoint.
 ///
-/// - For HS256 id_tokens, we do NOT publish the shared secret; returns empty `keys`.
-/// - For RS256 id_tokens, publishes the RSA public key so relying parties can verify.
-pub async fn jwks(oidc: web::Data<OidcConfig>) -> Result<HttpResponse> {
-    if !oidc.id_token_alg.eq_ignore_ascii_case("RS256") {
-        return Ok(HttpResponse::Ok()
-            .insert_header(("Cache-Control", "public, max-age=3600"))
-            .json(json!({"keys": []})));
-    }
+/// Returns all active RS256 keys from the KeySet.
+/// HS256 keys are NOT included (shared secrets must not be published).
+pub async fn jwks(
+    keyset: web::Data<Arc<RwLock<KeySet>>>,
+    oidc: web::Data<OidcConfig>,
+) -> Result<HttpResponse> {
+    let ks = keyset.read().await;
+    let mut jwk_entries = Vec::new();
 
-    let pem = match oidc.id_token_private_key_pem.as_deref() {
-        Some(pem) if !pem.trim().is_empty() => pem,
-        _ => {
-            // Misconfigured: discovery says RS256 but key missing; fail closed.
-            return Ok(HttpResponse::InternalServerError().json(json!({
-                "error": "server_error",
-                "error_description": "RS256 configured but signing key is missing"
-            })));
+    for key in ks.active_keys() {
+        if key.algorithm != KeyAlgorithm::RS256 {
+            continue;
         }
-    };
 
-    // Support PKCS8 and PKCS1 PEM.
-    let private_key = RsaPrivateKey::from_pkcs8_pem(pem)
-        .or_else(|_| RsaPrivateKey::from_pkcs1_pem(pem))
-        .map_err(|_| actix_web::error::ErrorInternalServerError("Invalid RSA private key PEM"))?;
-    let public_key = private_key.to_public_key();
+        // Parse the PEM to extract RSA public key components
+        let pem_str = std::str::from_utf8(&key.key_material)
+            .map_err(|_| actix_web::error::ErrorInternalServerError("Invalid key encoding"))?;
 
-    let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
-    let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
+        let private_key = RsaPrivateKey::from_pkcs8_pem(pem_str)
+            .or_else(|_| RsaPrivateKey::from_pkcs1_pem(pem_str))
+            .map_err(|_| {
+                actix_web::error::ErrorInternalServerError("Invalid RSA private key PEM")
+            })?;
+        let public_key = private_key.to_public_key();
+        let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
+        let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
 
-    let mut jwk = json!({
-        "kty": "RSA",
-        "use": "sig",
-        "alg": "RS256",
-        "n": n,
-        "e": e
-    });
-    if let Some(kid) = oidc
-        .id_token_kid
-        .as_deref()
-        .filter(|s| !s.trim().is_empty())
-    {
-        jwk["kid"] = json!(kid);
+        jwk_entries.push(json!({
+            "kid": key.kid,
+            "kty": "RSA",
+            "use": "sig",
+            "alg": "RS256",
+            "n": n,
+            "e": e,
+        }));
     }
 
-    let jwks = json!({ "keys": [jwk] });
+    // Fallback: if no RS256 keys in KeySet, try OidcConfig (backward compat during migration)
+    if jwk_entries.is_empty() && oidc.id_token_alg.eq_ignore_ascii_case("RS256") {
+        if let Some(pem) = oidc
+            .id_token_private_key_pem
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+        {
+            let private_key = RsaPrivateKey::from_pkcs8_pem(pem)
+                .or_else(|_| RsaPrivateKey::from_pkcs1_pem(pem))
+                .map_err(|_| {
+                    actix_web::error::ErrorInternalServerError("Invalid RSA private key PEM")
+                })?;
+            let public_key = private_key.to_public_key();
+            let n = URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
+            let e = URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
+            let mut jwk = json!({
+                "kty": "RSA", "use": "sig", "alg": "RS256", "n": n, "e": e,
+            });
+            if let Some(kid) = oidc
+                .id_token_kid
+                .as_deref()
+                .filter(|s| !s.trim().is_empty())
+            {
+                jwk["kid"] = json!(kid);
+            }
+            jwk_entries.push(jwk);
+        }
+    }
 
     Ok(HttpResponse::Ok()
         .insert_header(("Cache-Control", "public, max-age=3600"))
-        .json(jwks))
+        .json(json!({ "keys": jwk_entries })))
 }
 
 /// Query parameters for userinfo (not commonly used, but spec allows GET).
@@ -148,8 +172,21 @@ pub async fn userinfo(
         }
     };
 
-    // Decode the access token JWT to extract claims
-    match Claims::decode(&token_str, &oidc.jwt_secret) {
+    // Decode the access token JWT against the keyset
+    let keyset_read = if let Some(ks) = req.app_data::<web::Data<Arc<RwLock<KeySet>>>>() {
+        Some(ks.read().await)
+    } else {
+        None
+    };
+
+    let claims_result = if let Some(ref ks) = keyset_read {
+        Claims::decode_with_keyset(&token_str, ks)
+    } else {
+        // Fallback to single-secret decode
+        Claims::decode(&token_str, &oidc.jwt_secret)
+    };
+
+    match claims_result {
         Ok(claims) => {
             let response = json!({
                 "sub": claims.sub,
