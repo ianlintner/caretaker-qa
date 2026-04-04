@@ -132,3 +132,7 @@ data:
                 RAISE NOTICE 'Column tokens.user_id already nullable; skipping';
         END;
     END $$;
+
+    V7__add_role_to_users_table.sql: |
+    -- Add role column to users table for RBAC support
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
