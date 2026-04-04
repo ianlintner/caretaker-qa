@@ -5,6 +5,8 @@ use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
+
 #[cfg(feature = "openapi")]
 use utoipa::ToSchema;
 
