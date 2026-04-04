@@ -4,7 +4,7 @@ CREATE TABLE signing_keys (
     id TEXT PRIMARY KEY,
     kid TEXT NOT NULL UNIQUE,
     algorithm TEXT NOT NULL,
-    key_material BLOB NOT NULL,
+    key_material BYTEA NOT NULL,
     is_current BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP
