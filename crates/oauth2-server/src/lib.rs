@@ -388,10 +388,36 @@ pub async fn run() -> std::io::Result<()> {
                 backend = %rl_config.backend,
                 "Rate limiting enabled"
             );
-            Some(Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
-                rl_config.max_requests,
-                rl_config.window_secs,
-            )))
+            let limiter: Arc<dyn oauth2_ratelimit::RateLimiter> =
+                match rl_config.backend.as_str() {
+                    "in_memory" => {
+                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                            rl_config.max_requests,
+                            rl_config.window_secs,
+                        ))
+                    }
+                    "redis" => {
+                        tracing::warn!(
+                            "Redis rate limiting backend requested but not yet available \
+                             in this build; falling back to in_memory"
+                        );
+                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                            rl_config.max_requests,
+                            rl_config.window_secs,
+                        ))
+                    }
+                    other => {
+                        tracing::warn!(
+                            backend = %other,
+                            "Unknown rate limiting backend; falling back to in_memory"
+                        );
+                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                            rl_config.max_requests,
+                            rl_config.window_secs,
+                        ))
+                    }
+                };
+            Some(limiter)
         } else {
             tracing::info!("Rate limiting disabled");
             None
