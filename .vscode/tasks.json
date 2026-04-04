@@ -43,6 +43,16 @@
 				"storage_contract_sqlx"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "git-status-security-wave",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short"
+			],
+			"isBackground": false
 		}
 	]
 }
