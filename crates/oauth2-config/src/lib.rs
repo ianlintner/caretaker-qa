@@ -57,6 +57,12 @@ pub struct DatabaseConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct JwtConfig {
     pub secret: String,
+    #[serde(default = "default_grace_hours")]
+    pub key_rotation_grace_hours: u64,
+}
+
+fn default_grace_hours() -> u64 {
+    24
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -303,6 +309,10 @@ impl Config {
                     eprintln!("NEVER use this in production! Set OAUTH2_JWT_SECRET environment variable.");
                     INSECURE_DEFAULT_JWT_SECRET.to_string()
                 }),
+                key_rotation_grace_hours: std::env::var("OAUTH2_JWT_KEY_ROTATION_GRACE_HOURS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(24),
             },
             events: EventConfig {
                 enabled: std::env::var("OAUTH2_EVENTS_ENABLED")

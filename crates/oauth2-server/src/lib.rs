@@ -9,6 +9,8 @@ use actix_web::middleware::Condition;
 use oauth2_openapi::ApiDoc;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
+use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
 use tracing_actix_web::{DefaultRootSpanBuilder, RootSpanBuilder, TracingLogger};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
@@ -459,6 +461,39 @@ pub async fn run() -> std::io::Result<()> {
     };
     tracing::info!(issuer = %issuer, "OIDC issuer configured");
 
+    // --- JWT KeySet ---
+    let keyset = {
+        let mut ks = KeySet::new();
+
+        // Seed HS256 key from JWT secret
+        ks.add(SigningKey {
+            kid: "hs256-initial".to_string(),
+            algorithm: KeyAlgorithm::HS256,
+            key_material: config.jwt.secret.as_bytes().to_vec(),
+            is_current: true,
+            created_at: chrono::Utc::now(),
+            expires_at: None,
+        });
+
+        // Seed RS256 key if configured
+        if let Ok(pem) = std::env::var("OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM") {
+            if !pem.trim().is_empty() {
+                let kid = std::env::var("OAUTH2_ID_TOKEN_KID")
+                    .unwrap_or_else(|_| "rs256-initial".to_string());
+                ks.add(SigningKey {
+                    kid,
+                    algorithm: KeyAlgorithm::RS256,
+                    key_material: pem.into_bytes(),
+                    is_current: true,
+                    created_at: chrono::Utc::now(),
+                    expires_at: None,
+                });
+            }
+        }
+
+        Arc::new(RwLock::new(ks))
+    };
+
     // OpenAPI documentation
     let openapi = ApiDoc::openapi();
 
@@ -470,6 +505,7 @@ pub async fn run() -> std::io::Result<()> {
     tracing::info!("Metrics endpoint at http://{}/metrics", bind_addr);
 
     let server_config = config.server.clone();
+    let key_rotation_grace_hours = config.jwt.key_rotation_grace_hours;
 
     // Start HTTP server
     let server = HttpServer::new(move || {
@@ -530,7 +566,9 @@ pub async fn run() -> std::io::Result<()> {
             .app_data(web::Data::new(social_config.clone()))
             // Server/public URL settings (used by well-known discovery and other URL builders)
             .app_data(web::Data::new(server_config.clone()))
-            .app_data(web::Data::new(oidc_config.clone()));
+            .app_data(web::Data::new(oidc_config.clone()))
+            .app_data(web::Data::new(keyset.clone()))
+            .app_data(web::Data::new(key_rotation_grace_hours));
 
         // Shared, best-effort in-memory idempotency cache for event ingest.
         app = app.app_data(web::Data::new(ingest_idempotency.clone()));
@@ -691,6 +729,11 @@ pub async fn run() -> std::io::Result<()> {
                             .route(
                                 "/clients/{id}",
                                 web::delete().to(oauth2_actix::handlers::admin::delete_client),
+                            )
+                            .service(
+                                web::scope("/keys")
+                                    .route("/rotate", web::post().to(oauth2_actix::handlers::admin_keys::rotate_key))
+                                    .route("", web::get().to(oauth2_actix::handlers::admin_keys::list_keys))
                             ),
                     ),
             )
