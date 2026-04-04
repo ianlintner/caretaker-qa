@@ -20,6 +20,8 @@ pub struct Config {
     pub session: Option<SessionConfig>,
     #[serde(default)]
     pub debug: Option<DebugConfig>,
+    #[serde(default)]
+    pub rate_limit: Option<RateLimitConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -155,6 +157,37 @@ pub struct SessionConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DebugConfig {
     pub config: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RateLimitConfig {
+    #[serde(default = "default_rate_limit_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_max_requests")]
+    pub max_requests: u32,
+    #[serde(default = "default_window_secs")]
+    pub window_secs: u64,
+    #[serde(default = "default_rate_limit_backend")]
+    pub backend: String,
+    #[serde(default)]
+    pub redis_url: Option<String>,
+}
+
+fn default_rate_limit_enabled() -> bool { true }
+fn default_max_requests() -> u32 { 100 }
+fn default_window_secs() -> u64 { 60 }
+fn default_rate_limit_backend() -> String { "in_memory".to_string() }
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_rate_limit_enabled(),
+            max_requests: default_max_requests(),
+            window_secs: default_window_secs(),
+            backend: default_rate_limit_backend(),
+            redis_url: None,
+        }
+    }
 }
 
 impl Default for Config {
@@ -301,6 +334,23 @@ impl Config {
                 rabbit_exchange: std::env::var("OAUTH2_EVENTS_RABBIT_EXCHANGE").ok(),
                 rabbit_routing_key: std::env::var("OAUTH2_EVENTS_RABBIT_ROUTING_KEY").ok(),
             },
+            rate_limit: Some(RateLimitConfig {
+                enabled: std::env::var("OAUTH2_RATE_LIMIT_ENABLED")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(true),
+                max_requests: std::env::var("OAUTH2_RATE_LIMIT_MAX_REQUESTS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(100),
+                window_secs: std::env::var("OAUTH2_RATE_LIMIT_WINDOW_SECS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(60),
+                backend: std::env::var("OAUTH2_RATE_LIMIT_BACKEND")
+                    .unwrap_or_else(|_| "in_memory".to_string()),
+                redis_url: std::env::var("OAUTH2_RATE_LIMIT_REDIS_URL").ok(),
+            }),
             social: None,
             session: None,
             debug: None,
