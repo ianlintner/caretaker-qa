@@ -311,7 +311,7 @@ if [[ "${login_status}" != "302" ]]; then
   exit 1
 fi
 
-if ! awk 'NF && $1 !~ /^#/' "${COOKIE_JAR}" | grep -q .; then
+if ! grep -Eq '^(#HttpOnly_)?[^[:space:]#]+' "${COOKIE_JAR}"; then
   echo "Admin login did not produce a session cookie (HTTP ${login_status})." >&2
   if [[ -n "${redirect_target}" ]]; then
     echo "Login redirect target: ${redirect_target}" >&2
