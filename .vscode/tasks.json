@@ -109,6 +109,17 @@
 				"--all-features"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "cargo-test-after-lock-update",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"test",
+				"--test",
+				"security_http"
+			],
+			"isBackground": false
 		}
 	]
 }
