@@ -144,6 +144,103 @@ impl KeySet {
     }
 }
 
+/// Encrypt key material using AES-256-GCM.
+///
+/// The JWT secret is used as the KEK (key-encryption-key).
+/// Returns `nonce || ciphertext` as a single byte vector.
+pub fn encrypt_key_material(
+    plaintext: &[u8],
+    jwt_secret: &str,
+) -> Result<Vec<u8>, String> {
+    use aes_gcm::{
+        aead::{Aead, KeyInit, OsRng},
+        Aes256Gcm, AeadCore,
+    };
+
+    // Derive a 32-byte key from the JWT secret via SHA-256
+    let key_bytes = sha256_hash(jwt_secret.as_bytes());
+    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
+        .map_err(|e| format!("AES key init error: {e}"))?;
+
+    let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
+    let ciphertext = cipher
+        .encrypt(&nonce, plaintext)
+        .map_err(|e| format!("Encryption error: {e}"))?;
+
+    // Prepend nonce (12 bytes) to ciphertext
+    let mut result = nonce.to_vec();
+    result.extend_from_slice(&ciphertext);
+    Ok(result)
+}
+
+/// Decrypt key material encrypted with `encrypt_key_material`.
+pub fn decrypt_key_material(
+    encrypted: &[u8],
+    jwt_secret: &str,
+) -> Result<Vec<u8>, String> {
+    use aes_gcm::{
+        aead::{Aead, KeyInit},
+        Aes256Gcm, Nonce,
+    };
+
+    if encrypted.len() < 13 {
+        return Err("Encrypted data too short".into());
+    }
+
+    let key_bytes = sha256_hash(jwt_secret.as_bytes());
+    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
+        .map_err(|e| format!("AES key init error: {e}"))?;
+
+    let (nonce_bytes, ciphertext) = encrypted.split_at(12);
+    let nonce = Nonce::from_slice(nonce_bytes);
+
+    cipher
+        .decrypt(nonce, ciphertext)
+        .map_err(|e| format!("Decryption error: {e}"))
+}
+
+/// SHA-256 hash (used to derive AES key from JWT secret).
+fn sha256_hash(data: &[u8]) -> [u8; 32] {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let result = hasher.finalize();
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&result);
+    key
+}
+
+#[cfg(test)]
+mod encryption_tests {
+    use super::*;
+
+    #[test]
+    fn encrypt_decrypt_roundtrip() {
+        let plaintext = b"my-secret-key-material-here";
+        let secret = "test-jwt-secret-that-is-long-enough-for-testing";
+
+        let encrypted = encrypt_key_material(plaintext, secret).unwrap();
+        assert_ne!(&encrypted, plaintext);
+
+        let decrypted = decrypt_key_material(&encrypted, secret).unwrap();
+        assert_eq!(&decrypted, plaintext);
+    }
+
+    #[test]
+    fn wrong_secret_fails_to_decrypt() {
+        let plaintext = b"sensitive-data";
+        let encrypted = encrypt_key_material(plaintext, "correct-secret-for-test-purposes-1234").unwrap();
+        let result = decrypt_key_material(&encrypted, "wrong-secret-for-testing-purposes-12345");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn short_ciphertext_rejected() {
+        let result = decrypt_key_material(&[0u8; 5], "any-secret");
+        assert!(result.is_err());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
