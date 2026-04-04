@@ -53,3 +53,4 @@ package-lock.json
 mcp-server/.env
 .venv-docs/
 .venv.worktrees
+.venv
