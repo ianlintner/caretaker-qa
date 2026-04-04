@@ -53,6 +53,62 @@
 				"--short"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "cargo-update-security-targets",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"update",
+				"-p",
+				"bytes",
+				"-p",
+				"time",
+				"-p",
+				"quinn-proto",
+				"-p",
+				"idna",
+				"-p",
+				"rustls-webpki",
+				"-p",
+				"astral-tokio-tar"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "cargo-update-security-targets-2",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"update",
+				"-p",
+				"bytes",
+				"-p",
+				"time",
+				"-p",
+				"quinn-proto",
+				"-p",
+				"idna@0.2.3",
+				"-p",
+				"idna@1.1.0",
+				"-p",
+				"rustls-webpki@0.101.7",
+				"-p",
+				"rustls-webpki@0.103.8",
+				"-p",
+				"astral-tokio-tar"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "cargo-check-after-lock-update",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"check",
+				"--all-features"
+			],
+			"isBackground": false
 		}
 	]
 }
