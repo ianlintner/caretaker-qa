@@ -456,8 +456,8 @@ pub async fn run() -> std::io::Result<()> {
         issuer: issuer.clone(),
         jwt_secret: jwt_secret.clone(),
         id_token_alg,
-        id_token_kid,
-        id_token_private_key_pem,
+        id_token_kid: id_token_kid.clone(),
+        id_token_private_key_pem: id_token_private_key_pem.clone(),
     };
     tracing::info!(issuer = %issuer, "OIDC issuer configured");
 
