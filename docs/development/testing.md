@@ -71,3 +71,9 @@ The script:
 5. Runs a small HTTP smoke test (register client → token → introspect)
 
 Tip: pass `--keep-cluster` to inspect a failed cluster.
+
+## Performance and load testing
+
+For cross-server performance comparisons, load profiles, benchmark scenarios, and latest recorded results, see:
+
+- [Performance & Load Testing](performance-load-testing.md)
