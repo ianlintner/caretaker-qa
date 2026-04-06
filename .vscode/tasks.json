@@ -736,6 +736,33 @@
 				"--exact"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "cargo-check-all-features-post-cache",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"check",
+				"--all-features"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "bench-rust-client-credentials-cache-opt",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"benchmarks/run-benchmarks.sh",
+				"--servers",
+				"rust",
+				"--scenarios",
+				"client-credentials",
+				"--profile",
+				"light",
+				"--iterations",
+				"1"
+			],
+			"isBackground": false
 		}
 	]
 }
