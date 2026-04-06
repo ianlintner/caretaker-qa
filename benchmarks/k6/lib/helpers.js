@@ -29,6 +29,28 @@ export const SERVERS = {
     }),
   },
 
+  "rust-mongo": {
+    name: "rust-oauth2-server-mongo",
+    language: "Rust (MongoDB)",
+    baseUrl: "http://bench-rust-mongo:8080",
+    tokenEndpoint: "/oauth/token",
+    introspectEndpoint: "/oauth/introspect",
+    discoveryEndpoint: "/.well-known/openid-configuration",
+    healthEndpoint: "/health",
+    // client_credentials uses POST body
+    tokenPayload: {
+      grant_type: "client_credentials",
+      client_id: "bench-client",
+      client_secret: "bench-secret-12345678",
+      scope: "openid profile email",
+    },
+    introspectPayload: (token) => ({
+      token: token,
+      client_id: "bench-client",
+      client_secret: "bench-secret-12345678",
+    }),
+  },
+
   keycloak: {
     name: "Keycloak",
     language: "Java",

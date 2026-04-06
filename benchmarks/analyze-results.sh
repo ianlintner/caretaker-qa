@@ -42,6 +42,7 @@ server_name_for_key() {
   local server="$1"
   case "$server" in
     rust) echo "Rust OAuth2" ;;
+    rust-mongo) echo "Rust OAuth2 (Mongo)" ;;
     keycloak) echo "Keycloak (Java)" ;;
     hydra) echo "Ory Hydra (Go)" ;;
     authentik) echo "Authentik (Python)" ;;
@@ -54,6 +55,7 @@ server_lang_for_key() {
   local server="$1"
   case "$server" in
     rust) echo "Rust" ;;
+    rust-mongo) echo "Rust" ;;
     keycloak) echo "Java" ;;
     hydra) echo "Go" ;;
     authentik) echo "Python" ;;
@@ -66,6 +68,7 @@ server_tag_for_key() {
   local server="$1"
   case "$server" in
     rust) echo "rust-oauth2-server" ;;
+    rust-mongo) echo "rust-oauth2-server-mongo" ;;
     keycloak) echo "Keycloak" ;;
     hydra) echo "Ory Hydra" ;;
     authentik) echo "Authentik" ;;
@@ -318,7 +321,7 @@ render_mermaid_pie_for_scenario() {
 
 # ── Generate report ──────────────────────────────────────────────────────────
 SCENARIOS="client-credentials token-introspect discovery health"
-SERVERS="rust keycloak hydra authentik node-oidc"
+SERVERS="rust rust-mongo keycloak hydra authentik node-oidc"
 REPORT_FILE="${RESULTS_DIR}/comparison-report.md"
 
 {

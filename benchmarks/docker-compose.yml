@@ -69,6 +69,65 @@ services:
       - benchnet
 
   # ──────────────────────────────────────────────────────────────────────────
+  # 1b. Rust OAuth2 Server (MongoDB backend)
+  # ──────────────────────────────────────────────────────────────────────────
+  bench-mongo:
+    image: mongo:7
+    command: ["--bind_ip_all"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--quiet",
+          "localhost/admin",
+          "--eval",
+          "db.runCommand({ ping: 1 }).ok",
+        ]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+    networks:
+      - benchnet
+
+  bench-rust-mongo:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        CARGO_FEATURES: "mongo"
+    environment:
+      OAUTH2_SERVER_HOST: "0.0.0.0"
+      OAUTH2_SERVER_PORT: "8080"
+      OAUTH2_DATABASE_URL: "mongodb://bench-mongo:27017/oauth2_bench"
+      OAUTH2_JWT_SECRET: "benchmarksecretkey1234567890abcdef"
+      OAUTH2_SESSION_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      OAUTH2_SEED_PASSWORD: "BenchP@ssw0rd!Secure123"
+      OAUTH2_ALLOW_INSECURE_DEFAULTS: "0"
+      RUST_LOG: "warn"
+      OAUTH2_EVENTS_ENABLED: "false"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 512M
+    depends_on:
+      bench-mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "kill -0 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    networks:
+      - benchnet
+
+  # ──────────────────────────────────────────────────────────────────────────
   # 2. Keycloak 24 (Java)
   # ──────────────────────────────────────────────────────────────────────────
   bench-keycloak:

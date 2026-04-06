@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # ── Defaults ─────────────────────────────────────────────────────────────────
-ALL_SERVERS="rust keycloak hydra authentik node-oidc"
+ALL_SERVERS="rust rust-mongo keycloak hydra authentik node-oidc"
 ALL_SCENARIOS="client-credentials token-introspect discovery health"
 LOAD_PROFILE="light"
 ITERATIONS=3
@@ -192,29 +192,51 @@ SQL
   ok "Rust migrations and benchmark client setup complete"
 }
 
+run_rust_mongo_seed() {
+  log "Seeding benchmark client in MongoDB for rust-mongo..."
+
+  if ! docker compose exec -T bench-mongo mongosh --quiet "mongodb://localhost:27017/oauth2_bench" --eval '
+const now = new Date().toISOString();
+db.clients.updateOne(
+  { client_id: "bench-client" },
+  {
+    $set: {
+      id: "bench-client-id",
+      client_id: "bench-client",
+      client_secret: "bench-secret-12345678",
+      redirect_uris: "[\"http://localhost/callback\"]",
+      grant_types: "[\"client_credentials\"]",
+      scope: "openid profile email",
+      name: "Benchmark Client",
+      updated_at: now,
+    },
+    $setOnInsert: {
+      created_at: now,
+    },
+  },
+  { upsert: true },
+);
+' >/dev/null; then
+    err "Failed to seed benchmark client for rust-mongo"
+    return 1
+  fi
+
+  ok "Rust Mongo benchmark client seeded"
+}
+
 # ── Helper: setup client for servers that need API registration ──────────────
 setup_client() {
   local server="$1"
 
   case "$server" in
     rust)
-      log "Registering client on Rust server..."
-      # Use the admin API to register the benchmark client
-      local register_payload='{"client_name":"bench-client","client_id":"bench-client","client_secret":"bench-secret-12345678","redirect_uris":["http://localhost/callback"],"grant_types":["client_credentials"],"response_types":[],"scope":"openid profile email","token_endpoint_auth_method":"client_secret_post"}'
-      local resp
-      resp=$(docker compose exec -T bench-rust curl -sf -X POST \
-        -H "Content-Type: application/json" \
-        -d "$register_payload" \
-        "http://localhost:8080/admin/clients/register" 2>/dev/null || echo "fallback")
+      # rust benchmark client is seeded directly into Postgres in run_rust_migrations.
+      ok "Rust benchmark client pre-seeded (PostgreSQL)"
+      ;;
 
-      if [[ "$resp" == "fallback" ]]; then
-        # Try the admin API endpoint
-        resp=$(docker compose exec -T bench-rust curl -sf -X POST \
-          -H "Content-Type: application/json" \
-          -d "$register_payload" \
-          "http://localhost:8080/admin/api/clients" 2>/dev/null || echo "")
-      fi
-      ok "Rust client registered"
+    rust-mongo)
+      # rust-mongo benchmark client is seeded directly into Mongo.
+      run_rust_mongo_seed
       ;;
 
     keycloak)
@@ -299,6 +321,7 @@ get_server_services() {
   local server="$1"
   case "$server" in
     rust)      echo "bench-rust" ;;
+    rust-mongo) echo "bench-mongo bench-rust-mongo" ;;
     keycloak)  echo "bench-keycloak" ;;
     hydra)     echo "bench-hydra-migrate bench-hydra" ;;
     authentik) echo "bench-authentik-redis bench-authentik-worker bench-authentik" ;;
@@ -310,6 +333,7 @@ get_main_service() {
   local server="$1"
   case "$server" in
     rust)      echo "bench-rust" ;;
+    rust-mongo) echo "bench-rust-mongo" ;;
     keycloak)  echo "bench-keycloak" ;;
     hydra)     echo "bench-hydra" ;;
     authentik) echo "bench-authentik" ;;
