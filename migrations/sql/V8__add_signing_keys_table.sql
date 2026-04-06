@@ -1,6 +1,6 @@
 -- Key storage for JWT key rotation.
 -- key_material is encrypted at rest using AES-256-GCM with the JWT secret as KEK.
-CREATE TABLE signing_keys (
+CREATE TABLE IF NOT EXISTS signing_keys (
     id TEXT PRIMARY KEY,
     kid TEXT NOT NULL UNIQUE,
     algorithm TEXT NOT NULL,
@@ -10,5 +10,5 @@ CREATE TABLE signing_keys (
     expires_at TIMESTAMP
 );
 
-CREATE INDEX idx_signing_keys_kid ON signing_keys(kid);
-CREATE INDEX idx_signing_keys_algorithm_current ON signing_keys(algorithm, is_current);
+CREATE INDEX IF NOT EXISTS idx_signing_keys_kid ON signing_keys(kid);
+CREATE INDEX IF NOT EXISTS idx_signing_keys_algorithm_current ON signing_keys(algorithm, is_current);

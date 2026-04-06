@@ -5,13 +5,14 @@ use base64::{engine::general_purpose, Engine as _};
 use percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
+use subtle::ConstantTimeEq;
 use url::{form_urlencoded, Url};
 
 use oauth2_observability::Metrics;
 
 use crate::actors::{
     AuthActor, ClientActor, CreateAuthorizationCode, CreateToken, GetClient,
-    MarkAuthorizationCodeUsed, TokenActor, ValidateAuthorizationCode, ValidateClient,
+    MarkAuthorizationCodeUsed, TokenActor, ValidateAuthorizationCode,
 };
 use crate::handlers::wellknown::OidcConfig;
 use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
@@ -88,6 +89,14 @@ fn validate_scope_subset(requested: &str, allowed: &str) -> Result<(), OAuth2Err
     }
 
     Ok(())
+}
+
+fn client_secret_matches(client: &oauth2_core::Client, presented_secret: &str) -> bool {
+    client
+        .client_secret
+        .as_bytes()
+        .ct_eq(presented_secret.as_bytes())
+        .into()
 }
 
 fn no_store_headers(mut resp: HttpResponse) -> HttpResponse {
@@ -439,16 +448,7 @@ async fn handle_authorization_code_grant(
 
     match req.client_secret {
         Some(secret) => {
-            let ok = client_actor
-                .send(ValidateClient {
-                    client_id: req.client_id.clone(),
-                    client_secret: secret,
-                    span: tracing::Span::current(),
-                })
-                .await
-                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
-
-            if !ok {
+            if !client_secret_matches(&client, &secret) {
                 return Err(OAuth2Error::invalid_client("Invalid client_secret"));
             }
         }
@@ -540,15 +540,7 @@ async fn handle_client_credentials_grant(
     let client_secret = req
         .client_secret
         .ok_or_else(|| OAuth2Error::invalid_client("Missing client_secret"))?;
-    let ok = client_actor
-        .send(ValidateClient {
-            client_id: req.client_id.clone(),
-            client_secret,
-            span: tracing::Span::current(),
-        })
-        .await
-        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
-    if !ok {
+    if !client_secret_matches(&client, &client_secret) {
         return Err(OAuth2Error::invalid_client("Invalid client_secret"));
     }
 

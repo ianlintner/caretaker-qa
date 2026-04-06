@@ -4954,6 +4954,7 @@ dependencies = [
  "actix-rt",
  "actix-session",
  "actix-web",
+ "async-trait",
  "base64 0.22.1",
  "chrono",
  "cucumber",

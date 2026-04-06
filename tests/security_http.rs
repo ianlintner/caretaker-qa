@@ -1,10 +1,16 @@
 use actix::{Actor, Addr};
 use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
 use actix_web::{cookie::Key, test, web, App, HttpResponse};
+use async_trait::async_trait;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 
 use oauth2_actix::handlers::wellknown::OidcConfig;
-use oauth2_core::{Client, OAuth2Error, TokenResponse, User};
+use oauth2_core::{AuthorizationCode, Client, OAuth2Error, Token, TokenResponse, User};
 use oauth2_observability::Metrics;
+use oauth2_ports::{DynStorage, Storage};
 use oauth2_server::validate_seed_password_for_production;
 
 fn s256_challenge(verifier: &str) -> String {
@@ -104,6 +110,90 @@ async fn setup_context(
         metrics,
         oidc_config,
     )
+}
+
+#[derive(Default)]
+struct CountingStats {
+    get_client_calls: AtomicUsize,
+    save_token_calls: AtomicUsize,
+    get_token_calls: AtomicUsize,
+}
+
+struct CountingStorage {
+    client: Mutex<Option<Client>>,
+    stats: Arc<CountingStats>,
+}
+
+impl CountingStorage {
+    fn with_client(client: Client) -> (DynStorage, Arc<CountingStats>) {
+        let stats = Arc::new(CountingStats::default());
+        let storage: DynStorage = Arc::new(Self {
+            client: Mutex::new(Some(client)),
+            stats: stats.clone(),
+        });
+        (storage, stats)
+    }
+}
+
+#[async_trait]
+impl Storage for CountingStorage {
+    async fn init(&self) -> Result<(), OAuth2Error> {
+        Ok(())
+    }
+
+    async fn save_client(&self, client: &Client) -> Result<(), OAuth2Error> {
+        *self.client.lock().expect("client mutex poisoned") = Some(client.clone());
+        Ok(())
+    }
+
+    async fn get_client(&self, client_id: &str) -> Result<Option<Client>, OAuth2Error> {
+        self.stats.get_client_calls.fetch_add(1, Ordering::SeqCst);
+        let client = self.client.lock().expect("client mutex poisoned").clone();
+        Ok(client.filter(|c| c.client_id == client_id))
+    }
+
+    async fn save_user(&self, _user: &User) -> Result<(), OAuth2Error> {
+        Ok(())
+    }
+
+    async fn get_user_by_username(&self, _username: &str) -> Result<Option<User>, OAuth2Error> {
+        Ok(None)
+    }
+
+    async fn save_token(&self, _token: &Token) -> Result<(), OAuth2Error> {
+        self.stats.save_token_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    async fn get_token_by_access_token(
+        &self,
+        _access_token: &str,
+    ) -> Result<Option<Token>, OAuth2Error> {
+        self.stats.get_token_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(None)
+    }
+
+    async fn revoke_token(&self, _token: &str) -> Result<(), OAuth2Error> {
+        Ok(())
+    }
+
+    async fn save_authorization_code(
+        &self,
+        _auth_code: &AuthorizationCode,
+    ) -> Result<(), OAuth2Error> {
+        Ok(())
+    }
+
+    async fn get_authorization_code(
+        &self,
+        _code: &str,
+    ) -> Result<Option<AuthorizationCode>, OAuth2Error> {
+        Ok(None)
+    }
+
+    async fn mark_authorization_code_used(&self, _code: &str) -> Result<(), OAuth2Error> {
+        Ok(())
+    }
 }
 
 #[actix_web::test]
@@ -284,6 +374,90 @@ async fn token_client_credentials_rejects_invalid_secret() {
 
     let body: OAuth2Error = test::read_body_json(resp).await;
     assert_eq!(body.error, "invalid_client");
+}
+
+#[actix_web::test]
+async fn token_client_credentials_uses_single_lookup_with_warm_cache() {
+    let client = Client::new(
+        "client_perf".to_string(),
+        "secret_perf".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "test".to_string(),
+    );
+
+    let (storage, stats) = CountingStorage::with_client(client);
+    let jwt_secret = "test_jwt_secret".to_string();
+    let metrics = Metrics::new().expect("metrics");
+    let token_actor =
+        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone()).start();
+    let client_actor = oauth2_actix::actors::ClientActor::new(storage.clone()).start();
+    let auth_actor = oauth2_actix::actors::AuthActor::new(storage).start();
+    let oidc_config = OidcConfig {
+        issuer: "http://localhost".to_string(),
+        jwt_secret,
+        id_token_alg: "HS256".to_string(),
+        id_token_kid: None,
+        id_token_private_key_pem: None,
+    };
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_actor))
+            .app_data(web::Data::new(client_actor))
+            .app_data(web::Data::new(auth_actor))
+            .app_data(web::Data::new(metrics))
+            .app_data(web::Data::new(oidc_config))
+            .service(web::scope("/oauth").route(
+                "/token",
+                web::post().to(oauth2_actix::handlers::oauth::token),
+            )),
+    )
+    .await;
+
+    let req = test::TestRequest::post()
+        .uri("/oauth/token")
+        .set_form([
+            ("grant_type", "client_credentials"),
+            ("client_id", "client_perf"),
+            ("client_secret", "secret_perf"),
+            ("scope", "read"),
+        ])
+        .to_request();
+
+    let resp = test::call_service(&app, req).await;
+    assert!(resp.status().is_success());
+
+    // Repeat the same request; with a warm cache this should avoid an extra client lookup.
+    let req2 = test::TestRequest::post()
+        .uri("/oauth/token")
+        .set_form([
+            ("grant_type", "client_credentials"),
+            ("client_id", "client_perf"),
+            ("client_secret", "secret_perf"),
+            ("scope", "read"),
+        ])
+        .to_request();
+
+    let resp2 = test::call_service(&app, req2).await;
+    assert!(resp2.status().is_success());
+
+    assert_eq!(
+        stats.get_client_calls.load(Ordering::SeqCst),
+        1,
+        "client_credentials should perform only one client lookup across repeated requests",
+    );
+    assert_eq!(
+        stats.save_token_calls.load(Ordering::SeqCst),
+        2,
+        "client_credentials should persist one token per successful request",
+    );
+    assert_eq!(
+        stats.get_token_calls.load(Ordering::SeqCst),
+        0,
+        "client_credentials should not read tokens during issuance",
+    );
 }
 
 /// RFC 6749 §2.3.1: client credentials in Basic auth are URL-encoded before

@@ -1,0 +1,32 @@
+serve:
+  public:
+    host: 0.0.0.0
+    port: 4444
+  admin:
+    host: 0.0.0.0
+    port: 4445
+
+dsn: postgres://postgres:postgres@bench-postgres:5432/oauth2_hydra?sslmode=disable
+
+strategies:
+  access_token: jwt
+
+log:
+  level: warn
+  format: json
+
+urls:
+  self:
+    issuer: http://bench-hydra:4444
+  login: http://bench-hydra:4444/oauth2/fallbacks/login
+  consent: http://bench-hydra:4444/oauth2/fallbacks/consent
+
+secrets:
+  system:
+    - benchmarksecret1234567890abcdef
+
+ttl:
+  access_token: 1h
+  refresh_token: 720h
+  id_token: 1h
+  auth_code: 10m

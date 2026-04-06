@@ -62,6 +62,7 @@ events-rabbit = ["oauth2-events/events-rabbit", "oauth2-server/events-rabbit"]
 
 [dev-dependencies]
 # Testing
+async-trait = "0.1"
 actix = "0.13"
 actix-rt = "2.9"
 actix-web = "4.4"

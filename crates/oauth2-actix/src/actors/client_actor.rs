@@ -3,6 +3,9 @@ use oauth2_events::{AuthEvent, EventBusHandle, EventEnvelope, EventSeverity, Eve
 use oauth2_observability::annotate_span_with_trace_ids;
 use oauth2_ports::DynStorage;
 use rand::Rng;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::Instrument;
 
 use oauth2_core::{Client, ClientRegistration, OAuth2Error};
@@ -10,6 +13,7 @@ use oauth2_core::{Client, ClientRegistration, OAuth2Error};
 pub struct ClientActor {
     db: DynStorage,
     event_bus: Option<EventBusHandle>,
+    cache: Arc<RwLock<HashMap<String, Client>>>,
 }
 
 impl ClientActor {
@@ -17,6 +21,7 @@ impl ClientActor {
         Self {
             db,
             event_bus: None,
+            cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -24,6 +29,7 @@ impl ClientActor {
         Self {
             db,
             event_bus: Some(event_bus),
+            cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -45,6 +51,7 @@ impl Handler<RegisterClient> for ClientActor {
     fn handle(&mut self, msg: RegisterClient, _: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
         let event_bus = self.event_bus.clone();
+        let cache = self.cache.clone();
 
         let parent_span = msg.span.clone();
         let actor_span = tracing::info_span!(
@@ -73,6 +80,12 @@ impl Handler<RegisterClient> for ClientActor {
                 );
 
                 db.save_client(&client).await?;
+
+                // Keep hot-path reads in-memory (best-effort).
+                cache
+                    .write()
+                    .await
+                    .insert(client.client_id.clone(), client.clone());
 
                 // Emit event
                 if let Some(event_bus) = event_bus {
@@ -108,6 +121,8 @@ impl Handler<GetClient> for ClientActor {
 
     fn handle(&mut self, msg: GetClient, _: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
+        let cache = self.cache.clone();
+        let requested_client_id = msg.client_id.clone();
 
         let parent_span = msg.span.clone();
         let actor_span = tracing::info_span!(
@@ -121,9 +136,21 @@ impl Handler<GetClient> for ClientActor {
 
         Box::pin(
             async move {
-                db.get_client(&msg.client_id)
+                if let Some(client) = cache.read().await.get(&requested_client_id).cloned() {
+                    return Ok(client);
+                }
+
+                let client = db
+                    .get_client(&requested_client_id)
                     .await?
-                    .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))
+                    .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))?;
+
+                cache
+                    .write()
+                    .await
+                    .insert(client.client_id.clone(), client.clone());
+
+                Ok(client)
             }
             .instrument(actor_span),
         )
@@ -144,6 +171,9 @@ impl Handler<ValidateClient> for ClientActor {
     fn handle(&mut self, msg: ValidateClient, _: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
         let event_bus = self.event_bus.clone();
+        let cache = self.cache.clone();
+        let requested_client_id = msg.client_id.clone();
+        let presented_secret = msg.client_secret.clone();
 
         let parent_span = msg.span.clone();
         let actor_span = tracing::info_span!(
@@ -157,17 +187,26 @@ impl Handler<ValidateClient> for ClientActor {
 
         Box::pin(
             async move {
-                let client = db
-                    .get_client(&msg.client_id)
-                    .await?
-                    .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))?;
+                let client = if let Some(client) = cache.read().await.get(&requested_client_id).cloned() {
+                    client
+                } else {
+                    let fetched = db
+                        .get_client(&requested_client_id)
+                        .await?
+                        .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))?;
+                    cache
+                        .write()
+                        .await
+                        .insert(fetched.client_id.clone(), fetched.clone());
+                    fetched
+                };
 
                 // Use constant-time comparison to prevent timing attacks
                 use subtle::ConstantTimeEq;
                 let secret_match = client
                     .client_secret
                     .as_bytes()
-                    .ct_eq(msg.client_secret.as_bytes())
+                    .ct_eq(presented_secret.as_bytes())
                     .into();
 
                 // Emit event
@@ -176,7 +215,7 @@ impl Handler<ValidateClient> for ClientActor {
                         EventType::ClientValidated,
                         EventSeverity::Info,
                         None,
-                        Some(msg.client_id),
+                        Some(requested_client_id),
                     )
                     .with_metadata("success", if secret_match { "true" } else { "false" });
 
