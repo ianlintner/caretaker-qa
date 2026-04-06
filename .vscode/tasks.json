@@ -777,6 +777,56 @@
 				"docs/development/performance-load-testing.md"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "ci-fmt-check-local",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"fmt",
+				"--all",
+				"--",
+				"--check"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "git-diff-client-actor-format-fix",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"--no-pager",
+				"diff",
+				"--",
+				"crates/oauth2-actix/src/actors/client_actor.rs"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "ci-clippy-local",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"clippy",
+				"--all-targets",
+				"--all-features",
+				"--",
+				"-D",
+				"warnings"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "ci-tests-local",
+			"type": "shell",
+			"command": "cargo",
+			"args": [
+				"test",
+				"--verbose",
+				"--all-features",
+				"--locked"
+			],
+			"isBackground": false
 		}
 	]
 }

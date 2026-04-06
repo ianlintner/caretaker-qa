@@ -187,19 +187,20 @@ impl Handler<ValidateClient> for ClientActor {
 
         Box::pin(
             async move {
-                let client = if let Some(client) = cache.read().await.get(&requested_client_id).cloned() {
-                    client
-                } else {
-                    let fetched = db
-                        .get_client(&requested_client_id)
-                        .await?
-                        .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))?;
-                    cache
-                        .write()
-                        .await
-                        .insert(fetched.client_id.clone(), fetched.clone());
-                    fetched
-                };
+                let client =
+                    if let Some(client) = cache.read().await.get(&requested_client_id).cloned() {
+                        client
+                    } else {
+                        let fetched = db
+                            .get_client(&requested_client_id)
+                            .await?
+                            .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))?;
+                        cache
+                            .write()
+                            .await
+                            .insert(fetched.client_id.clone(), fetched.clone());
+                        fetched
+                    };
 
                 // Use constant-time comparison to prevent timing attacks
                 use subtle::ConstantTimeEq;
