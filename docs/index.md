@@ -1,138 +1,83 @@
 # Rust OAuth2 Server
 
-Welcome to the documentation for the Rust OAuth2 Server — a production-ready, high-performance OAuth2 authorization server built with Rust and Actix-web.
+<div class="hero" markdown>
 
-```mermaid
-graph TB
-    subgraph Applications[Applications]
-        WebApp[Web Applications]
-        MobileApp[Mobile Apps]
-        Services[Backend Services]
-        CLI[CLI Tools]
-    end
+# Self-hosted OAuth2 and OIDC without the docs maze
 
-    subgraph OAuth2Server[OAuth2 Server]
-        Auth[Authentication]
-        Authz[Authorization]
-        Tokens[Token Management]
-    end
+Run it locally, deploy it with Docker or Kubernetes, inspect it with metrics and traces, and extend it as a real Cargo workspace instead of reverse-engineering a README novella.
 
-    subgraph ProtectedResources[Protected Resources]
-        API1[API Server 1]
-        API2[API Server 2]
-        Resources[(Protected Data)]
-    end
+[Run locally](getting-started/quickstart.md){ .md-button .md-button--primary }
+[Deploy it](operations/deployment.md){ .md-button }
+[Extend it](development/extending.md){ .md-button }
 
-    WebApp --> Auth
-    MobileApp --> Auth
-    Services --> Auth
-    CLI --> Auth
-    Auth --> Authz
-    Authz --> Tokens
-    Tokens --> API1
-    Tokens --> API2
-    API1 --> Resources
-    API2 --> Resources
+</div>
 
-    style Auth fill:#ff9800,color:#fff
-    style Authz fill:#4caf50,color:#fff
-    style Tokens fill:#2196f3,color:#fff
-```
+## Start with the job you have today
 
-## Highlights
+<div class="grid cards" markdown>
 
-- **OAuth2 + OIDC** — Authorization Code (PKCE), Client Credentials, Refresh Token, Password Grant, Discovery, UserInfo, JWKS
-- **Secure by default** — JWT secret enforcement, startup validation, HTTP security headers, CORS fail-closed, open redirect prevention
-- **Actor model** — Concurrent, fault-tolerant request handling via Actix actors
-- **Observable** — Prometheus metrics, OpenTelemetry tracing, structured logging, health checks
-- **Cloud-native** — Docker, Kubernetes, stateless design, horizontal scaling
+-   **Run it locally**
 
-## OAuth2 Flows
+  ---
 
-### Authorization Code Flow (with PKCE)
+  Start the server with SQLite and `cargo run`, then log in as the seeded admin user.
 
-The most secure flow for web and mobile applications:
+  [Quickstart](getting-started/quickstart.md)
 
-```mermaid
-sequenceDiagram
-    participant User
-    participant Client
-    participant OAuth2 as OAuth2 Server
+-   **Integrate a client**
 
-    User->>Client: Initiate Login
-  Note over Client,OAuth2: PKCE required (code_challenge_method=S256)
-    Client->>OAuth2: GET /oauth/authorize
-    OAuth2->>User: Show consent
-    User->>OAuth2: Approve
-    OAuth2->>Client: Return code
-    Client->>OAuth2: POST /oauth/token
-    OAuth2->>Client: Access token
-```
+  ---
 
-**When to use:** Web applications, mobile apps, SPAs
+  Use Authorization Code + PKCE, Client Credentials, discovery, JWKS, and UserInfo without guesswork.
 
-[Learn more →](flows/authorization-code.md)
+  [OAuth & OIDC](usage/oauth2-oidc.md)
 
-### Client Credentials Flow
+-   **Operate it**
 
-For service-to-service authentication:
+  ---
 
-```mermaid
-sequenceDiagram
-    participant Service
-    participant OAuth2 as OAuth2 Server
+  Use the health, readiness, metrics, and eventing endpoints that are actually wired in code.
 
-    Note right of Service: grant_type=client_credentials
-    Service->>OAuth2: POST /oauth/token
-    OAuth2->>Service: Access token
-    Service->>API: Request with token
-```
+  [Observability](operations/observability.md)
 
-**When to use:** Microservices, backend services, APIs
+-   **Change the system**
 
-[Learn more →](flows/client-credentials.md)
+  ---
 
-### Refresh Token Flow
+  Follow the workspace layout, feature flags, test matrix, and extension seams.
 
-!!! warning "Disabled by Default"
-The `refresh_token` grant is disabled by default (OAuth 2.0 Security BCP). Requests will be rejected with `unsupported_grant_type`.
+  [Architecture](development/architecture.md)
 
-[Learn more →](flows/refresh-token.md)
+</div>
 
-### Password Grant Flow
+## What ships today
 
-!!! warning "Disabled by Default"
-The Resource Owner Password Credentials (ROPC) grant is disabled by default.
+| Area | Current state | Notes |
+| --- | --- | --- |
+| OAuth2 flows | <span class="status-pill status-pill--good">Shipped</span> | Authorization Code + PKCE, Client Credentials, introspection, revocation |
+| OIDC surface | <span class="status-pill status-pill--good">Shipped</span> | Discovery, JWKS, UserInfo |
+| Admin UI and JSON API | <span class="status-pill status-pill--good">Shipped</span> | Admin session required |
+| Eventing | <span class="status-pill status-pill--good">Shipped</span> | In-memory and console at runtime; broker backends are feature-gated |
+| Distributed runtime | <span class="status-pill status-pill--warn">Feature-gated</span> | Build with `--features distributed` |
+| Social login | <span class="status-pill status-pill--warn">Mixed</span> | Google, Microsoft, GitHub, Azure work; Okta/Auth0 currently return `503` |
+| Refresh/password grants | <span class="status-pill status-pill--muted">Disabled by default</span> | Present in code paths, intentionally rejected by default |
 
-[Learn more →](flows/password.md)
+## Source of truth
 
-## Quick Start
+To keep this site short and keep drift down, treat these files as canonical:
 
-```bash
-git clone https://github.com/ianlintner/rust_oauth2_server.git
-cd rust_oauth2_server
-./scripts/migrate.sh
-cargo run
-```
+- API shapes: `/swagger-ui` and `/api-docs/openapi.json`
+- runtime config keys: `.env.example` and `application.conf.example`
+- route registration and actual behavior: `crates/oauth2-server/src/lib.rs`
+- Kubernetes topology: `k8s/`
+- performance results: `benchmarks/results/comparison-report.md`
+- MCP tool surface: `mcp-server/src/index.js`
 
-Register a client and get a token:
+## If you only read four pages
 
-```bash
-# Register (requires admin session)
-curl -X POST http://localhost:8080/admin/clients/register \
-  -H "Content-Type: application/json" \
-  -b "session_cookie=YOUR_ADMIN_SESSION" \
-  -d '{"client_name":"My App","redirect_uris":["http://localhost:3000/callback"],"grant_types":["authorization_code"],"scope":"read write"}'
+1. [Quickstart](getting-started/quickstart.md)
+2. [Configuration](getting-started/configuration.md)
+3. [Admin & API](usage/admin-api.md)
+4. [Deployment](operations/deployment.md)
 
-# Get token (client credentials)
-curl -X POST http://localhost:8080/oauth/token \
-  -d "grant_type=client_credentials&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET"
-```
-
-## Next Steps
-
-1. **[Install the server](getting-started/installation.md)** — Prerequisites and setup
-2. **[Quick start guide](getting-started/quickstart.md)** — Complete your first OAuth2 flow
-3. **[Configuration](getting-started/configuration.md)** — Environment variables, social login, OIDC
-4. **[API reference](api/endpoints.md)** — All endpoints and error codes
-5. **[Deploy to production](deployment/production.md)** — Docker, Kubernetes, security hardening
+That gets most users from clone to working deployment without spelunking.

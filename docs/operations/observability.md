@@ -1,0 +1,101 @@
+# Observability
+
+The observability surface is intentionally small and code-backed:
+
+- liveness: `/health`
+- readiness: `/ready`
+- metrics: `/metrics`
+- eventing health: `/events/health`
+- traces: OpenTelemetry export
+
+## Endpoints
+
+| Endpoint | Purpose | Typical use |
+| --- | --- | --- |
+| `/health` | basic process health | load balancer or uptime probe |
+| `/ready` | storage readiness | Kubernetes readiness probe |
+| `/metrics` | Prometheus text endpoint | scrape target |
+| `/events/health` | event backend/plugin health | eventing triage |
+| `/swagger-ui` | generated API surface | validation and operator checks |
+
+Example health response:
+
+```json
+{
+  "status": "healthy",
+  "service": "oauth2_server",
+  "timestamp": "2026-04-07T12:34:56Z"
+}
+```
+
+## Metrics
+
+The server exposes Prometheus metrics for:
+
+- HTTP request volume and latency
+- token issuance and revocation
+- actor- and route-level behavior
+- cache efficiency when cache features are enabled
+- rate-limit rejections when rate limiting is enabled
+
+Use `/metrics` directly for raw output, or wire the bundled observability stack.
+
+## Local observability stack
+
+Bring up the bundled observability services:
+
+```bash
+docker compose -f docker-compose.observability.yml up -d
+```
+
+Common local endpoints:
+
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+- Jaeger: `http://localhost:16686`
+
+To export traces from the server locally:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+cargo run
+```
+
+!!! note
+    The repo still supports `OAUTH2_OTLP_ENDPOINT` as a compatibility alias in `.env.example`, but standard `OTEL_*` variables are the preferred long-term path.
+
+## What to watch first
+
+If you are operating this service, start with these checks:
+
+1. `/ready` — confirms the storage layer is alive
+2. `5xx` rate from `/metrics`
+3. request latency percentiles
+4. event backend health when eventing is enabled
+5. deployment rollouts and recent config changes
+
+## Dashboards and SLO assets
+
+The repo includes ready-to-edit assets under:
+
+- `observability/grafana/`
+- `observability/prometheus/`
+- `observability/otel/`
+- `observability/slo/`
+
+These are the best place to continue if you want dashboards or alert rules rather than prose.
+
+## Benchmarks and performance reports
+
+Performance comparisons are generated into:
+
+- `benchmarks/results/comparison-report.md`
+- `benchmarks/results/comparison-data.csv`
+
+The benchmark harness guide lives in [`benchmarks/README.md`](../../benchmarks/README.md).
+
+## Related pages
+
+- [Deployment](deployment.md)
+- [Runbooks](runbooks.md)
+- [Testing](../development/testing.md)

@@ -1,455 +1,115 @@
-# Quick Start Guide
+# Quickstart
 
-Get your OAuth2 server up and running in minutes! This guide will walk you through the essential steps to start using the OAuth2 server.
+This is the shortest reliable path from clone to a working token request.
 
-## Prerequisites
+## 1. Prepare local config
 
-Before starting, make sure you have completed the [Installation Guide](installation.md).
-
-## Starting the Server
-
-### Development Mode
+Start from the example environment file:
 
 ```bash
-cd rust_oauth2_server
+cp .env.example .env
+```
+
+For a local first run, set at least these values in `.env`:
+
+```dotenv
+OAUTH2_JWT_SECRET=replace-with-a-random-32+-char-secret
+OAUTH2_SESSION_KEY=replace-with-128-hex-characters
+OAUTH2_SEED_PASSWORD=replace-with-a-local-admin-password
+RUST_LOG=info
+```
+
+Generate a session key if you do not already have one:
+
+```bash
+openssl rand -hex 64
+```
+
+## 2. Start the server
+
+Fastest local path:
+
+```bash
 cargo run
 ```
 
-The server will start on `http://localhost:8080` by default.
+Default local URLs:
 
-### Production Mode
+- app: `http://localhost:8080`
+- login: `http://localhost:8080/auth/login`
+- admin: `http://localhost:8080/admin`
+- Swagger UI: `http://localhost:8080/swagger-ui`
+
+!!! note
+    The default local path uses SQLite. The SQLx adapter initializes the required tables at startup, so you do not need Flyway just to get moving.
+
+If you want the full Postgres-based local stack instead, use Docker Compose:
 
 ```bash
-cargo run --release
+docker compose up -d
 ```
 
-## Your First OAuth2 Flow
+## 3. Log in as admin
 
-### Step 1: Register a Client
+The server seeds an admin user on first startup.
 
-Every application that wants to use your OAuth2 server needs to register as a client.
+- username: `admin` unless you changed `OAUTH2_SEED_USERNAME`
+- password: the value of `OAUTH2_SEED_PASSWORD`
+
+You can sign in through the browser, or collect a cookie jar from the CLI:
+
+```bash
+curl -i -c cookie.jar -b cookie.jar \
+  -X POST http://localhost:8080/auth/login \
+  -d "username=admin&password=YOUR_SEED_PASSWORD"
+```
+
+## 4. Register a client
+
+Use the admin session cookie to register a client:
 
 ```bash
 curl -X POST http://localhost:8080/admin/clients/register \
   -H "Content-Type: application/json" \
-  -b "session_cookie=YOUR_ADMIN_SESSION" \
+  -b cookie.jar \
   -d '{
-    "client_name": "My First App",
+    "client_name": "Local Test App",
     "redirect_uris": ["http://localhost:3000/callback"],
-    "grant_types": ["authorization_code"],
-    "scope": "read write"
+    "grant_types": ["authorization_code", "client_credentials"],
+    "scope": "openid profile read write"
   }'
 ```
 
-**Response:**
+Save the returned `client_id` and `client_secret`.
 
-```json
-{
-  "client_id": "8f9a7b6c-5d4e-3f2a-1b0c-9d8e7f6a5b4c",
-  "client_secret": "secret_1a2b3c4d5e6f7g8h9i0j",
-  "client_name": "My First App",
-  "redirect_uris": ["http://localhost:3000/callback"],
-  "grant_types": ["authorization_code"],
-  "scope": "read write",
-  "created_at": "2024-01-01T00:00:00Z"
-}
-```
+## 5. Request a token
 
-!!! tip "Save Your Credentials"
-Save the `client_id` and `client_secret` - you'll need them for authentication!
-
-### Step 2: Authorize Your Application
-
-#### Authorization Code Flow (Most Common)
-
-This is the recommended flow for web applications and mobile apps.
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant App as Your Application
-    participant Browser
-    participant OAuth2 as OAuth2 Server
-
-    User->>App: Click "Login"
-    App->>Browser: Redirect to authorization URL
-    Browser->>OAuth2: GET /oauth/authorize
-    OAuth2->>User: Show login & consent page
-    User->>OAuth2: Approve access
-    OAuth2->>Browser: Redirect with authorization code
-    Browser->>App: Return code
-    Note right of App: Exchange code for token
-    App->>OAuth2: POST /oauth/token (exchange code)
-    OAuth2->>App: Return access_token
-    App->>User: Logged in!
-```
-
-**Step 2.1: Redirect User to Authorization Endpoint**
-
-PKCE is required for the Authorization Code flow.
-
-```
-http://localhost:8080/oauth/authorize?response_type=code&client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:3000/callback&scope=read%20write&state=random_state_string&code_challenge=CODE_CHALLENGE_HERE&code_challenge_method=S256
-```
-
-**Query Parameters:**
-
-- `response_type`: Must be `code` for authorization code flow
-- `client_id`: Your client ID from Step 1
-- `redirect_uri`: Must match one of your registered URIs
-- `scope`: Space-separated list of scopes (URL encoded)
-- `state`: Random string to prevent CSRF attacks
-- `code_challenge`: PKCE challenge derived from `code_verifier`
-- `code_challenge_method`: Must be `S256`
-
-**Step 2.2: User Approves Access**
-
-The user will see a login/consent page. After approval, they'll be redirected to:
-
-```
-http://localhost:3000/callback?code=AUTH_CODE_HERE&state=random_state_string
-```
-
-**Step 2.3: Exchange Code for Token**
+Client credentials is the fastest way to prove the system works end to end:
 
 ```bash
 curl -X POST http://localhost:8080/oauth/token \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=authorization_code" \
-  -d "code=AUTH_CODE_HERE" \
-  -d "redirect_uri=http://localhost:3000/callback" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET" \
-  -d "code_verifier=CODE_VERIFIER_HERE"
+  -d "grant_type=client_credentials&client_id=YOUR_CLIENT_ID&client_secret=YOUR_CLIENT_SECRET&scope=read"
 ```
 
-**Response:**
-
-```json
-{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "read write"
-}
-```
-
-### Step 3: Use the Access Token
-
-Use the access token to authenticate API requests:
-
-```bash
-curl http://your-api.com/api/resource \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-### Step 4: Refresh Tokens (Disabled by Default)
-
-For improved security, the `refresh_token` grant is disabled by default. Requests will be rejected with `unsupported_grant_type`.
-
-If you need refresh tokens for your deployment, enable them explicitly and ensure you follow OAuth 2.0 Security BCP guidance.
-
-## Alternative OAuth2 Flows
-
-### Client Credentials Flow (Service-to-Service)
-
-For backend services that don't require user interaction:
-
-```bash
-curl -X POST http://localhost:8080/oauth/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=client_credentials" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET" \
-  -d "scope=read"
-```
-
-```mermaid
-sequenceDiagram
-    participant App as Your Service
-    participant OAuth2 as OAuth2 Server
-
-    Note right of App: grant_type=client_credentials
-    App->>OAuth2: POST /oauth/token
-    OAuth2->>OAuth2: Validate client credentials
-    OAuth2->>App: access_token
-    App->>App: Use token for API calls
-```
-
-### Resource Owner Password Flow
-
-!!! warning "Disabled by Default"
-The Resource Owner Password Credentials (ROPC) grant (`password`) is disabled by default. Requests will be rejected with `unsupported_grant_type`.
-
-**Example request (rejected):**
-
-```bash
-curl -X POST http://localhost:8080/oauth/token \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "username=user@example.com" \
-  -d "password=user_password" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET" \
-  -d "scope=read"
-```
-
-**Expected response:**
-
-```json
-{
-  "error": "unsupported_grant_type",
-  "error_description": "The grant_type is not supported"
-}
-```
-
-## Token Management
-
-### Introspect a Token
-
-Check if a token is valid and get its metadata:
-
-```bash
-curl -X POST http://localhost:8080/oauth/introspect \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "token=YOUR_ACCESS_TOKEN" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET"
-```
-
-**Response:**
-
-```json
-{
-  "active": true,
-  "scope": "read write",
-  "client_id": "8f9a7b6c-5d4e-3f2a-1b0c-9d8e7f6a5b4c",
-  "exp": 1704067200,
-  "iat": 1704063600
-}
-```
-
-### Revoke a Token
-
-Invalidate a token before it expires:
-
-```bash
-curl -X POST http://localhost:8080/oauth/revoke \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "token=YOUR_TOKEN" \
-  -d "client_id=YOUR_CLIENT_ID" \
-  -d "client_secret=YOUR_CLIENT_SECRET"
-```
-
-## Social Login Quick Start
-
-Enable users to log in with their existing social accounts.
-
-### Step 1: Configure Provider
-
-Set up your social login provider (see [Social Login Setup](social-login-setup.md)):
-
-```bash
-export OAUTH2_GOOGLE_CLIENT_ID=your-google-client-id
-export OAUTH2_GOOGLE_CLIENT_SECRET=your-google-client-secret
-export OAUTH2_GOOGLE_REDIRECT_URI=http://localhost:8080/auth/callback/google
-```
-
-### Step 2: Direct Users to Login
-
-```html
-<a href="http://localhost:8080/auth/login/google"> Login with Google </a>
-```
-
-### Step 3: Handle Callback
-
-After successful authentication, users are redirected to:
-
-```
-http://localhost:8080/auth/success
-```
-
-## Testing Your Setup
-
-### 1. Check Server Health
+Optional smoke checks:
 
 ```bash
 curl http://localhost:8080/health
-```
-
-**Expected Response:**
-
-```json
-{
-  "status": "healthy",
-  "database": "connected",
-  "version": "0.1.0"
-}
-```
-
-### 2. View OpenAPI Documentation
-
-Open in your browser:
-
-```
-http://localhost:8080/swagger-ui
-```
-
-### 3. Check Discovery Endpoint
-
-```bash
+curl http://localhost:8080/ready
 curl http://localhost:8080/.well-known/openid-configuration
 ```
 
-This returns OAuth2 server metadata including supported endpoints, grant types, and scopes.
+## 6. Know the sharp edges
 
-### 4. Monitor Metrics
+- `/` redirects to `/profile`, not `/auth/login`
+- refresh-token and password grants are intentionally disabled by default
+- Okta and Auth0 routes exist but currently return HTTP `503`
+- admin routes require an authenticated admin session
 
-```bash
-curl http://localhost:8080/metrics
-```
+## Next pages
 
-## Using the Admin Dashboard
-
-The admin dashboard provides a web interface for managing clients and tokens.
-
-1. Open <http://localhost:8080/admin> in your browser
-2. View active clients and tokens
-3. Monitor server metrics
-4. View recent activity
-
-## Common Use Cases
-
-### Web Application Authentication
-
-```javascript
-// Frontend - Redirect to authorization
-window.location.href =
-  "http://localhost:8080/oauth/authorize?" +
-  "response_type=code&" +
-  "client_id=YOUR_CLIENT_ID&" +
-  "redirect_uri=http://localhost:3000/callback&" +
-  "scope=read write&" +
-  "state=" +
-  generateRandomState();
-
-// Backend - Handle callback
-app.get("/callback", async (req, res) => {
-  const { code, state } = req.query;
-
-  // Verify state to prevent CSRF
-  if (state !== expectedState) {
-    return res.status(400).send("Invalid state");
-  }
-
-  // Exchange code for token
-  const tokenResponse = await fetch("http://localhost:8080/oauth/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code: code,
-      redirect_uri: "http://localhost:3000/callback",
-      client_id: "YOUR_CLIENT_ID",
-      client_secret: "YOUR_CLIENT_SECRET",
-    }),
-  });
-
-  const tokens = await tokenResponse.json();
-  // Store tokens securely
-  res.redirect("/dashboard");
-});
-```
-
-### Mobile App Authentication (with PKCE)
-
-```kotlin
-// Android example with PKCE
-val codeVerifier = generateCodeVerifier()
-val codeChallenge = generateCodeChallenge(codeVerifier)
-
-val authUrl = "http://localhost:8080/oauth/authorize?" +
-    "response_type=code&" +
-    "client_id=YOUR_CLIENT_ID&" +
-    "redirect_uri=myapp://callback&" +
-    "code_challenge=$codeChallenge&" +
-    "code_challenge_method=S256&" +
-    "scope=read write"
-
-// Open browser
-val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl))
-startActivity(intent)
-
-// Handle callback
-// Exchange code with code_verifier
-```
-
-### Microservices Authentication
-
-```python
-# Service A authenticates with OAuth2
-import requests
-
-def get_service_token():
-    response = requests.post(
-        'http://localhost:8080/oauth/token',
-        data={
-            'grant_type': 'client_credentials',
-            'client_id': 'SERVICE_A_CLIENT_ID',
-            'client_secret': 'SERVICE_A_SECRET',
-            'scope': 'service.read service.write'
-        }
-    )
-    return response.json()['access_token']
-
-# Use token to call Service B
-token = get_service_token()
-service_b_response = requests.get(
-    'http://service-b/api/data',
-    headers={'Authorization': f'Bearer {token}'}
-)
-```
-
-## Next Steps
-
-Now that you have the basics working:
-
-1. **Secure Your Setup**: Review [Production Configuration](../deployment/production.md)
-2. **Add Social Logins**: Follow [Social Login Setup](social-login-setup.md)
-3. **Explore Advanced Features**:
-   - [Token Introspection](../api/endpoints.md#token-introspection)
-   - [Scope Management](../api/authentication.md#scopes)
-
-- [Custom Claims](../architecture/overview.md#jwt-token-structure)
-
-4. **Monitor Your Server**: Set up [Metrics and Tracing](../observability/metrics.md)
-5. **Deploy to Production**: Follow [Deployment Guides](../deployment/docker.md)
-
-## Troubleshooting
-
-### "Invalid client" error
-
-- Verify `client_id` and `client_secret` are correct
-- Check that the client was successfully registered
-
-### "Invalid redirect_uri" error
-
-- Ensure redirect_uri in authorization request matches registered URI exactly
-- Check for trailing slashes and protocol (http vs https)
-
-### "Invalid grant" error
-
-- Authorization code may have expired (codes are single-use and short-lived)
-- Verify all parameters in token exchange request
-
-### Token expired quickly
-
-- Default access token expiration is 1 hour
-- Use refresh tokens to get new access tokens
-- Configure token expiration in environment variables
-
-## Need Help?
-
-- Check the [API Reference](../api/endpoints.md) for detailed endpoint documentation
-- Review [OAuth2 Flows](../flows/authorization-code.md) for in-depth flow explanations
-- Visit [GitHub Issues](https://github.com/ianlintner/rust_oauth2_server/issues) for community support
+- [Configuration](configuration.md)
+- [OAuth & OIDC](../usage/oauth2-oidc.md)
+- [Admin & API](../usage/admin-api.md)
+- [Deployment](../operations/deployment.md)
