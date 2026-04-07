@@ -316,6 +316,7 @@ impl Handler<ValidateClient> for ClientActor {
                     client
                 } else {
                     // L2: Check Redis cache.
+                    #[allow(unused_mut)]
                     let mut from_redis = None;
                     #[cfg(feature = "redis-cache")]
                     if let Some(ref mut conn) = redis_conn.clone() {
