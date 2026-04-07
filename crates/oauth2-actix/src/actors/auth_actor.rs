@@ -113,6 +113,10 @@ pub struct ValidateAuthorizationCode {
 #[rtype(result = "Result<(), OAuth2Error>")]
 pub struct MarkAuthorizationCodeUsed {
     pub code: String,
+    /// Optional user/client IDs carried from the preceding ValidateAuthorizationCode
+    /// call so we can emit a rich event without re-fetching from the database.
+    pub user_id: Option<String>,
+    pub client_id: Option<String>,
     pub span: tracing::Span,
 }
 
@@ -214,22 +218,18 @@ impl Handler<MarkAuthorizationCodeUsed> for AuthActor {
 
         Box::pin(
             async move {
-                // Idempotent in storage implementations: marking an already-used code used again
-                // should be safe.
-                let auth_code = db
-                    .get_authorization_code(&msg.code)
-                    .await?
-                    .ok_or_else(|| OAuth2Error::invalid_grant("Authorization code not found"))?;
-
+                // The authorization code was already fetched and validated by
+                // ValidateAuthorizationCode, so we skip the redundant DB lookup
+                // and go straight to marking it used.
                 db.mark_authorization_code_used(&msg.code).await?;
 
-                // Emit validated/consumed event
+                // Emit validated/consumed event using the IDs carried in the message.
                 if let Some(event_bus) = event_bus {
                     let event = AuthEvent::new(
                         EventType::AuthorizationCodeValidated,
                         EventSeverity::Info,
-                        Some(auth_code.user_id.clone()),
-                        Some(auth_code.client_id.clone()),
+                        msg.user_id,
+                        msg.client_id,
                     );
                     let envelope = EventEnvelope::from_current_span(event, "oauth2_server");
                     event_bus.publish_best_effort(envelope);

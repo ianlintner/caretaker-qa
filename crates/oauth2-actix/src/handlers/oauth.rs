@@ -12,7 +12,7 @@ use oauth2_observability::Metrics;
 
 use crate::actors::{
     AuthActor, ClientActor, CreateAuthorizationCode, CreateToken, GetClient,
-    MarkAuthorizationCodeUsed, TokenActor, ValidateAuthorizationCode,
+    MarkAuthorizationCodeUsed, TokenActorPool, ValidateAuthorizationCode,
 };
 use crate::handlers::wellknown::OidcConfig;
 use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
@@ -314,7 +314,7 @@ pub struct TokenRequest {
 pub async fn token(
     req: HttpRequest,
     body: web::Bytes,
-    token_actor: web::Data<Addr<TokenActor>>,
+    token_actor: web::Data<TokenActorPool>,
     client_actor: web::Data<Addr<ClientActor>>,
     auth_actor: web::Data<Addr<AuthActor>>,
     metrics: web::Data<Metrics>,
@@ -403,7 +403,7 @@ pub async fn token(
 
 async fn handle_authorization_code_grant(
     req: TokenRequest,
-    token_actor: web::Data<Addr<TokenActor>>,
+    token_actor: web::Data<TokenActorPool>,
     client_actor: web::Data<Addr<ClientActor>>,
     auth_actor: web::Data<Addr<AuthActor>>,
     metrics: web::Data<Metrics>,
@@ -463,6 +463,8 @@ async fn handle_authorization_code_grant(
     auth_actor
         .send(MarkAuthorizationCodeUsed {
             code,
+            user_id: Some(auth_code.user_id.clone()),
+            client_id: Some(auth_code.client_id.clone()),
             span: tracing::Span::current(),
         })
         .await
@@ -470,6 +472,7 @@ async fn handle_authorization_code_grant(
 
     // Create token
     let token = token_actor
+        .route(&auth_code.client_id)
         .send(CreateToken {
             user_id: Some(auth_code.user_id.clone()),
             client_id: auth_code.client_id.clone(),
@@ -517,7 +520,7 @@ async fn handle_authorization_code_grant(
 
 async fn handle_client_credentials_grant(
     req: TokenRequest,
-    token_actor: web::Data<Addr<TokenActor>>,
+    token_actor: web::Data<TokenActorPool>,
     client_actor: web::Data<Addr<ClientActor>>,
     metrics: web::Data<Metrics>,
 ) -> Result<HttpResponse, OAuth2Error> {
@@ -550,6 +553,7 @@ async fn handle_client_credentials_grant(
 
     // Create token (no user, client-only)
     let token = token_actor
+        .route(&req.client_id)
         .send(CreateToken {
             user_id: None,
             client_id: req.client_id,

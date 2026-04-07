@@ -22,6 +22,8 @@ pub struct Config {
     pub debug: Option<DebugConfig>,
     #[serde(default)]
     pub rate_limit: Option<RateLimitConfig>,
+    #[serde(default)]
+    pub cache: Option<CacheConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -52,6 +54,46 @@ pub struct ServerConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DatabaseConfig {
     pub url: String,
+    /// Optional read-replica URL for routing read queries.
+    #[serde(default)]
+    pub read_url: Option<String>,
+    /// Maximum number of connections in the pool (default: 10).
+    #[serde(default = "default_max_connections")]
+    pub max_connections: u32,
+    /// Minimum number of idle connections maintained in the pool (default: 1).
+    #[serde(default = "default_min_connections")]
+    pub min_connections: u32,
+    /// Connection acquire timeout in seconds (default: 30).
+    #[serde(default = "default_acquire_timeout_secs")]
+    pub acquire_timeout_secs: u64,
+    /// Maximum connection idle duration in seconds before being closed (default: 600).
+    #[serde(default = "default_idle_timeout_secs")]
+    pub idle_timeout_secs: u64,
+}
+
+fn default_max_connections() -> u32 {
+    std::env::var("OAUTH2_DATABASE_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(50)
+}
+fn default_min_connections() -> u32 {
+    std::env::var("OAUTH2_DATABASE_MIN_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(1)
+}
+fn default_acquire_timeout_secs() -> u64 {
+    std::env::var("OAUTH2_DATABASE_ACQUIRE_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30)
+}
+fn default_idle_timeout_secs() -> u64 {
+    std::env::var("OAUTH2_DATABASE_IDLE_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(600)
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -59,10 +101,38 @@ pub struct JwtConfig {
     pub secret: String,
     #[serde(default = "default_grace_hours")]
     pub key_rotation_grace_hours: u64,
+    /// Enable stateless JWT-only token validation (skip DB lookup).
+    /// Trades revocation checking for higher throughput.
+    #[serde(default)]
+    pub stateless_validation: bool,
 }
 
 fn default_grace_hours() -> u64 {
     24
+}
+
+/// Configuration for distributed caching (Redis L2 behind in-process LRU).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CacheConfig {
+    /// Redis URL for the shared L2 cache tier.
+    #[serde(default)]
+    pub redis_url: Option<String>,
+    /// Number of TokenActor shards for parallelism (default: 1 = no sharding).
+    #[serde(default = "default_token_actor_shards")]
+    pub token_actor_shards: usize,
+}
+
+fn default_token_actor_shards() -> usize {
+    1
+}
+
+impl Default for CacheConfig {
+    fn default() -> Self {
+        Self {
+            redis_url: None,
+            token_actor_shards: default_token_actor_shards(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -310,6 +380,11 @@ impl Config {
             database: DatabaseConfig {
                 url: std::env::var("OAUTH2_DATABASE_URL")
                     .unwrap_or_else(|_| "sqlite:oauth2.db?mode=rwc".to_string()),
+                read_url: std::env::var("OAUTH2_DATABASE_READ_URL").ok(),
+                max_connections: default_max_connections(),
+                min_connections: default_min_connections(),
+                acquire_timeout_secs: default_acquire_timeout_secs(),
+                idle_timeout_secs: default_idle_timeout_secs(),
             },
             jwt: JwtConfig {
                 secret: std::env::var("OAUTH2_JWT_SECRET").unwrap_or_else(|_| {
@@ -321,6 +396,10 @@ impl Config {
                     .ok()
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(24),
+                stateless_validation: std::env::var("OAUTH2_JWT_STATELESS_VALIDATION")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(false),
             },
             events: EventConfig {
                 enabled: std::env::var("OAUTH2_EVENTS_ENABLED")
@@ -372,6 +451,13 @@ impl Config {
             social: None,
             session: None,
             debug: None,
+            cache: Some(CacheConfig {
+                redis_url: std::env::var("OAUTH2_CACHE_REDIS_URL").ok(),
+                token_actor_shards: std::env::var("OAUTH2_TOKEN_ACTOR_SHARDS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1),
+            }),
         };
 
         config.normalize_event_config();

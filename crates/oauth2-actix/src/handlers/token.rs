@@ -1,8 +1,7 @@
-use actix::Addr;
 use actix_web::{web, HttpResponse, Result};
 use serde::Deserialize;
 
-use crate::actors::{RevokeToken, TokenActor, ValidateToken};
+use crate::actors::{RevokeToken, TokenActorPool, ValidateToken, ValidateTokenStateless};
 use oauth2_core::{Claims, IntrospectionResponse, OAuth2Error};
 
 #[derive(Debug, Deserialize)]
@@ -16,24 +15,39 @@ pub struct IntrospectRequest {
 /// Returns information about a token
 pub async fn introspect(
     form: web::Form<IntrospectRequest>,
-    token_actor: web::Data<Addr<TokenActor>>,
+    token_actor: web::Data<TokenActorPool>,
     jwt_secret: web::Data<String>,
+    stateless: web::Data<bool>,
 ) -> Result<HttpResponse, OAuth2Error> {
     let token_prefix = form.token.chars().take(20).collect::<String>();
     tracing::info!(
         token_len = form.token.len(),
         token_prefix = %token_prefix,
+        stateless = **stateless,
         "Token introspection requested"
     );
 
-    // Try to validate the token
-    let token_result = token_actor
-        .send(ValidateToken {
-            token: form.token.clone(),
-            span: tracing::Span::current(),
-        })
-        .await
-        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+    // Fast path: validate token purely from JWT claims (no DB lookup).
+    let token_result = if **stateless {
+        token_actor
+            .route(&form.token)
+            .send(ValidateTokenStateless {
+                token: form.token.clone(),
+                span: tracing::Span::current(),
+            })
+            .await
+            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+    } else {
+        // Standard path: full DB-backed validation with caching.
+        token_actor
+            .route(&form.token)
+            .send(ValidateToken {
+                token: form.token.clone(),
+                span: tracing::Span::current(),
+            })
+            .await
+            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+    };
 
     match token_result {
         Ok(token) => {
@@ -99,9 +113,10 @@ pub struct RevokeRequest {
 /// Revokes an access or refresh token
 pub async fn revoke(
     form: web::Form<RevokeRequest>,
-    token_actor: web::Data<Addr<TokenActor>>,
+    token_actor: web::Data<TokenActorPool>,
 ) -> Result<HttpResponse, OAuth2Error> {
     token_actor
+        .route(&form.token)
         .send(RevokeToken {
             token: form.token.clone(),
             span: tracing::Span::current(),

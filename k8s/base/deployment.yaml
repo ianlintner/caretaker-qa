@@ -70,6 +70,21 @@ spec:
                 secretKeyRef:
                   name: oauth2-server-secret
                   key: OAUTH2_SEED_PASSWORD
+            - name: OAUTH2_SESSION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-server-secret
+                  key: OAUTH2_SESSION_KEY
+            - name: OAUTH2_DATABASE_MAX_CONNECTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: oauth2-server-config
+                  key: OAUTH2_DATABASE_MAX_CONNECTIONS
+            - name: OAUTH2_DATABASE_MIN_CONNECTIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: oauth2-server-config
+                  key: OAUTH2_DATABASE_MIN_CONNECTIONS
             - name: RUST_LOG
               valueFrom:
                 configMapKeyRef:

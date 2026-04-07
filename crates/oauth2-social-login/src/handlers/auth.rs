@@ -129,6 +129,7 @@ pub async fn auth_callback(
     provider: web::Path<String>,
     config: web::Data<Arc<SocialLoginConfig>>,
     storage: web::Data<DynStorage>,
+    social_svc: web::Data<SocialLoginService>,
     session: Session,
 ) -> Result<HttpResponse, OAuth2Error> {
     // Verify CSRF token
@@ -160,9 +161,9 @@ pub async fn auth_callback(
 
     // Exchange code for token based on provider
     let user_info = match provider.as_str() {
-        "google" => handle_google_callback(&query.code, config.as_ref(), &session).await?,
-        "microsoft" => handle_microsoft_callback(&query.code, config.as_ref(), &session).await?,
-        "github" => handle_github_callback(&query.code, config.as_ref(), &session).await?,
+        "google" => handle_google_callback(&query.code, config.as_ref(), &social_svc, &session).await?,
+        "microsoft" => handle_microsoft_callback(&query.code, config.as_ref(), &social_svc, &session).await?,
+        "github" => handle_github_callback(&query.code, config.as_ref(), &social_svc, &session).await?,
         _ => return Err(OAuth2Error::invalid_request("Unsupported provider")),
     };
 
@@ -263,6 +264,7 @@ async fn find_or_create_social_user(
 async fn handle_google_callback(
     code: &str,
     config: &SocialLoginConfig,
+    social_svc: &SocialLoginService,
     _session: &Session,
 ) -> Result<SocialUserInfo, OAuth2Error> {
     let provider_config = config.google.as_ref().ok_or_else(|| {
@@ -281,12 +283,13 @@ async fn handle_google_callback(
         .map_err(|e| OAuth2Error::new("token_exchange_failed", Some(&e.to_string())))?;
 
     let access_token = token_result.access_token().secret();
-    SocialLoginService::fetch_google_user_info(access_token).await
+    social_svc.fetch_google_user_info(access_token).await
 }
 
 async fn handle_microsoft_callback(
     code: &str,
     config: &SocialLoginConfig,
+    social_svc: &SocialLoginService,
     _session: &Session,
 ) -> Result<SocialUserInfo, OAuth2Error> {
     let provider_config = config.microsoft.as_ref().ok_or_else(|| {
@@ -303,12 +306,13 @@ async fn handle_microsoft_callback(
         .map_err(|e| OAuth2Error::new("token_exchange_failed", Some(&e.to_string())))?;
 
     let access_token = token_result.access_token().secret();
-    SocialLoginService::fetch_microsoft_user_info(access_token).await
+    social_svc.fetch_microsoft_user_info(access_token).await
 }
 
 async fn handle_github_callback(
     code: &str,
     config: &SocialLoginConfig,
+    social_svc: &SocialLoginService,
     _session: &Session,
 ) -> Result<SocialUserInfo, OAuth2Error> {
     let provider_config = config.github.as_ref().ok_or_else(|| {
@@ -325,7 +329,7 @@ async fn handle_github_callback(
         .map_err(|e| OAuth2Error::new("token_exchange_failed", Some(&e.to_string())))?;
 
     let access_token = token_result.access_token().secret();
-    SocialLoginService::fetch_github_user_info(access_token).await
+    social_svc.fetch_github_user_info(access_token).await
 }
 
 /// Display login page

@@ -1,6 +1,9 @@
+use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::time::Instant;
 
 use actix::prelude::*;
+use lru::LruCache;
 use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
 use oauth2_events::{AuthEvent, EventBusHandle, EventEnvelope, EventSeverity, EventType};
 use oauth2_observability::annotate_span_with_trace_ids;
@@ -10,11 +13,37 @@ use tracing::Instrument;
 
 use oauth2_core::{Claims, OAuth2Error, Token};
 
+/// Default token validation cache TTL (60 seconds).
+const TOKEN_CACHE_TTL_SECS: u64 = 60;
+/// Default max entries in the token validation cache.
+const TOKEN_CACHE_MAX_ENTRIES: usize = 10_000;
+/// Redis key prefix for the L2 token cache.
+#[cfg(feature = "redis-cache")]
+const REDIS_TOKEN_PREFIX: &str = "oauth2:token:";
+
+struct CachedToken {
+    token: Token,
+    inserted_at: Instant,
+}
+
+/// Optional Redis connection for L2 caching behind the in-process LRU.
+#[cfg(feature = "redis-cache")]
+type RedisConn = Option<redis::aio::ConnectionManager>;
+#[cfg(not(feature = "redis-cache"))]
+type RedisConn = ();
+
 pub struct TokenActor {
     db: DynStorage,
     jwt_secret: String,
     event_bus: Option<EventBusHandle>,
     keyset: Option<Arc<RwLock<KeySet>>>,
+    /// In-process LRU cache for validated tokens, keyed by access_token string.
+    /// Each entry has a TTL; expired entries are treated as cache misses.
+    token_cache: LruCache<String, CachedToken>,
+    token_cache_ttl: std::time::Duration,
+    /// Optional Redis L2 cache behind the in-process LRU.
+    #[allow(dead_code)]
+    redis: RedisConn,
 }
 
 impl TokenActor {
@@ -24,6 +53,11 @@ impl TokenActor {
             jwt_secret,
             event_bus: None,
             keyset: None,
+            token_cache: LruCache::new(
+                NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap(),
+            ),
+            token_cache_ttl: std::time::Duration::from_secs(TOKEN_CACHE_TTL_SECS),
+            redis: Default::default(),
         }
     }
 
@@ -33,12 +67,41 @@ impl TokenActor {
             jwt_secret,
             event_bus: Some(event_bus),
             keyset: None,
+            token_cache: LruCache::new(
+                NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap(),
+            ),
+            token_cache_ttl: std::time::Duration::from_secs(TOKEN_CACHE_TTL_SECS),
+            redis: Default::default(),
         }
     }
 
     pub fn with_keyset(mut self, keyset: Arc<RwLock<KeySet>>) -> Self {
         self.keyset = Some(keyset);
         self
+    }
+
+    /// Attach a Redis connection manager for L2 caching.
+    #[cfg(feature = "redis-cache")]
+    pub fn with_redis(mut self, conn: redis::aio::ConnectionManager) -> Self {
+        self.redis = Some(conn);
+        self
+    }
+
+    /// Normalize a token key the same way `ValidateToken` does so that
+    /// cache lookups, insertions, and invalidations all use the same key.
+    fn normalize_token_key(raw: &str) -> String {
+        let trimmed = raw.trim();
+        trimmed
+            .strip_prefix("Bearer ")
+            .unwrap_or(trimmed)
+            .trim()
+            .to_string()
+    }
+
+    /// Invalidate a cached token (called on revoke).
+    fn invalidate_cached_token(&mut self, access_token: &str) {
+        let key = Self::normalize_token_key(access_token);
+        self.token_cache.pop(&key);
     }
 }
 
@@ -174,7 +237,7 @@ pub struct ValidateToken {
 impl Handler<ValidateToken> for TokenActor {
     type Result = ResponseFuture<Result<Token, OAuth2Error>>;
 
-    fn handle(&mut self, msg: ValidateToken, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: ValidateToken, ctx: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
         let event_bus = self.event_bus.clone();
         let parent_span = msg.span.clone();
@@ -190,24 +253,73 @@ impl Handler<ValidateToken> for TokenActor {
         );
         annotate_span_with_trace_ids(&actor_span);
 
+        // Check the in-process LRU cache before hitting the database.
+        let token_normalized = Self::normalize_token_key(&raw_token);
+
+        let cache_ttl = self.token_cache_ttl;
+        let cached = self
+            .token_cache
+            .get(&token_normalized)
+            .filter(|ct| ct.inserted_at.elapsed() < cache_ttl)
+            .map(|ct| ct.token.clone());
+
+        // Remove expired entry eagerly.
+        if cached.is_none() {
+            self.token_cache.pop(&token_normalized);
+        }
+
+        // Clone Redis connection for async block.
+        #[cfg(feature = "redis-cache")]
+        let redis_conn = self.redis.clone();
+        #[cfg(feature = "redis-cache")]
+        let redis_ttl_secs = cache_ttl.as_secs().max(1) as u64;
+
+        // Capture the actor's own address so the async block can send a
+        // CacheValidatedToken message back for insertion.
+        let self_addr = ctx.address();
+
         Box::pin(
             async move {
-                // Be forgiving about whitespace and callers that accidentally include a Bearer prefix.
-                let token_trimmed = raw_token.trim();
-                let token_normalized = token_trimmed
-                    .strip_prefix("Bearer ")
-                    .unwrap_or(token_trimmed)
-                    .trim();
+                if let Some(token) = cached {
+                    tracing::debug!(cache = "hit", layer = "L1", "Token found in validation cache");
+                    if !token.is_valid() {
+                        return Err(OAuth2Error::invalid_grant("Token is expired or revoked"));
+                    }
+                    return Ok(token);
+                }
+
+                // L2: Check Redis cache before DB.
+                #[cfg(feature = "redis-cache")]
+                if let Some(ref mut conn) = redis_conn.clone() {
+                    let redis_key = format!("{}{}", REDIS_TOKEN_PREFIX, token_normalized);
+                    let redis_result: Result<Option<String>, _> =
+                        redis::cmd("GET").arg(&redis_key).query_async(conn).await;
+                    if let Ok(Some(json)) = redis_result {
+                        if let Ok(token) = serde_json::from_str::<Token>(&json) {
+                            tracing::debug!(cache = "hit", layer = "L2", "Token found in Redis cache");
+                            // Promote to L1.
+                            let _ = self_addr.try_send(CacheValidatedToken {
+                                access_token: token_normalized.clone(),
+                                token: token.clone(),
+                            });
+                            if !token.is_valid() {
+                                return Err(OAuth2Error::invalid_grant("Token is expired or revoked"));
+                            }
+                            return Ok(token);
+                        }
+                    }
+                }
 
                 let token_prefix = token_normalized.chars().take(20).collect::<String>();
                 tracing::info!(
                     token_len = token_normalized.len(),
                     token_prefix = %token_prefix,
+                    cache = "miss",
                     "ValidateToken called"
                 );
 
                 let token = db
-                    .get_token_by_access_token(token_normalized)
+                    .get_token_by_access_token(&token_normalized)
                     .await?
                     .ok_or_else(|| OAuth2Error::invalid_grant("Token not found"))?;
 
@@ -235,6 +347,27 @@ impl Handler<ValidateToken> for TokenActor {
                     return Err(OAuth2Error::invalid_grant("Token is expired or revoked"));
                 }
 
+                // Write to Redis L2 cache.
+                #[cfg(feature = "redis-cache")]
+                if let Some(ref mut conn) = redis_conn.clone() {
+                    let redis_key = format!("{}{}", REDIS_TOKEN_PREFIX, token_normalized);
+                    if let Ok(json) = serde_json::to_string(&token) {
+                        let _: Result<(), _> = redis::cmd("SET")
+                            .arg(&redis_key)
+                            .arg(&json)
+                            .arg("EX")
+                            .arg(redis_ttl_secs)
+                            .query_async(conn)
+                            .await;
+                    }
+                }
+
+                // Send validated token back to the actor for LRU cache insertion.
+                let _ = self_addr.try_send(CacheValidatedToken {
+                    access_token: token_normalized.clone(),
+                    token: token.clone(),
+                });
+
                 // Emit validated event
                 if let Some(event_bus) = event_bus {
                     let event = AuthEvent::new(
@@ -251,6 +384,28 @@ impl Handler<ValidateToken> for TokenActor {
             }
             .instrument(actor_span),
         )
+    }
+}
+
+/// Internal message to insert a validated token into the LRU cache.
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct CacheValidatedToken {
+    pub access_token: String,
+    pub token: Token,
+}
+
+impl Handler<CacheValidatedToken> for TokenActor {
+    type Result = ();
+
+    fn handle(&mut self, msg: CacheValidatedToken, _: &mut Self::Context) {
+        self.token_cache.put(
+            msg.access_token,
+            CachedToken {
+                token: msg.token,
+                inserted_at: Instant::now(),
+            },
+        );
     }
 }
 
@@ -280,8 +435,31 @@ impl Handler<RevokeToken> for TokenActor {
         );
         annotate_span_with_trace_ids(&actor_span);
 
+        // Evict from the validation cache immediately so subsequent
+        // ValidateToken requests won't return a stale cached result.
+        self.invalidate_cached_token(&msg.token);
+
+        // Clone Redis connection for async eviction.
+        #[cfg(feature = "redis-cache")]
+        let redis_conn = self.redis.clone();
+        #[cfg(feature = "redis-cache")]
+        let redis_key = format!(
+            "{}{}",
+            REDIS_TOKEN_PREFIX,
+            Self::normalize_token_key(&msg.token)
+        );
+
         Box::pin(
             async move {
+                // Evict from Redis L2.
+                #[cfg(feature = "redis-cache")]
+                if let Some(ref mut conn) = redis_conn.clone() {
+                    let _: Result<(), _> = redis::cmd("DEL")
+                        .arg(&redis_key)
+                        .query_async(conn)
+                        .await;
+                }
+
                 // Get token info before revoking for event
                 let token_info = db.get_token_by_access_token(&msg.token).await?;
 
@@ -305,5 +483,73 @@ impl Handler<RevokeToken> for TokenActor {
             }
             .instrument(actor_span),
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Stateless JWT-only validation (no database lookup)
+// ---------------------------------------------------------------------------
+
+/// Validate a token purely from its JWT claims — no DB round-trip.
+/// Returns a minimal `Token` reconstructed from the decoded claims.
+/// Revocation status is NOT checked; this trades consistency for latency.
+#[derive(Message)]
+#[rtype(result = "Result<Token, OAuth2Error>")]
+pub struct ValidateTokenStateless {
+    pub token: String,
+    pub span: tracing::Span,
+}
+
+impl Handler<ValidateTokenStateless> for TokenActor {
+    type Result = Result<Token, OAuth2Error>;
+
+    fn handle(&mut self, msg: ValidateTokenStateless, _: &mut Self::Context) -> Self::Result {
+        let _enter = msg.span.enter();
+
+        let raw = Self::normalize_token_key(&msg.token);
+
+        // Try keyset first, fall back to jwt_secret.
+        let claims = if let Some(ref ks_lock) = self.keyset {
+            // We are inside the actor (synchronous handler), so we cannot
+            // await the RwLock.  Use try_read — a contended lock is
+            // extremely unlikely because writers (key rotation) are rare.
+            let ks = ks_lock.try_read().map_err(|_| {
+                OAuth2Error::new("server_error", Some("keyset lock contended"))
+            })?;
+            Claims::decode_with_keyset(&raw, &ks).map_err(|e| {
+                OAuth2Error::invalid_grant(&format!("JWT decode failed: {e}"))
+            })?
+        } else {
+            Claims::decode(&raw, &self.jwt_secret).map_err(|e| {
+                OAuth2Error::invalid_grant(&format!("JWT decode failed: {e}"))
+            })?
+        };
+
+        // Reconstruct a minimal Token from the claims.
+        let expires_in = (claims.exp - claims.iat) as i32;
+
+        use chrono::{TimeZone, Utc};
+        let created_at = Utc
+            .timestamp_opt(claims.iat, 0)
+            .single()
+            .unwrap_or_else(Utc::now);
+        let expires_at = Utc
+            .timestamp_opt(claims.exp, 0)
+            .single()
+            .unwrap_or_else(Utc::now);
+
+        Ok(Token {
+            id: claims.jti.clone(),
+            access_token: raw,
+            refresh_token: None,
+            token_type: "Bearer".to_string(),
+            expires_in,
+            scope: claims.scope.clone(),
+            client_id: claims.client_id.clone().unwrap_or_default(),
+            user_id: Some(claims.sub.clone()),
+            created_at,
+            expires_at,
+            revoked: false,
+        })
     }
 }

@@ -1,19 +1,38 @@
 use actix::prelude::*;
+use lru::LruCache;
 use oauth2_events::{AuthEvent, EventBusHandle, EventEnvelope, EventSeverity, EventType};
 use oauth2_observability::annotate_span_with_trace_ids;
 use oauth2_ports::DynStorage;
 use rand::Rng;
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
+use std::num::NonZeroUsize;
+use std::time::{Duration, Instant};
 use tracing::Instrument;
 
 use oauth2_core::{Client, ClientRegistration, OAuth2Error};
 
+const CLIENT_CACHE_MAX_ENTRIES: usize = 10_000;
+const CLIENT_CACHE_TTL_SECS: u64 = 300; // 5 minutes
+#[cfg(feature = "redis-cache")]
+const REDIS_CLIENT_PREFIX: &str = "oauth2:client:";
+
+struct CachedClient {
+    client: Client,
+    inserted_at: Instant,
+}
+
+/// Optional Redis connection for L2 caching behind the in-process LRU.
+#[cfg(feature = "redis-cache")]
+type ClientRedisConn = Option<redis::aio::ConnectionManager>;
+#[cfg(not(feature = "redis-cache"))]
+type ClientRedisConn = ();
+
 pub struct ClientActor {
     db: DynStorage,
     event_bus: Option<EventBusHandle>,
-    cache: Arc<RwLock<HashMap<String, Client>>>,
+    cache: LruCache<String, CachedClient>,
+    cache_ttl: Duration,
+    #[allow(dead_code)]
+    redis: ClientRedisConn,
 }
 
 impl ClientActor {
@@ -21,7 +40,11 @@ impl ClientActor {
         Self {
             db,
             event_bus: None,
-            cache: Arc::new(RwLock::new(HashMap::new())),
+            cache: LruCache::new(
+                NonZeroUsize::new(CLIENT_CACHE_MAX_ENTRIES).expect("non-zero"),
+            ),
+            cache_ttl: Duration::from_secs(CLIENT_CACHE_TTL_SECS),
+            redis: Default::default(),
         }
     }
 
@@ -29,8 +52,43 @@ impl ClientActor {
         Self {
             db,
             event_bus: Some(event_bus),
-            cache: Arc::new(RwLock::new(HashMap::new())),
+            cache: LruCache::new(
+                NonZeroUsize::new(CLIENT_CACHE_MAX_ENTRIES).expect("non-zero"),
+            ),
+            cache_ttl: Duration::from_secs(CLIENT_CACHE_TTL_SECS),
+            redis: Default::default(),
         }
+    }
+
+    /// Attach a Redis connection manager for L2 caching.
+    #[cfg(feature = "redis-cache")]
+    pub fn with_redis(mut self, conn: redis::aio::ConnectionManager) -> Self {
+        self.redis = Some(conn);
+        self
+    }
+
+    fn get_cached_client(&mut self, client_id: &str) -> Option<Client> {
+        let ttl = self.cache_ttl;
+        let entry = self.cache.get(client_id);
+        match entry {
+            Some(cached) if cached.inserted_at.elapsed() < ttl => Some(cached.client.clone()),
+            Some(_) => {
+                // Expired — evict eagerly.
+                self.cache.pop(client_id);
+                None
+            }
+            None => None,
+        }
+    }
+
+    fn insert_cached_client(&mut self, client: Client) {
+        self.cache.put(
+            client.client_id.clone(),
+            CachedClient {
+                client,
+                inserted_at: Instant::now(),
+            },
+        );
     }
 }
 
@@ -45,13 +103,28 @@ pub struct RegisterClient {
     pub span: tracing::Span,
 }
 
+/// Internal message to insert a client into the LRU cache from an async context.
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct CacheClient {
+    pub client: Client,
+}
+
+impl Handler<CacheClient> for ClientActor {
+    type Result = ();
+
+    fn handle(&mut self, msg: CacheClient, _: &mut Self::Context) {
+        self.insert_cached_client(msg.client);
+    }
+}
+
 impl Handler<RegisterClient> for ClientActor {
     type Result = ResponseFuture<Result<Client, OAuth2Error>>;
 
-    fn handle(&mut self, msg: RegisterClient, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: RegisterClient, ctx: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
         let event_bus = self.event_bus.clone();
-        let cache = self.cache.clone();
+        let self_addr = ctx.address();
 
         let parent_span = msg.span.clone();
         let actor_span = tracing::info_span!(
@@ -81,11 +154,10 @@ impl Handler<RegisterClient> for ClientActor {
 
                 db.save_client(&client).await?;
 
-                // Keep hot-path reads in-memory (best-effort).
-                cache
-                    .write()
-                    .await
-                    .insert(client.client_id.clone(), client.clone());
+                // Send back to actor for LRU cache insertion.
+                let _ = self_addr.try_send(CacheClient {
+                    client: client.clone(),
+                });
 
                 // Emit event
                 if let Some(event_bus) = event_bus {
@@ -119,9 +191,8 @@ pub struct GetClient {
 impl Handler<GetClient> for ClientActor {
     type Result = ResponseFuture<Result<Client, OAuth2Error>>;
 
-    fn handle(&mut self, msg: GetClient, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: GetClient, ctx: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
-        let cache = self.cache.clone();
         let requested_client_id = msg.client_id.clone();
 
         let parent_span = msg.span.clone();
@@ -134,10 +205,37 @@ impl Handler<GetClient> for ClientActor {
         );
         annotate_span_with_trace_ids(&actor_span);
 
+        // Check the LRU cache synchronously before going async.
+        let cached = self.get_cached_client(&requested_client_id);
+        let self_addr = ctx.address();
+
+        #[cfg(feature = "redis-cache")]
+        let redis_conn = self.redis.clone();
+        #[cfg(feature = "redis-cache")]
+        let cache_ttl_secs = self.cache_ttl.as_secs().max(1) as u64;
+
         Box::pin(
             async move {
-                if let Some(client) = cache.read().await.get(&requested_client_id).cloned() {
+                if let Some(client) = cached {
+                    tracing::debug!(cache = "hit", layer = "L1", "Client found in cache");
                     return Ok(client);
+                }
+
+                // L2: Check Redis cache.
+                #[cfg(feature = "redis-cache")]
+                if let Some(ref mut conn) = redis_conn.clone() {
+                    let redis_key = format!("{}{}", REDIS_CLIENT_PREFIX, requested_client_id);
+                    let redis_result: Result<Option<String>, _> =
+                        redis::cmd("GET").arg(&redis_key).query_async(conn).await;
+                    if let Ok(Some(json)) = redis_result {
+                        if let Ok(client) = serde_json::from_str::<Client>(&json) {
+                            tracing::debug!(cache = "hit", layer = "L2", "Client found in Redis cache");
+                            let _ = self_addr.try_send(CacheClient {
+                                client: client.clone(),
+                            });
+                            return Ok(client);
+                        }
+                    }
                 }
 
                 let client = db
@@ -145,10 +243,24 @@ impl Handler<GetClient> for ClientActor {
                     .await?
                     .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))?;
 
-                cache
-                    .write()
-                    .await
-                    .insert(client.client_id.clone(), client.clone());
+                // Write to Redis L2.
+                #[cfg(feature = "redis-cache")]
+                if let Some(ref mut conn) = redis_conn.clone() {
+                    let redis_key = format!("{}{}", REDIS_CLIENT_PREFIX, requested_client_id);
+                    if let Ok(json) = serde_json::to_string(&client) {
+                        let _: Result<(), _> = redis::cmd("SET")
+                            .arg(&redis_key)
+                            .arg(&json)
+                            .arg("EX")
+                            .arg(cache_ttl_secs)
+                            .query_async(conn)
+                            .await;
+                    }
+                }
+
+                let _ = self_addr.try_send(CacheClient {
+                    client: client.clone(),
+                });
 
                 Ok(client)
             }
@@ -168,10 +280,9 @@ pub struct ValidateClient {
 impl Handler<ValidateClient> for ClientActor {
     type Result = ResponseFuture<Result<bool, OAuth2Error>>;
 
-    fn handle(&mut self, msg: ValidateClient, _: &mut Self::Context) -> Self::Result {
+    fn handle(&mut self, msg: ValidateClient, ctx: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
         let event_bus = self.event_bus.clone();
-        let cache = self.cache.clone();
         let requested_client_id = msg.client_id.clone();
         let presented_secret = msg.client_secret.clone();
 
@@ -185,22 +296,70 @@ impl Handler<ValidateClient> for ClientActor {
         );
         annotate_span_with_trace_ids(&actor_span);
 
+        // Check the LRU cache synchronously.
+        let cached = self.get_cached_client(&requested_client_id);
+        let self_addr = ctx.address();
+
+        #[cfg(feature = "redis-cache")]
+        let redis_conn = self.redis.clone();
+        #[cfg(feature = "redis-cache")]
+        let cache_ttl_secs = self.cache_ttl.as_secs().max(1) as u64;
+
         Box::pin(
             async move {
-                let client =
-                    if let Some(client) = cache.read().await.get(&requested_client_id).cloned() {
+                let client = if let Some(client) = cached {
+                    tracing::debug!(cache = "hit", layer = "L1", "Client found in validation cache");
+                    client
+                } else {
+                    // L2: Check Redis cache.
+                    let mut from_redis = None;
+                    #[cfg(feature = "redis-cache")]
+                    if let Some(ref mut conn) = redis_conn.clone() {
+                        let redis_key =
+                            format!("{}{}", REDIS_CLIENT_PREFIX, requested_client_id);
+                        let redis_result: Result<Option<String>, _> =
+                            redis::cmd("GET").arg(&redis_key).query_async(conn).await;
+                        if let Ok(Some(json)) = redis_result {
+                            if let Ok(client) = serde_json::from_str::<Client>(&json) {
+                                tracing::debug!(cache = "hit", layer = "L2", "Client found in Redis validation cache");
+                                let _ = self_addr.try_send(CacheClient {
+                                    client: client.clone(),
+                                });
+                                from_redis = Some(client);
+                            }
+                        }
+                    }
+
+                    if let Some(client) = from_redis {
                         client
                     } else {
                         let fetched = db
                             .get_client(&requested_client_id)
                             .await?
                             .ok_or_else(|| OAuth2Error::invalid_client("Client not found"))?;
-                        cache
-                            .write()
-                            .await
-                            .insert(fetched.client_id.clone(), fetched.clone());
+
+                        // Write to Redis L2.
+                        #[cfg(feature = "redis-cache")]
+                        if let Some(ref mut conn) = redis_conn.clone() {
+                            let redis_key =
+                                format!("{}{}", REDIS_CLIENT_PREFIX, requested_client_id);
+                            if let Ok(json) = serde_json::to_string(&fetched) {
+                                let _: Result<(), _> = redis::cmd("SET")
+                                    .arg(&redis_key)
+                                    .arg(&json)
+                                    .arg("EX")
+                                    .arg(cache_ttl_secs)
+                                    .query_async(conn)
+                                    .await;
+                            }
+                        }
+
+                        let _ = self_addr.try_send(CacheClient {
+                            client: fetched.clone(),
+                        });
                         fetched
-                    };
+                    }
+                };
 
                 // Use constant-time comparison to prevent timing attacks
                 use subtle::ConstantTimeEq;

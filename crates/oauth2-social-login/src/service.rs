@@ -3,10 +3,13 @@ use oauth2::{
     TokenUrl,
 };
 use serde::Deserialize;
+use std::sync::Arc;
+use std::time::Duration;
 
 use oauth2_config::ProviderConfig;
 use oauth2_core::OAuth2Error;
 
+use crate::circuit_breaker::CircuitBreaker;
 use crate::models::SocialUserInfo;
 
 // Type alias for a fully configured OAuth2 client with all required endpoints set.
@@ -28,7 +31,41 @@ type ConfiguredClient = oauth2::Client<
     EndpointSet,
 >;
 
-pub struct SocialLoginService;
+/// Default request timeout for social provider HTTP calls.
+const PROVIDER_TIMEOUT: Duration = Duration::from_secs(10);
+/// Open the circuit after 5 consecutive failures.
+const CB_FAILURE_THRESHOLD: u32 = 5;
+/// Re-allow a probe request after 30 seconds.
+const CB_COOLDOWN: Duration = Duration::from_secs(30);
+
+pub struct SocialLoginService {
+    /// Shared HTTP client with timeout.
+    http: reqwest::Client,
+    /// Per-provider circuit breakers.
+    pub cb_google: Arc<CircuitBreaker>,
+    pub cb_microsoft: Arc<CircuitBreaker>,
+    pub cb_github: Arc<CircuitBreaker>,
+}
+
+impl Default for SocialLoginService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SocialLoginService {
+    pub fn new() -> Self {
+        Self {
+            http: reqwest::Client::builder()
+                .timeout(PROVIDER_TIMEOUT)
+                .build()
+                .expect("reqwest client"),
+            cb_google: Arc::new(CircuitBreaker::new(CB_FAILURE_THRESHOLD, CB_COOLDOWN)),
+            cb_microsoft: Arc::new(CircuitBreaker::new(CB_FAILURE_THRESHOLD, CB_COOLDOWN)),
+            cb_github: Arc::new(CircuitBreaker::new(CB_FAILURE_THRESHOLD, CB_COOLDOWN)),
+        }
+    }
+}
 
 impl SocialLoginService {
     /// Helper function to validate and extract required provider configuration fields
@@ -137,9 +174,21 @@ impl SocialLoginService {
             ))
     }
 
-    pub async fn fetch_google_user_info(access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
-        let client = reqwest::Client::new();
-        let response = client
+    pub async fn fetch_google_user_info(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
+        if !self.cb_google.allow_request() {
+            return Err(OAuth2Error::new("provider_unavailable", Some("Google circuit breaker open")));
+        }
+
+        let result = self.do_fetch_google(access_token).await;
+        match &result {
+            Ok(_) => self.cb_google.on_success(),
+            Err(_) => self.cb_google.on_failure(),
+        }
+        result
+    }
+
+    async fn do_fetch_google(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
+        let response = self.http
             .get("https://www.googleapis.com/oauth2/v2/userinfo")
             .bearer_auth(access_token)
             .send()
@@ -169,10 +218,23 @@ impl SocialLoginService {
     }
 
     pub async fn fetch_microsoft_user_info(
+        &self,
         access_token: &str,
     ) -> Result<SocialUserInfo, OAuth2Error> {
-        let client = reqwest::Client::new();
-        let response = client
+        if !self.cb_microsoft.allow_request() {
+            return Err(OAuth2Error::new("provider_unavailable", Some("Microsoft circuit breaker open")));
+        }
+
+        let result = self.do_fetch_microsoft(access_token).await;
+        match &result {
+            Ok(_) => self.cb_microsoft.on_success(),
+            Err(_) => self.cb_microsoft.on_failure(),
+        }
+        result
+    }
+
+    async fn do_fetch_microsoft(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
+        let response = self.http
             .get("https://graph.microsoft.com/v1.0/me")
             .bearer_auth(access_token)
             .send()
@@ -202,9 +264,21 @@ impl SocialLoginService {
         })
     }
 
-    pub async fn fetch_github_user_info(access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
-        let client = reqwest::Client::new();
-        let response = client
+    pub async fn fetch_github_user_info(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
+        if !self.cb_github.allow_request() {
+            return Err(OAuth2Error::new("provider_unavailable", Some("GitHub circuit breaker open")));
+        }
+
+        let result = self.do_fetch_github(access_token).await;
+        match &result {
+            Ok(_) => self.cb_github.on_success(),
+            Err(_) => self.cb_github.on_failure(),
+        }
+        result
+    }
+
+    async fn do_fetch_github(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
+        let response = self.http
             .get("https://api.github.com/user")
             .bearer_auth(access_token)
             .header("User-Agent", "rust_oauth2_server")
@@ -230,7 +304,7 @@ impl SocialLoginService {
             email
         } else {
             // Fetch primary email
-            let email_response = client
+            let email_response = self.http
                 .get("https://api.github.com/user/emails")
                 .bearer_auth(access_token)
                 .header("User-Agent", "rust_oauth2_server")

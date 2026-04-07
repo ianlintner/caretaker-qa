@@ -8,7 +8,7 @@ spec:
     kind: Deployment
     name: oauth2-server
   minReplicas: 2
-  maxReplicas: 10
+  maxReplicas: 20
   metrics:
     - type: Resource
       resource:

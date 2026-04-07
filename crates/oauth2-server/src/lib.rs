@@ -129,10 +129,27 @@ pub async fn run() -> std::io::Result<()> {
     tracing::info!("Metrics initialized");
 
     // Initialize storage backend (SQLx by default, optional MongoDB)
-    tracing::info!(database_url = %config.database.url, "Connecting to storage backend");
-    let storage = oauth2_storage_factory::create_storage(&config.database.url)
-        .await
-        .expect("Failed to create storage backend");
+    tracing::info!(
+        database_url = %config.database.url,
+        max_connections = config.database.max_connections,
+        min_connections = config.database.min_connections,
+        acquire_timeout_secs = config.database.acquire_timeout_secs,
+        "Connecting to storage backend"
+    );
+    let pool_config = oauth2_storage_factory::sqlx::PoolConfig {
+        max_connections: config.database.max_connections,
+        min_connections: config.database.min_connections,
+        acquire_timeout: std::time::Duration::from_secs(config.database.acquire_timeout_secs),
+        idle_timeout: std::time::Duration::from_secs(config.database.idle_timeout_secs),
+    };
+    let storage =
+        oauth2_storage_factory::create_storage_with_pool_config(
+            &config.database.url,
+            Some(pool_config),
+            config.database.read_url.as_deref(),
+        )
+            .await
+            .expect("Failed to create storage backend");
 
     storage
         .init()
@@ -490,31 +507,67 @@ pub async fn run() -> std::io::Result<()> {
         Arc::new(RwLock::new(ks))
     };
 
-    // Start actors with event system
-    let token_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::TokenActor::with_events(
-            storage.clone(),
-            jwt_secret.clone(),
-            event_bus.clone(),
-        )
-        .with_keyset(keyset.clone())
-        .start()
-    } else {
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
-            .with_keyset(keyset.clone())
-            .start()
+    // Start actors with event system and enlarged mailboxes (default is 16,
+    // which becomes a bottleneck above ~1 000 req/s per instance).
+    const ACTOR_MAILBOX_CAPACITY: usize = 256;
+
+    // Build a pool of TokenActor shards for parallelism.
+    // When `token_actor_shards == 1` (default), this behaves identically
+    // to a single actor.
+    let shard_count = config
+        .cache
+        .as_ref()
+        .map(|c| c.token_actor_shards.max(1))
+        .unwrap_or(1);
+    let token_pool = {
+        let mut shards = Vec::with_capacity(shard_count);
+        for _ in 0..shard_count {
+            let shard = if let Some(ref event_bus) = event_bus {
+                let eb = event_bus.clone();
+                actix::Actor::create(|ctx| {
+                    ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
+                    oauth2_actix::actors::TokenActor::with_events(
+                        storage.clone(),
+                        jwt_secret.clone(),
+                        eb,
+                    )
+                    .with_keyset(keyset.clone())
+                })
+            } else {
+                actix::Actor::create(|ctx| {
+                    ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
+                    oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
+                        .with_keyset(keyset.clone())
+                })
+            };
+            shards.push(shard);
+        }
+        oauth2_actix::actors::TokenActorPool::new(shards)
     };
+    tracing::info!(shards = shard_count, "TokenActorPool started");
 
     let client_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone()).start()
+        actix::Actor::create(|ctx| {
+            ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
+            oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone())
+        })
     } else {
-        oauth2_actix::actors::ClientActor::new(storage.clone()).start()
+        actix::Actor::create(|ctx| {
+            ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
+            oauth2_actix::actors::ClientActor::new(storage.clone())
+        })
     };
 
     let auth_actor = if let Some(ref event_bus) = event_bus {
-        oauth2_actix::actors::AuthActor::with_events(storage.clone(), event_bus.clone()).start()
+        actix::Actor::create(|ctx| {
+            ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
+            oauth2_actix::actors::AuthActor::with_events(storage.clone(), event_bus.clone())
+        })
     } else {
-        oauth2_actix::actors::AuthActor::new(storage.clone()).start()
+        actix::Actor::create(|ctx| {
+            ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
+            oauth2_actix::actors::AuthActor::new(storage.clone())
+        })
     };
 
     tracing::info!("Actors started");
@@ -598,18 +651,21 @@ pub async fn run() -> std::io::Result<()> {
                     .add(("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:")),
             )
             // Shared state
-            .app_data(web::Data::new(token_actor.clone()))
+            .app_data(web::Data::new(token_pool.clone()))
             .app_data(web::Data::new(client_actor.clone()))
             .app_data(web::Data::new(auth_actor.clone()))
             .app_data(web::Data::new(jwt_secret.clone()))
             .app_data(web::Data::new(storage.clone()))
             .app_data(web::Data::new(metrics.clone()))
             .app_data(web::Data::new(social_config.clone()))
+            .app_data(web::Data::new(oauth2_social_login::SocialLoginService::new()))
             // Server/public URL settings (used by well-known discovery and other URL builders)
             .app_data(web::Data::new(server_config.clone()))
             .app_data(web::Data::new(oidc_config.clone()))
             .app_data(web::Data::new(keyset.clone()))
-            .app_data(web::Data::new(key_rotation_grace_hours));
+            .app_data(web::Data::new(key_rotation_grace_hours))
+            // Stateless JWT validation flag (skips DB lookup during introspection)
+            .app_data(web::Data::new(config.jwt.stateless_validation));
 
         // Shared, best-effort in-memory idempotency cache for event ingest.
         app = app.app_data(web::Data::new(ingest_idempotency.clone()));
@@ -817,6 +873,15 @@ pub async fn run() -> std::io::Result<()> {
             // Static files
             .service(Files::new("/static", "./static"))
     })
+    // Prevent idle connections from consuming file descriptors indefinitely.
+    .keep_alive(std::time::Duration::from_secs(75))
+    // Cap how long we wait for request headers after accepting a connection.
+    .client_request_timeout(std::time::Duration::from_secs(30))
+    // Cap how long we wait for the client to disconnect after sending a response.
+    .client_disconnect_timeout(std::time::Duration::from_secs(5))
+    // Increase the listen backlog in high-traffic deployments so that the OS
+    // can queue more incoming TCP connections while the server is busy.
+    .backlog(2048)
     .bind(&bind_addr)?
     .run();
 

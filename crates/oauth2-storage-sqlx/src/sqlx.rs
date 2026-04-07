@@ -1,9 +1,31 @@
 use async_trait::async_trait;
 use oauth2_core::{AuthorizationCode, Client, OAuth2Error, Token, User};
 use oauth2_ports::Storage;
+use sqlx::pool::PoolOptions;
 use sqlx::{Pool, Postgres, Sqlite};
 use std::borrow::Cow;
 use std::path::PathBuf;
+use std::time::Duration;
+
+/// Database connection pool configuration.
+#[derive(Debug, Clone)]
+pub struct PoolConfig {
+    pub max_connections: u32,
+    pub min_connections: u32,
+    pub acquire_timeout: Duration,
+    pub idle_timeout: Duration,
+}
+
+impl Default for PoolConfig {
+    fn default() -> Self {
+        Self {
+            max_connections: 10,
+            min_connections: 1,
+            acquire_timeout: Duration::from_secs(30),
+            idle_timeout: Duration::from_secs(600),
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 enum DatabasePool {
@@ -12,18 +34,69 @@ enum DatabasePool {
 }
 
 /// SQL-backed storage implementation (SQLite/Postgres) using SQLx.
+///
+/// When `read_pool` is set, read-only queries (get, list, healthcheck) are
+/// routed to the read replica while mutations (save, revoke, mark_used) go
+/// through the primary pool.
 pub struct SqlxStorage {
     pool: DatabasePool,
+    /// Optional read-replica pool for offloading read queries.
+    read_pool: Option<DatabasePool>,
 }
 
 impl SqlxStorage {
+    /// Create a new storage instance with default pool settings.
     pub async fn new(database_url: &str) -> Result<Self, sqlx::Error> {
+        Self::with_pool_config(database_url, PoolConfig::default()).await
+    }
+
+    /// Create a new storage instance with explicit pool configuration.
+    pub async fn with_pool_config(
+        database_url: &str,
+        pool_config: PoolConfig,
+    ) -> Result<Self, sqlx::Error> {
+        let pool = Self::create_pool(database_url, &pool_config).await?;
+        Ok(Self {
+            pool,
+            read_pool: None,
+        })
+    }
+
+    /// Create a storage instance with a dedicated read-replica pool.
+    ///
+    /// Read-only operations (get/list) are routed to the replica while
+    /// mutations go through the primary pool.
+    pub async fn with_read_replica(
+        database_url: &str,
+        read_url: &str,
+        pool_config: PoolConfig,
+    ) -> Result<Self, sqlx::Error> {
+        let pool = Self::create_pool(database_url, &pool_config).await?;
+        let read_pool = Self::create_pool(read_url, &pool_config).await?;
+        Ok(Self {
+            pool,
+            read_pool: Some(read_pool),
+        })
+    }
+
+    /// Internal helper: build a `DatabasePool` from a URL and config.
+    async fn create_pool(
+        database_url: &str,
+        pool_config: &PoolConfig,
+    ) -> Result<DatabasePool, sqlx::Error> {
         // In containerized environments (KIND/Kubernetes), a common failure mode is that the
         // directory for the sqlite DB file doesn't exist or isn't writable yet.
         // This proactively creates the parent directory (when we can infer one) and tells sqlx
         // to create the database file if missing.
         let pool = if database_url.starts_with("postgres") {
-            DatabasePool::Postgres(Pool::<Postgres>::connect(database_url).await?)
+            let pg_pool = PoolOptions::<Postgres>::new()
+                .max_connections(pool_config.max_connections)
+                .min_connections(pool_config.min_connections)
+                .acquire_timeout(pool_config.acquire_timeout)
+                .idle_timeout(pool_config.idle_timeout)
+                .connect(database_url)
+                .await?;
+            DatabasePool::Postgres(pg_pool)
         } else {
             // Best-effort: if we can't create it (permissions, etc.), sqlx will surface the
             // underlying error on connect.
@@ -42,10 +115,25 @@ impl SqlxStorage {
             }
 
             let connect_url = sqlite_url_with_create_mode(database_url);
-            DatabasePool::Sqlite(Pool::<Sqlite>::connect(connect_url.as_ref()).await?)
+            // SQLite is single-writer; don't over-provision connections.
+            let sqlite_max = pool_config.max_connections.min(5);
+            let sqlite_pool = PoolOptions::<Sqlite>::new()
+                .max_connections(sqlite_max)
+                .min_connections(pool_config.min_connections.min(sqlite_max))
+                .acquire_timeout(pool_config.acquire_timeout)
+                .idle_timeout(pool_config.idle_timeout)
+                .connect(connect_url.as_ref())
+                .await?;
+            DatabasePool::Sqlite(sqlite_pool)
         };
 
-        Ok(Self { pool })
+        Ok(pool)
+    }
+
+    /// Return the pool to use for read-only queries.
+    /// Falls back to the primary pool when no read replica is configured.
+    fn read_pool(&self) -> &DatabasePool {
+        self.read_pool.as_ref().unwrap_or(&self.pool)
     }
 
     async fn init_sqlx(&self) -> Result<(), sqlx::Error> {
@@ -205,7 +293,7 @@ impl Storage for SqlxStorage {
 
     async fn healthcheck(&self) -> Result<(), OAuth2Error> {
         // Keep readiness/liveness cheap: don't run bootstrap or migrations.
-        match &self.pool {
+        match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query("SELECT 1").execute(pool).await?;
             }
@@ -263,7 +351,7 @@ impl Storage for SqlxStorage {
     }
 
     async fn get_client(&self, client_id: &str) -> Result<Option<Client>, OAuth2Error> {
-        let client = match &self.pool {
+        let client = match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query_as::<_, Client>("SELECT * FROM clients WHERE client_id = ?")
                     .bind(client_id)
@@ -325,7 +413,7 @@ impl Storage for SqlxStorage {
     }
 
     async fn get_user_by_username(&self, username: &str) -> Result<Option<User>, OAuth2Error> {
-        let user = match &self.pool {
+        let user = match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = ?")
                     .bind(username)
@@ -396,7 +484,7 @@ impl Storage for SqlxStorage {
         &self,
         access_token: &str,
     ) -> Result<Option<Token>, OAuth2Error> {
-        let token = match &self.pool {
+        let token = match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query_as::<_, Token>("SELECT * FROM tokens WHERE access_token = ?")
                     .bind(access_token)
@@ -495,7 +583,7 @@ impl Storage for SqlxStorage {
         &self,
         code: &str,
     ) -> Result<Option<AuthorizationCode>, OAuth2Error> {
-        let auth_code = match &self.pool {
+        let auth_code = match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query_as::<_, AuthorizationCode>(
                     "SELECT * FROM authorization_codes WHERE code = ?",
@@ -537,7 +625,7 @@ impl Storage for SqlxStorage {
     }
 
     async fn list_all_clients(&self) -> Result<Vec<Client>, OAuth2Error> {
-        let clients = match &self.pool {
+        let clients = match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query_as::<_, Client>("SELECT * FROM clients ORDER BY created_at DESC")
                     .fetch_all(pool)
@@ -553,7 +641,7 @@ impl Storage for SqlxStorage {
     }
 
     async fn list_all_users(&self) -> Result<Vec<User>, OAuth2Error> {
-        let users = match &self.pool {
+        let users = match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY created_at DESC")
                     .fetch_all(pool)
@@ -569,7 +657,7 @@ impl Storage for SqlxStorage {
     }
 
     async fn list_all_tokens(&self) -> Result<Vec<Token>, OAuth2Error> {
-        let tokens = match &self.pool {
+        let tokens = match self.read_pool() {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query_as::<_, Token>(
                     "SELECT * FROM tokens ORDER BY created_at DESC LIMIT 200",
