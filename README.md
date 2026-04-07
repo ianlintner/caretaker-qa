@@ -2,7 +2,8 @@
 
 [![CI/CD Pipeline](https://github.com/ianlintner/rust_oauth2_server/actions/workflows/ci.yml/badge.svg)](https://github.com/ianlintner/rust_oauth2_server/actions/workflows/ci.yml)
 
-![Rust OAuth2 Server screenshot](https://github.com/user-attachments/assets/fbaad570-f1f6-4f1c-888d-68a34a0bc48c)
+<img width="300" alt="rustoauth2" src="https://github.com/user-attachments/assets/9a23beed-3d4b-4a0c-8cfa-cfe51ac68ea6" />
+
 
 A complete, production-ready OAuth2 authorization server built with Rust and Actix-web, featuring the actor model for concurrency, type safety, and comprehensive observability.
 
