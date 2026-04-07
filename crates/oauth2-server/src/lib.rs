@@ -445,6 +445,79 @@ pub async fn run() -> std::io::Result<()> {
         }
     };
 
+    // --- Resilience (back-pressure, bulkheads, circuit breaker) ---
+    let resilience_concurrency: Option<Arc<oauth2_resilience::ConcurrencyLimiter>>;
+    let resilience_bulkheads: Option<Arc<oauth2_resilience::BulkheadRegistry>>;
+    let resilience_circuit_breaker: Option<Arc<oauth2_resilience::CircuitBreaker>>;
+
+    if let Some(ref res_cfg) = config.resilience {
+        if res_cfg.enabled {
+            // Back-pressure
+            resilience_concurrency = res_cfg.back_pressure.as_ref().map(|bp| {
+                tracing::info!(
+                    max_concurrent = bp.max_concurrent,
+                    "Resilience: back-pressure enabled"
+                );
+                Arc::new(oauth2_resilience::ConcurrencyLimiter::new(
+                    bp.max_concurrent,
+                ))
+            });
+
+            // Bulkheads
+            if !res_cfg.bulkheads.is_empty() {
+                let bulkhead_cfgs: Vec<oauth2_resilience::BulkheadConfig> = res_cfg
+                    .bulkheads
+                    .iter()
+                    .map(|e| {
+                        tracing::info!(
+                            name = %e.name,
+                            path_prefix = %e.path_prefix,
+                            max_concurrent = e.max_concurrent,
+                            "Resilience: bulkhead configured"
+                        );
+                        oauth2_resilience::BulkheadConfig {
+                            name: e.name.clone(),
+                            path_prefix: e.path_prefix.clone(),
+                            max_concurrent: e.max_concurrent,
+                        }
+                    })
+                    .collect();
+                resilience_bulkheads = Some(Arc::new(
+                    oauth2_resilience::BulkheadRegistry::from_configs(bulkhead_cfgs),
+                ));
+            } else {
+                resilience_bulkheads = None;
+            }
+
+            // Circuit breaker
+            let cb_cfg = res_cfg.circuit_breaker.clone().unwrap_or_default();
+            tracing::info!(
+                failure_threshold = cb_cfg.failure_threshold,
+                success_threshold = cb_cfg.success_threshold,
+                open_secs = cb_cfg.open_secs,
+                "Resilience: circuit breaker enabled"
+            );
+            resilience_circuit_breaker = Some(Arc::new(oauth2_resilience::CircuitBreaker::new(
+                "global",
+                oauth2_resilience::CircuitBreakerConfig {
+                    failure_threshold: cb_cfg.failure_threshold,
+                    success_threshold: cb_cfg.success_threshold,
+                    open_duration: std::time::Duration::from_secs(cb_cfg.open_secs),
+                    half_open_max_probes: cb_cfg.half_open_max_probes,
+                },
+            )));
+        } else {
+            tracing::info!("Resilience middleware disabled");
+            resilience_concurrency = None;
+            resilience_bulkheads = None;
+            resilience_circuit_breaker = None;
+        }
+    } else {
+        resilience_concurrency = None;
+        resilience_bulkheads = None;
+        resilience_circuit_breaker = None;
+    }
+
     // Build OIDC configuration for discovery + id_token generation.
     let issuer = config
         .server
@@ -635,21 +708,22 @@ pub async fn run() -> std::io::Result<()> {
             )
         };
 
+        // Resilience middleware (back-pressure + bulkheads + circuit breaker).
+        // When all three are None the middleware still registers but is a no-op
+        // for every request (exempt paths skip even the no-op checks).
+        let resilience_mw = oauth2_actix::middleware::resilience::ResilienceMiddleware::new(
+            resilience_concurrency.clone(),
+            resilience_bulkheads.clone(),
+            resilience_circuit_breaker.clone(),
+            Arc::new(metrics.clone()),
+            vec!["/health".into(), "/ready".into(), "/metrics".into()],
+        );
+
+        // Actix middleware execution order: the **last** `.wrap()` is the
+        // outermost layer (runs first on incoming requests).  We want:
+        //   resilience (outermost) → rate-limiting → session → logging → …
+        // so resilience_mw is registered last.
         let mut app = App::new()
-            // Rate limiting (outermost middleware)
-            .wrap(rl_middleware)
-            // Middleware
-            .wrap(SessionMiddleware::new(
-                CookieSessionStore::default(),
-                session_key.clone(),
-            ))
-            .wrap(TracingLogger::<OtelRootSpanBuilder>::new())
-            .wrap(actix_middleware::Logger::default())
-            .wrap(actix_middleware::Compress::default())
-            .wrap(oauth2_observability::actix::MetricsMiddleware::new(
-                metrics.clone(),
-            ))
-            .wrap(cors)
             .wrap(
                 actix_middleware::DefaultHeaders::new()
                     .add(("X-Frame-Options", "DENY"))
@@ -657,6 +731,22 @@ pub async fn run() -> std::io::Result<()> {
                     .add(("Referrer-Policy", "no-referrer"))
                     .add(("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:")),
             )
+            .wrap(cors)
+            .wrap(oauth2_observability::actix::MetricsMiddleware::new(
+                metrics.clone(),
+            ))
+            .wrap(actix_middleware::Compress::default())
+            .wrap(actix_middleware::Logger::default())
+            .wrap(TracingLogger::<OtelRootSpanBuilder>::new())
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                session_key.clone(),
+            ))
+            .wrap(rl_middleware)
+            // Resilience is the outermost layer (last .wrap() call).
+            // Tripped circuit / full concurrency pool → 503 on the cheapest
+            // path, before rate-limiting, session, or logging run.
+            .wrap(resilience_mw)
             // Shared state
             .app_data(web::Data::new(token_pool.clone()))
             .app_data(web::Data::new(client_actor.clone()))
