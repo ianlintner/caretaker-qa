@@ -1,10 +1,10 @@
 # Integrations
 
-This project has three major integration surfaces beyond the core OAuth endpoints:
+Beyond the core OAuth endpoints, this repo exposes three integration surfaces that matter in practice:
 
 1. social login providers
 2. the eventing subsystem
-3. the standalone MCP server
+3. the standalone MCP wrapper under `mcp-server/`
 
 ## Social login
 
@@ -14,10 +14,10 @@ This project has three major integration surfaces beyond the core OAuth endpoint
 | Microsoft | Shipped         | `/auth/login/microsoft`, `/auth/callback/microsoft` |
 | GitHub    | Shipped         | `/auth/login/github`, `/auth/callback/github`       |
 | Azure AD  | Shipped         | `/auth/login/azure` reuses the Microsoft flow       |
-| Okta      | Not implemented | `/auth/login/okta` currently returns HTTP 503       |
-| Auth0     | Not implemented | `/auth/login/auth0` currently returns HTTP 503      |
+| Okta      | Not implemented | `/auth/login/okta` returns HTTP `503`               |
+| Auth0     | Not implemented | `/auth/login/auth0` returns HTTP `503`              |
 
-Minimum provider configuration is just the provider credentials and redirect URI. See `.env.example` and `application.conf.example` for the exact variable names.
+Minimum setup is just provider credentials plus a redirect URI. The exact variable names live in `.env.example` and `application.conf.example`.
 
 Example for Google:
 
@@ -29,28 +29,25 @@ export OAUTH2_GOOGLE_REDIRECT_URI=http://localhost:8080/auth/callback/google
 
 ## Eventing
 
-The server can emit auth events and also ingest external event envelopes.
+The server can emit auth events and accept external event envelopes.
 
-### Runtime behavior
+Runtime defaults:
 
-- eventing is enabled by default
-- the default backend is `in_memory`
-- filtering modes are `allow_all`, `include`, and `exclude`
-- the health probe is `GET /events/health`
-- external ingestion is `POST /events/ingest`
+- `OAUTH2_EVENTS_ENABLED=true`
+- `OAUTH2_EVENTS_BACKEND=in_memory`
+- `OAUTH2_EVENTS_FILTER_MODE=allow_all`
+- health probe: `GET /events/health`
+- external ingest: `POST /events/ingest`
 
-### Backends
+Feature-gated broker backends:
 
-| Backend       | Status        | How to enable                         |
-| ------------- | ------------- | ------------------------------------- |
-| `in_memory`   | Shipped       | Default runtime mode                  |
-| `console`     | Shipped       | `OAUTH2_EVENTS_BACKEND=console`       |
-| `both`        | Shipped       | `OAUTH2_EVENTS_BACKEND=both`          |
-| Redis Streams | Feature-gated | Build with `--features events-redis`  |
-| Kafka         | Feature-gated | Build with `--features events-kafka`  |
-| RabbitMQ      | Feature-gated | Build with `--features events-rabbit` |
+| Backend       | Build requirement          |
+| ------------- | -------------------------- |
+| Redis Streams | `--features events-redis`  |
+| Kafka         | `--features events-kafka`  |
+| RabbitMQ      | `--features events-rabbit` |
 
-Example Redis Streams setup:
+Example Redis Streams path:
 
 ```bash
 cargo run --features events-redis
@@ -64,26 +61,31 @@ export OAUTH2_EVENTS_REDIS_STREAM=oauth2_events
 
 ## MCP server
 
-The repository includes a separate Node.js MCP server in `mcp-server/`.
+The repository includes a separate Node.js stdio server in `mcp-server/`.
 
-### What it actually does
+### What it exposes
 
-| Tool                | Purpose                                                   |
-| ------------------- | --------------------------------------------------------- |
-| `register_client`   | Register a client through the admin registration endpoint |
-| `get_token`         | Client credentials token request                          |
-| `exchange_code`     | Authorization code token exchange                         |
-| `refresh_token`     | Refresh-token request                                     |
-| `introspect_token`  | Token introspection                                       |
-| `revoke_token`      | Token revocation                                          |
-| `get_health`        | Health probe                                              |
-| `get_readiness`     | Readiness probe                                           |
-| `get_metrics`       | Metrics fetch                                             |
-| `get_openid_config` | Discovery fetch                                           |
+| Tool                | Purpose                                  |
+| ------------------- | ---------------------------------------- |
+| `register_client`   | Calls the admin client-registration API  |
+| `get_token`         | Client credentials token request         |
+| `exchange_code`     | Authorization code token exchange        |
+| `refresh_token`     | Refresh-token request                    |
+| `introspect_token`  | Token introspection                      |
+| `revoke_token`      | Token revocation                         |
+| `get_health`        | Health probe                             |
+| `get_readiness`     | Readiness probe                          |
+| `get_metrics`       | Metrics fetch                            |
+| `get_openid_config` | Discovery fetch                          |
 
-It does **not** currently expose general-purpose user CRUD.
+### Important limitations
 
-### Quick setup
+- the wrapper is **not** browser/session aware
+- `register_client` targets the admin-protected endpoint `POST /admin/clients/register`
+- `refresh_token` exists as a tool, but default server configs still reject the refresh grant unless you explicitly enable it
+- it does **not** provide general user CRUD or admin-dashboard automation
+
+Quick setup:
 
 ```bash
 cd mcp-server
@@ -92,18 +94,16 @@ cp .env.example .env
 npm start
 ```
 
-Then configure your MCP client to run `mcp-server/src/index.js` with `OAUTH2_BASE_URL` pointed at the running server.
+Then point your MCP client at `mcp-server/src/index.js` with `OAUTH2_BASE_URL` set to the running server. Use [`mcp-server/README.md`](../../mcp-server/README.md) for the repo-local guide.
 
-See [`mcp-server/README.md`](../../mcp-server/README.md) for the repo-local guide.
+## Source of truth
 
-## Source-of-truth files
-
-When you are unsure whether integration behavior is real or aspirational, check:
+When you are unsure whether an integration is real or aspirational, check these files first:
 
 - `crates/oauth2-server/src/lib.rs` for registered routes
-- `application.conf.example` for runtime config keys
+- `.env.example` and `application.conf.example` for config keys
 - `mcp-server/src/index.js` for exposed MCP tools
-- `crates/oauth2-events/` for event backends and plugin support
+- `crates/oauth2-events/` for event backend support
 
 ## Related pages
 

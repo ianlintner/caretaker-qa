@@ -2,401 +2,79 @@
 
 [![CI/CD Pipeline](https://github.com/ianlintner/rust_oauth2_server/actions/workflows/ci.yml/badge.svg)](https://github.com/ianlintner/rust_oauth2_server/actions/workflows/ci.yml)
 
-<img width="300" alt="rustoauth2" src="https://github.com/user-attachments/assets/9a23beed-3d4b-4a0c-8cfa-cfe51ac68ea6" />
+Self-hosted OAuth2 and OIDC in Rust with Actix, an admin UI, code-generated OpenAPI, eventing, rate limiting, and Kubernetes-ready ops hooks.
 
-
-A complete OAuth2 authorization server built with Rust and Actix-web, featuring the actor model for scalability, concurrency, type safety, and comprehensive observability.
-
-## 🌟 Overview
-
-The Rust OAuth2 Server is a high-performance, secure, and scalable OAuth2 implementation designed for modern cloud-native applications. Built with Rust's safety guarantees and Actix's actor model, it provides enterprise-grade authentication and authorization services.
-
-```mermaid
-graph LR
-    A[Web Apps] -->|OAuth2| S[OAuth2 Server]
-    B[Mobile Apps] -->|OAuth2| S
-    C[Services] -->|OAuth2| S
-    S -->|Issues| T[JWT Tokens]
-    T -->|Authorize| API[Protected APIs]
-
-    style S fill:#ff9800,color:#fff
-    style T fill:#4caf50,color:#fff
-```
-
-## 🚀 Features
-
-### OAuth2 Compliance
-
-- ✅ **Authorization Code Flow** with PKCE support
-- ✅ **Client Credentials Flow** for service-to-service
-- ✅ **Resource Owner Password Credentials Flow**
-- ✅ **Refresh Token Flow** with rotation
-- ✅ **Token Introspection** (RFC 7662)
-- ✅ **Token Revocation** (RFC 7009)
-- ✅ **Discovery Endpoint** (RFC 8414)
-
-### Architecture
-
-- 🎭 **Actor Model** using Actix for concurrent request handling
-- 🔒 **Type-Safe** Rust implementation
-- 🔐 **JWT Tokens** with configurable expiration
-- 💾 **Database Support** (SQLite/PostgreSQL via SQLx, optional MongoDB via `--features mongo`)
-- 🗄️ **Flyway Migrations** for database schema management
-
-## 🧩 Modular crates (bring your own DAO)
-
-This repository is a Cargo **workspace**. The goal is that you can reuse the OAuth2 domain types and
-integrate your own persistence layer (DAO) **without forking**.
-
-Reusable crates live under `crates/`:
-
-- `oauth2-core`: framework-agnostic domain types (e.g. `Client`, `Token`, `AuthorizationCode`, `OAuth2Error`)
-- `oauth2-ports`: integration traits (e.g. `Storage`) that your DAO implements
-- `oauth2-storage-sqlx`: a reference SQLx adapter (SQLite/Postgres)
-- `oauth2-storage-factory`: backend selection (`sqlx://` vs `mongodb://`) + `ObservedStorage` wrapping
-- `oauth2-actix`: Actix-web HTTP handlers + Actix actors (framework layer)
-- `oauth2-observability`: tracing/metrics/OpenTelemetry helpers + Actix middleware
-- `oauth2-events`: auth event types + pluggable event backends
-- `oauth2-server`: the runnable server assembly (what used to live in `src/main.rs`)
-
-### Using a custom DAO
-
-Implement `oauth2_ports::Storage` in your own crate, then wire it into the server components you use.
-The root crate (`rust_oauth2_server`) is an **umbrella** that keeps older import paths working and re-exports
-the main building blocks for convenience:
-
-- `rust_oauth2_server::core` (re-export of `oauth2-core`)
-- `rust_oauth2_server::ports` (re-export of `oauth2-ports`)
-
-### Authentication Eventing (NEW! ✨)
-
-- 📡 **Comprehensive Event System** - Emit events for all auth operations
-- 🔧 **Configurable Filtering** - Include/exclude specific event types
-- 🔌 **Pluggable Backends** - In-memory, console, and extensible for Redis/Kafka/RabbitMQ
-- 🎯 **Actor-Based** - Non-blocking, concurrent event processing
-- 📊 **Rich Metadata** - Events include user/client IDs, timestamps, and custom data
-- 🛡️ **Audit-Ready** - Perfect for compliance and security monitoring
-- See [Eventing Documentation](docs/eventing.md) for details
-
-### Observability & Monitoring
-
-- 📊 **Prometheus Metrics** - Request rates, token metrics, database performance
-- 🔍 **OpenTelemetry Tracing** - Distributed tracing with OTLP export
-- 📝 **Structured Logging** - JSON logs with correlation IDs
-- ❤️ **Health & Readiness Checks** - Kubernetes-ready endpoints
-- 📈 **Admin Dashboard** - Web-based monitoring and management
-
-### Documentation
-
-- 📚 **OpenAPI 3.0 Specification** - Auto-generated from code
-- 🎨 **Swagger UI** - Interactive API documentation
-- 📖 **Admin Control Panel** - Web-based administration interface
-- 🤖 **MCP Server** - Model Context Protocol server for AI integration
-
-### Deployment
-
-- 🐳 **Docker** - Container images with multi-stage builds
-- ☸️ **Kubernetes** - Production-ready manifests with Kustomize
-- 🔄 **CI/CD** - GitHub Actions with E2E testing
-- 📦 **Helm** - (Planned) Helm charts for easy deployment
-
-### Security
-
-- 🔐 **PKCE Support** (Proof Key for Code Exchange)
-- 🔑 **Secure Client Credentials** generation
-- 🛡️ **Scope-based Authorization**
-- 🚫 **Token Revocation**
-- 🔐 **Social Login Integration** (Google, Microsoft, GitHub, Azure, Okta, Auth0)
-- 🎫 **Session Management** with secure cookies
-- ⚠️ **Rate Limiting** (planned)
-
-## 📋 Prerequisites
-
-- Rust 1.70 or higher
-- SQLite or PostgreSQL (default)
-- MongoDB (optional, only if you want to run with `--features mongo`)
-- Docker (optional, for containerized deployment)
-- Flyway (optional, or use Docker for migrations)
-
-## 🛠️ Installation
-
-### Clone the Repository
+## Start in 60 seconds
 
 ```bash
-git clone https://github.com/ianlintner/rust_oauth2_server.git
-cd rust_oauth2_server
-```
-
-### Run Database Migrations
-
-Using the provided script (uses Docker if Flyway not installed):
-
-```bash
-./scripts/migrate.sh
-```
-
-Or using Docker directly:
-
-```bash
-docker run --rm \
-  -v "$(pwd)/migrations/sql:/flyway/sql" \
-  -v "$(pwd)/flyway.conf:/flyway/conf/flyway.conf" \
-  flyway/flyway:10-alpine migrate
-```
-
-### Build the Project
-
-```bash
-cargo build --release
-```
-
-## 🚀 Running the Server
-
-### Development Mode
-
-```bash
+cp .env.example .env
+# set OAUTH2_JWT_SECRET, OAUTH2_SESSION_KEY, and OAUTH2_SEED_PASSWORD
 cargo run
 ```
 
-### Production Mode
+Then open:
+
+- app: `http://localhost:8080`
+- login: `http://localhost:8080/auth/login`
+- admin: `http://localhost:8080/admin`
+- Swagger UI: `http://localhost:8080/swagger-ui`
+
+The default local path uses SQLite. If you want Postgres plus the supporting services, use `docker compose up -d` instead.
+
+## What actually ships
+
+- OAuth2: Authorization Code + PKCE, Client Credentials, introspection, revocation
+- OIDC: discovery, JWKS, UserInfo
+- Admin surface: HTML dashboard plus JSON admin API
+- Operations: `/health`, `/ready`, `/metrics`, OpenTelemetry export
+- Runtime controls: rate limiting, eventing, resilience middleware, Redis-backed distributed profile
+- Deployment assets: Docker, Docker Compose, Kustomize overlays under `k8s/`
+
+Important reality checks:
+
+- refresh-token and password grants are present in code paths but disabled by default
+- Google, Microsoft, GitHub, and Azure login routes are wired; Okta/Auth0 currently return `503`
+- the repo ships Kustomize manifests, not Helm charts
+
+## Docs by job
+
+- run it locally: [`docs/getting-started/quickstart.md`](docs/getting-started/quickstart.md)
+- configure it: [`docs/getting-started/configuration.md`](docs/getting-started/configuration.md)
+- integrate a client: [`docs/usage/oauth2-oidc.md`](docs/usage/oauth2-oidc.md)
+- manage/administer it: [`docs/usage/admin-api.md`](docs/usage/admin-api.md)
+- deploy and operate it: [`docs/operations/deployment.md`](docs/operations/deployment.md), [`docs/operations/observability.md`](docs/operations/observability.md), [`docs/operations/runbooks.md`](docs/operations/runbooks.md)
+- extend the workspace: [`docs/development/architecture.md`](docs/development/architecture.md), [`docs/development/extending.md`](docs/development/extending.md)
+- contribute safely: [`docs/development/testing.md`](docs/development/testing.md), [`docs/development/contributing.md`](docs/development/contributing.md)
+
+## Workspace shape
+
+The server is a Cargo workspace, not a single monolith:
+
+- `crates/oauth2-core` — domain types
+- `crates/oauth2-ports` — storage/integration traits
+- `crates/oauth2-actix` — handlers, middleware, actors
+- `crates/oauth2-server` — runtime assembly and route wiring
+- `crates/oauth2-events` / `oauth2-ratelimit` / `oauth2-resilience` — operational behavior
+- `mcp-server/` — separate Node.js MCP wrapper
+
+If you are changing behavior, the main source-of-truth files are:
+
+- `.env.example`
+- `application.conf.example`
+- `crates/oauth2-server/src/lib.rs`
+- `mcp-server/src/index.js`
+
+## Contributor gate
+
+Before considering any change done, run the same local gates CI expects:
 
 ```bash
-cargo run --release
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --verbose --all-features --locked
 ```
 
-### Using Docker Compose
-
-```bash
-docker-compose up -d
-```
-
-### Using Docker Compose (E2E stack with oauth2-proxy)
-
-For local end-to-end validation of `oauth2-server + oauth2-proxy + protected upstream`:
-
-```bash
-docker compose -f docker-compose.e2e.yml up -d --build
-```
-
-This stack brings up:
-
-- `oauth2_server_e2e` on `http://localhost:8081`
-- `oauth2_proxy_e2e` on `http://localhost:4180`
-- `profile_upstream` (a simple protected upstream)
-- Postgres + Flyway with an E2E-specific OAuth client seed (`e2e/sql/V999__e2e_proxy_client.sql`)
-
-Quick checks:
-
-```bash
-# oauth2-proxy should redirect unauthenticated requests to auth flow
-curl -i http://localhost:4180/
-
-# auth check endpoint should return 401 without session
-curl -i http://localhost:4180/_oauth2/auth
-```
-
-Tear down:
-
-```bash
-docker compose -f docker-compose.e2e.yml down -v
-```
-
-### Using the prebuilt Docker image (no compile)
-
-If you want to run the server **without compiling**, use the prebuilt image on Docker Hub.
-
-- Docker Hub page content: `DOCKERHUB.md`
-- Docs page: `docs/deployment/dockerhub.md`
-
-### Using Kubernetes
-
-Deploy to Kubernetes using Kustomize:
-
-```bash
-# Development
-kubectl apply -k k8s/overlays/dev
-
-# Staging
-kubectl apply -k k8s/overlays/staging
-
-# Production
-kubectl apply -k k8s/overlays/production
-```
-
-See [Kubernetes Deployment Guide](k8s/README.md) for detailed instructions.
-
-## 🤖 MCP Server (AI Integration)
-
-The project includes a Model Context Protocol (MCP) server that enables AI assistants like Claude to interact with the OAuth2 server through natural language commands.
-
-### MCP Server Features
-
-- Register and manage OAuth2 clients
-- Generate and manage access tokens
-- Introspect and revoke tokens
-- Check server health and metrics
-- Access OpenID configuration
-
-### Installation
-
-```bash
-cd mcp-server
-npm install
-cp .env.example .env
-# Edit .env with your OAuth2 server URL
-```
-
-### Configuration
-
-Add to your Claude Desktop configuration:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "oauth2-server": {
-      "command": "node",
-      "args": ["/path/to/rust_oauth2_server/mcp-server/src/index.js"],
-      "env": {
-        "OAUTH2_BASE_URL": "http://localhost:8080"
-      }
-    }
-  }
-}
-```
-
-### Usage Examples
-
-Once configured, you can ask your AI assistant:
-
-- "Register a new OAuth2 client called 'My App'"
-- "Get an access token for client ID abc123"
-- "Check the health status of the OAuth2 server"
-- "Show me the server metrics"
-
-See [MCP Server Documentation](mcp-server/README.md) for more details.
-
-## 🔧 Configuration
-
-The OAuth2 server uses **HOCON** (Human-Optimized Config Object Notation) for configuration, providing a human-readable format with powerful features like:
-
-- Comments and documentation within config files
-- Nested configuration structures
-- Environment variable substitution with `${?VAR}` syntax
-- Value composition and inheritance
-- Fallback to environment variables for backward compatibility
-
-### Configuration Methods
-
-The server loads configuration in the following priority order:
-
-1. **HOCON file** (`application.conf`) - Main configuration file with sensible defaults
-2. **Environment variables** - Override any HOCON setting using `OAUTH2_*` prefix
-3. **Fallback defaults** - Built-in defaults if no configuration is provided
-
-### Quick Start
-
-Copy the example configuration:
-
-```bash
-cp application.conf.example application.conf
-```
-
-Then edit `application.conf` to customize your settings, or use environment variables to override specific values.
-
-### Basic Configuration
-
-**Using HOCON file** (`application.conf`):
-
-```hocon
-# Server Configuration
-server {
-  host = "127.0.0.1"      # Override with OAUTH2_SERVER_HOST
-  port = 8080              # Override with OAUTH2_SERVER_PORT
-}
-
-# Database Configuration
-database {
-  # SQLite (default)
-  url = "sqlite:oauth2.db?mode=rwc"
-
-  # PostgreSQL
-  # url = "postgresql://oauth2_user:password@localhost:5432/oauth2"
-
-  # MongoDB (requires building with --features mongo)
-  # url = "mongodb://localhost:27017/oauth2"
-
-  # Override with OAUTH2_DATABASE_URL
-}
-
-# JWT Configuration
-jwt {
-  # MUST be changed for production (minimum 32 characters)
-  # Generate with: openssl rand -base64 48
-  secret = "insecure-default-for-testing-only-change-in-production"
-  # Override with OAUTH2_JWT_SECRET
-}
-```
-
-**Using Environment Variables** (legacy method, still fully supported):
-
-```bash
-export OAUTH2_SERVER_HOST=127.0.0.1
-export OAUTH2_SERVER_PORT=8080
-export OAUTH2_DATABASE_URL=sqlite:oauth2.db?mode=rwc
-export OAUTH2_JWT_SECRET=your-secret-key-change-in-production
-```
-
-### Event System Configuration
-
-Configure the authentication eventing system using HOCON or environment variables:
-
-**Using HOCON** (`application.conf`):
-
-```hocon
-events {
-  enabled = true                    # Override with OAUTH2_EVENTS_ENABLED
-  backend = "in_memory"             # Override with OAUTH2_EVENTS_BACKEND
-  filter_mode = "allow_all"         # Override with OAUTH2_EVENTS_FILTER_MODE
-
-  # Redis Streams backend (requires --features events-redis)
-  redis {
-    url = "redis://127.0.0.1:6379"
-    stream = "oauth2_events"
-    maxlen = null                   # Optional max length
-  }
-
-  # Kafka backend (requires --features events-kafka)
-  kafka {
-    brokers = "127.0.0.1:9092"
-    topic = "oauth2_events"
-    client_id = null                # Optional client ID
-  }
-
-  # RabbitMQ backend (requires --features events-rabbit)
-  rabbit {
-    url = "amqp://127.0.0.1:5672/%2f"
-    exchange = "oauth2.events"
-    routing_key = "oauth2.event"
-  }
-}
-```
-
-**Using Environment Variables**:
-
-```bash
-# Enable/disable events (default: true)
-export OAUTH2_EVENTS_ENABLED=true
-
-# Backend options: in_memory, console, both, redis, kafka, rabbit
-export OAUTH2_EVENTS_BACKEND=console
-
-# Filter mode: allow_all, include, or exclude (default: allow_all)
-export OAUTH2_EVENTS_FILTER_MODE=include
-
-# Event types (comma-separated, used with include/exclude modes)
-export OAUTH2_EVENTS_TYPES=token_created,token_revoked,client_registered
+That’s the short front door. The rest of the novel got evicted on purpose.
 
 # Redis Streams (requires --features events-redis)
 export OAUTH2_EVENTS_REDIS_URL=redis://localhost:6379

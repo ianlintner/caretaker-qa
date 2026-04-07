@@ -1,645 +1,127 @@
 # Operational Runbooks
 
-This directory contains operational runbooks for common tasks and procedures when managing the OAuth2 Server.
+This page is the first-response sheet, not an operations novel. Use it when the service is unhealthy, slow, or freshly deployed and suspicious.
 
-## Runbook Index
+## First five minutes
 
-### Deployment
-- [Initial Deployment](#initial-deployment)
-- [Update Deployment](#update-deployment)
-- [Rollback Deployment](#rollback-deployment)
+Start here before guessing:
 
-### Database
-- [Database Backup](#database-backup)
-- [Database Restore](#database-restore)
-- [Run Database Migrations](#run-database-migrations)
-- [Database Performance Tuning](#database-performance-tuning)
-
-### Monitoring
-- [Check Server Health](#check-server-health)
-- [View Application Logs](#view-application-logs)
-- [Monitor Metrics](#monitor-metrics)
-- [Set Up Alerts](#set-up-alerts)
-
-### Troubleshooting
-- [Pod Not Starting](#pod-not-starting)
-- [High Error Rate](#high-error-rate)
-- [Database Connection Issues](#database-connection-issues)
-- [Performance Degradation](#performance-degradation)
-
-### Security
-- [Rotate JWT Secret](#rotate-jwt-secret)
-- [Rotate Database Password](#rotate-database-password)
-- [Revoke All Tokens](#revoke-all-tokens)
-- [Security Incident Response](#security-incident-response)
-
----
-
-## Initial Deployment
-
-### Prerequisites
-- Kubernetes cluster (1.24+)
-- kubectl configured
-- Docker images built and pushed
-- Secrets configured
-
-### Steps
-
-1. **Create namespace**
-   ```bash
-   kubectl apply -f k8s/base/namespace.yaml
-   ```
-
-2. **Configure secrets**
-   ```bash
-   # Generate JWT secret
-   JWT_SECRET=$(openssl rand -base64 32)
-   
-   # Create secret
-   kubectl create secret generic oauth2-server-secret \
-     --from-literal=OAUTH2_JWT_SECRET="$JWT_SECRET" \
-     --from-literal=POSTGRES_PASSWORD="$(openssl rand -base64 20)" \
-     -n oauth2-server
-   ```
-
-3. **Deploy PostgreSQL**
-   ```bash
-   kubectl apply -k k8s/overlays/production
-   kubectl wait --for=condition=ready pod/postgres-0 -n oauth2-server --timeout=300s
-   ```
-
-4. **Run migrations**
-   ```bash
-   kubectl apply -f k8s/base/flyway-migration-job.yaml
-   kubectl logs -f job/flyway-migration -n oauth2-server
-   ```
-
-5. **Deploy application**
-   ```bash
-   kubectl apply -k k8s/overlays/production
-   kubectl wait --for=condition=ready pod -l app=oauth2-server -n oauth2-server --timeout=300s
-   ```
-
-6. **Verify deployment**
-   ```bash
-   kubectl get all -n oauth2-server
-   curl -f https://oauth.example.com/health
-   ```
-
-### Rollback
-If deployment fails:
 ```bash
-kubectl delete -k k8s/overlays/production
-kubectl delete namespace oauth2-server
+curl -fsS http://localhost:8080/health
+curl -fsS http://localhost:8080/ready
+curl -fsS http://localhost:8080/metrics | head
+kubectl get pods -n oauth2-server
+kubectl logs -n oauth2-server -l app=oauth2-server --tail=100
 ```
 
----
+If `/ready` fails, treat it as a storage or config problem first. If `/health` is green but latency is bad, use metrics and recent deploy history before touching the database.
 
-## Update Deployment
+## Roll back a bad deploy
 
-### Prerequisites
-- New Docker image built and pushed
-- Tested in staging environment
+### Kubernetes
 
-### Steps
-
-1. **Update image tag**
-   ```bash
-   cd k8s/overlays/production
-   kustomize edit set image docker.io/ianlintner068/oauth2-server:v1.1.0
-   ```
-
-2. **Apply update**
-   ```bash
-   kubectl apply -k k8s/overlays/production
-   ```
-
-3. **Monitor rollout**
-   ```bash
-   kubectl rollout status deployment/oauth2-server -n oauth2-server
-   ```
-
-4. **Verify new pods**
-   ```bash
-   kubectl get pods -n oauth2-server
-   kubectl logs -f deployment/oauth2-server -n oauth2-server
-   ```
-
-5. **Health check**
-   ```bash
-   curl -f https://oauth.example.com/health
-   ```
-
-### Rollback
-If issues occur:
 ```bash
+kubectl rollout history deployment/oauth2-server -n oauth2-server
 kubectl rollout undo deployment/oauth2-server -n oauth2-server
 kubectl rollout status deployment/oauth2-server -n oauth2-server
 ```
 
----
-
-## Rollback Deployment
-
-### When to Rollback
-- High error rate (>5%)
-- Failed health checks
-- Database connection issues
-- Performance degradation
-
-### Steps
-
-1. **View rollout history**
-   ```bash
-   kubectl rollout history deployment/oauth2-server -n oauth2-server
-   ```
-
-2. **Rollback to previous version**
-   ```bash
-   kubectl rollout undo deployment/oauth2-server -n oauth2-server
-   ```
-
-3. **Or rollback to specific revision**
-   ```bash
-   kubectl rollout undo deployment/oauth2-server --to-revision=5 -n oauth2-server
-   ```
-
-4. **Monitor rollback**
-   ```bash
-   kubectl rollout status deployment/oauth2-server -n oauth2-server
-   ```
-
-5. **Verify health**
-   ```bash
-   kubectl logs -f deployment/oauth2-server -n oauth2-server
-   curl -f https://oauth.example.com/health
-   ```
-
----
-
-## Database Backup
-
-### Schedule
-- **Daily**: Automated backup at 2 AM UTC
-- **Before major changes**: Manual backup
-- **Monthly**: Full database dump to cold storage
-
-### Manual Backup
-
-1. **Create backup**
-   ```bash
-   kubectl exec -n oauth2-server postgres-0 -- \
-     pg_dump -U oauth2_user -F c oauth2 > backup-$(date +%Y%m%d-%H%M).dump
-   ```
-
-2. **Verify backup**
-   ```bash
-   pg_restore --list backup-$(date +%Y%m%d-%H%M).dump | head -20
-   ```
-
-3. **Upload to S3 (if configured)**
-   ```bash
-   aws s3 cp backup-$(date +%Y%m%d-%H%M).dump \
-     s3://oauth2-backups/$(date +%Y/%m/%d)/
-   ```
-
-4. **Test restore (on staging)**
-   ```bash
-   # On staging database
-   pg_restore -U oauth2_user -d oauth2_staging backup-$(date +%Y%m%d-%H%M).dump
-   ```
-
-### Automated Backup Script
+### Docker Compose
 
 ```bash
-#!/bin/bash
-# /opt/scripts/backup-oauth2-db.sh
-
-DATE=$(date +%Y%m%d-%H%M)
-BACKUP_FILE="/backups/oauth2-$DATE.dump"
-S3_BUCKET="s3://oauth2-backups"
-
-# Create backup
-kubectl exec -n oauth2-server postgres-0 -- \
-  pg_dump -U oauth2_user -F c oauth2 > "$BACKUP_FILE"
-
-# Upload to S3
-aws s3 cp "$BACKUP_FILE" "$S3_BUCKET/$(date +%Y/%m/%d)/"
-
-# Keep local backups for 7 days
-find /backups -name "oauth2-*.dump" -mtime +7 -delete
-
-# Verify
-if [ $? -eq 0 ]; then
-  echo "Backup successful: $BACKUP_FILE"
-else
-  echo "Backup failed!" >&2
-  exit 1
-fi
+docker compose ps
+docker compose logs --tail=100 oauth2-server
+docker compose down
+docker compose up -d
 ```
 
----
+Roll back fast when a deploy correlates with new `5xx`, readiness failures, or broken admin login.
 
-## Database Restore
+## Readiness failing
 
-### Prerequisites
-- Valid backup file
-- Database accessible
-- Application pods scaled to 0
+Work this list in order:
 
-### Steps
+1. verify `OAUTH2_DATABASE_URL` and any secret-backed env vars
+2. check migration status (`./scripts/migrate.sh` locally, Flyway job in Kubernetes)
+3. inspect database logs
+4. confirm the app can resolve the database hostname
 
-1. **Scale down application**
-   ```bash
-   kubectl scale deployment oauth2-server --replicas=0 -n oauth2-server
-   kubectl wait --for=delete pod -l app=oauth2-server -n oauth2-server --timeout=60s
-   ```
-
-2. **Download backup from S3 (if needed)**
-   ```bash
-   aws s3 cp s3://oauth2-backups/2024/01/15/backup-20240115-1400.dump .
-   ```
-
-3. **Restore database**
-   ```bash
-   kubectl exec -i -n oauth2-server postgres-0 -- \
-     pg_restore -U oauth2_user -d oauth2 -c < backup-20240115-1400.dump
-   ```
-
-4. **Verify restoration**
-   ```bash
-   kubectl exec -it postgres-0 -n oauth2-server -- \
-     psql -U oauth2_user -d oauth2 -c "\dt"
-   
-   # Check record counts
-   kubectl exec -it postgres-0 -n oauth2-server -- \
-     psql -U oauth2_user -d oauth2 -c "
-       SELECT 'clients' as table, COUNT(*) FROM clients
-       UNION ALL
-       SELECT 'tokens', COUNT(*) FROM tokens
-       UNION ALL
-       SELECT 'users', COUNT(*) FROM users;
-     "
-   ```
-
-5. **Scale up application**
-   ```bash
-   kubectl scale deployment oauth2-server --replicas=2 -n oauth2-server
-   kubectl wait --for=condition=ready pod -l app=oauth2-server -n oauth2-server --timeout=300s
-   ```
-
-6. **Verify application**
-   ```bash
-   curl -f https://oauth.example.com/health
-   curl -f https://oauth.example.com/metrics
-   ```
-
----
-
-## Run Database Migrations
-
-### Prerequisites
-- Migration files in `migrations/sql/`
-- Database accessible
-- Tested in development/staging
-
-### Steps
-
-1. **Create ConfigMap with migrations**
-   ```bash
-   kubectl create configmap flyway-migrations \
-     --from-file=migrations/sql/ \
-     -n oauth2-server \
-     --dry-run=client -o yaml | kubectl apply -f -
-   ```
-
-2. **Apply migration job**
-   ```bash
-   # Delete old job if exists
-   kubectl delete job flyway-migration -n oauth2-server --ignore-not-found
-   
-   # Apply new job
-   kubectl apply -f k8s/base/flyway-migration-job.yaml
-   ```
-
-3. **Monitor migration**
-   ```bash
-   kubectl logs -f job/flyway-migration -n oauth2-server
-   ```
-
-4. **Verify migration**
-   ```bash
-   kubectl exec -it postgres-0 -n oauth2-server -- \
-     psql -U oauth2_user -d oauth2 -c "
-       SELECT installed_rank, version, description, installed_on, success 
-       FROM flyway_schema_history 
-       ORDER BY installed_rank DESC 
-       LIMIT 5;
-     "
-   ```
-
-5. **Test application**
-   ```bash
-   kubectl logs -f deployment/oauth2-server -n oauth2-server
-   curl -f https://oauth.example.com/health
-   ```
-
-### Rollback Migration
-
-If migration fails:
-
-1. **Check migration status**
-   ```bash
-   kubectl logs job/flyway-migration -n oauth2-server
-   ```
-
-2. **Manually revert changes**
-   ```bash
-   kubectl exec -it postgres-0 -n oauth2-server -- \
-     psql -U oauth2_user -d oauth2
-   
-   # Run rollback SQL
-   ```
-
-3. **Restore from backup if needed**
-   ```bash
-   # See "Database Restore" runbook
-   ```
-
----
-
-## Check Server Health
-
-### Quick Health Check
+Useful checks:
 
 ```bash
-# Health endpoint
-curl -f https://oauth.example.com/health | jq
-
-# Readiness endpoint
-curl -f https://oauth.example.com/ready | jq
-
-# Kubernetes pod status
-kubectl get pods -n oauth2-server
-
-# Recent logs
-kubectl logs -n oauth2-server -l app=oauth2-server --tail=20
+kubectl logs postgres-0 -n oauth2-server --tail=100
+kubectl get job -n oauth2-server
+kubectl describe pod -n oauth2-server <pod-name>
 ```
 
-### Detailed Health Check
+## High `5xx` or latency
+
+Use data before heroics:
+
+1. compare request rate and latency in `/metrics`
+2. check recent config or image changes
+3. inspect database saturation and connection pressure
+4. if eventing is enabled, confirm `/events/health` is not degraded
+
+Focus on:
+
+- request error rate
+- request latency percentiles
+- database query latency
+- rate-limit rejection spikes
+- restart counts and rollout events
+
+## Eventing health failing
+
+If `GET /events/health` is unhappy:
+
+1. confirm the configured backend matches the build features
+2. verify backend URLs (`OAUTH2_EVENTS_*`)
+3. look for fallback warnings in logs
+
+The safe default remains `in_memory`, so a broker failure usually means degraded integration behavior rather than total server death.
+
+## Admin or auth login failures
+
+Check these first:
+
+- seed admin credentials (`OAUTH2_SEED_USERNAME`, `OAUTH2_SEED_PASSWORD`)
+- session key stability (`OAUTH2_SESSION_KEY`)
+- externally visible URL and proxy headers (`OAUTH2_SERVER_PUBLIC_BASE_URL`, `OAUTH2_SERVER_TRUST_PROXY_HEADERS`)
+- social provider configuration for the specific `/auth/login/{provider}` route
+
+Remember that Okta and Auth0 routes currently return `503` by design.
+
+## Rotate signing material
+
+There are two different operations:
+
+- **JWT secret rotation**: rotate `OAUTH2_JWT_SECRET`, redeploy, and expect existing HS256-signed tokens to stop validating
+- **keyset rotation**: use `POST /admin/api/keys/rotate` when you are using managed signing keys and an authenticated admin session
+
+After rotation, verify:
 
 ```bash
-# Application metrics
-curl -s https://oauth.example.com/metrics | grep oauth2_server
-
-# Database connectivity
-kubectl exec -it postgres-0 -n oauth2-server -- \
-  pg_isready -U oauth2_user
-
-# Pod resource usage
-kubectl top pods -n oauth2-server
-
-# Check for errors in logs
-kubectl logs -n oauth2-server -l app=oauth2-server --since=1h | grep -i error
-
-# HPA status
-kubectl get hpa -n oauth2-server
-
-# Service endpoints
-kubectl get endpoints -n oauth2-server
+curl -fsS http://localhost:8080/.well-known/jwks.json
+curl -fsS http://localhost:8080/health
 ```
 
----
+## Revoke everything fast
 
-## View Application Logs
+There is no single “revoke all” endpoint. Your practical options are:
 
-### Real-time Logs
+1. rotate JWT secret or signing keys
+2. restart with new session and admin credentials if compromise is broader
+3. document the incident and the cutoff timestamp
 
-```bash
-# All pods
-kubectl logs -f -n oauth2-server -l app=oauth2-server
+## Backups and restore
 
-# Specific pod
-kubectl logs -f -n oauth2-server oauth2-server-abc123-xyz
+Database backup strategy is deployment-specific, so this page does not pretend every team uses the same S3 bucket and cron job.
 
-# Last 100 lines
-kubectl logs -n oauth2-server -l app=oauth2-server --tail=100
+Use your platform-native Postgres backup process, and verify restores on a non-production environment. For Kubernetes-specific mechanics, use [`k8s/README.md`](../../k8s/README.md).
 
-# Since 1 hour ago
-kubectl logs -n oauth2-server -l app=oauth2-server --since=1h
+## Related pages
 
-# Previous pod (after crash)
-kubectl logs -p -n oauth2-server oauth2-server-abc123-xyz
-```
-
-### Log Analysis
-
-```bash
-# Count errors
-kubectl logs -n oauth2-server -l app=oauth2-server | grep -c ERROR
-
-# Find authentication failures
-kubectl logs -n oauth2-server -l app=oauth2-server | grep "401\|403"
-
-# Find slow queries
-kubectl logs -n oauth2-server -l app=oauth2-server | grep "query took"
-
-# Export logs for analysis
-kubectl logs -n oauth2-server -l app=oauth2-server --tail=10000 > oauth2-logs.txt
-```
-
----
-
-## Monitor Metrics
-
-### Prometheus Queries
-
-Access Prometheus and run these queries:
-
-```promql
-# Request rate
-rate(oauth2_server_http_requests_total[5m])
-
-# Error rate percentage
-100 * (
-  rate(oauth2_server_http_requests_total{status=~"5.."}[5m]) /
-  rate(oauth2_server_http_requests_total[5m])
-)
-
-# Token issuance rate
-rate(oauth2_server_oauth_token_issued_total[5m])
-
-# Active tokens
-oauth2_server_oauth_active_tokens
-
-# P95 response time
-histogram_quantile(0.95, 
-  rate(oauth2_server_http_request_duration_seconds_bucket[5m]))
-
-# Database query latency
-histogram_quantile(0.95,
-  rate(oauth2_server_db_query_duration_seconds_bucket[5m]))
-```
-
-### Key Metrics to Monitor
-
-| Metric | Threshold | Action |
-|--------|-----------|--------|
-| Error rate | > 5% | Investigate logs |
-| Response time (P95) | > 500ms | Check database |
-| Active tokens | > 100,000 | Consider cleanup |
-| Database CPU | > 80% | Scale or optimize |
-| Memory usage | > 80% | Scale pods |
-
----
-
-## Set Up Alerts
-
-### Alertmanager Rules
-
-```yaml
-groups:
-  - name: oauth2_server
-    interval: 30s
-    rules:
-      - alert: HighErrorRate
-        expr: |
-          100 * (
-            rate(oauth2_server_http_requests_total{status=~"5.."}[5m]) /
-            rate(oauth2_server_http_requests_total[5m])
-          ) > 5
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "High error rate detected"
-          description: "Error rate is {{ $value }}%"
-      
-      - alert: HighResponseTime
-        expr: |
-          histogram_quantile(0.95,
-            rate(oauth2_server_http_request_duration_seconds_bucket[5m])
-          ) > 0.5
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High response time"
-          description: "P95 response time is {{ $value }}s"
-      
-      - alert: DatabaseDown
-        expr: up{job="oauth2-database"} == 0
-        for: 1m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Database is down"
-      
-      - alert: PodRestartLoop
-        expr: rate(kube_pod_container_status_restarts_total{namespace="oauth2-server"}[15m]) > 0
-        labels:
-          severity: warning
-        annotations:
-          summary: "Pod is restarting frequently"
-```
-
----
-
-## Database Performance Tuning
-
-1. **Confirm symptoms** (latency, error rate, slow queries).
-2. **Check database health**:
-   - CPU/memory/disk
-   - connection count
-   - long-running queries
-3. **Validate schema + indexes** (especially for token lookup/revocation patterns).
-4. **Scale / tune**:
-   - increase Postgres resources
-   - add connection pooling (e.g., PgBouncer)
-   - tune `max_connections`, `shared_buffers`, and `work_mem` for your workload
-
-## Pod Not Starting
-
-1. **Describe the pod**:
-   - `kubectl describe pod <pod> -n oauth2-server`
-2. **Check events** for image pull errors, missing secrets, scheduling issues.
-3. **Check logs**:
-   - `kubectl logs <pod> -n oauth2-server --previous`
-4. **Common causes**:
-   - missing `OAUTH2_JWT_SECRET`
-   - database not reachable
-   - migrations job failing
-
-## High Error Rate
-
-1. Check `/metrics` and logs for spikes in 4xx vs 5xx.
-2. Correlate with deploy/rollout events.
-3. Validate dependency health:
-   - database (`/ready`)
-   - eventing (`/events/health`, if enabled)
-4. If 5xx persists, consider rollback:
-   - `kubectl rollout undo deployment/oauth2-server -n oauth2-server`
-
-## Database Connection Issues
-
-1. **Check readiness**: `GET /ready` should report database `ok`.
-2. Verify Kubernetes service/DNS:
-   - `kubectl get svc -n oauth2-server`
-3. Verify credentials/secrets:
-   - `kubectl get secret oauth2-server-secret -n oauth2-server -o yaml`
-4. Check Postgres logs:
-   - `kubectl logs postgres-0 -n oauth2-server`
-
-## Performance Degradation
-
-1. Compare latency (P50/P95) before/after the degradation window.
-2. Check resource saturation (CPU/mem), restarts, and database health.
-3. If eventing is enabled, verify it is not misconfigured:
-   - failing backends are best-effort, but can add log noise.
-4. Consider temporarily reducing load and/or scaling up.
-
-## Rotate JWT Secret
-
-JWT secret rotation invalidates existing tokens. Plan a maintenance window.
-
-1. Generate a new secret and update the Kubernetes secret.
-2. Roll out the deployment.
-3. Validate new token issuance and introspection.
-
-## Rotate Database Password
-
-1. Update the database user password in Postgres.
-2. Update the Kubernetes secret used by the app.
-3. Restart/roll out the app.
-4. Verify `/ready` returns `ok`.
-
-## Revoke All Tokens
-
-There is no global revoke endpoint by default.
-Recommended approach is to rotate the JWT secret (see above) and/or rotate signing keys.
-
-## Security Incident Response
-
-1. Contain: revoke credentials/secrets and restrict access.
-2. Eradicate: rotate JWT secret and database passwords.
-3. Recover: redeploy from a known-good version.
-4. Post-incident: open an issue and follow the repository security policy.
-
----
-
-## Additional Runbooks
-
-For more specific scenarios, see:
-
-- **[Operations Agent](https://github.com/ianlintner/rust_oauth2_server/blob/main/.github/agents/operations.md)** - Comprehensive operational procedures
-- **[Database Agent](https://github.com/ianlintner/rust_oauth2_server/blob/main/.github/agents/database.md)** - Database-specific operations
-- **[Security Agent](https://github.com/ianlintner/rust_oauth2_server/blob/main/.github/agents/security.md)** - Security incident response
-
----
-
-## Support
-
-- **Documentation**: `/docs` directory
-- **Issues**: GitHub Issues
-- **Discussions**: GitHub Discussions
-- **Security**: See [SECURITY.md](https://github.com/ianlintner/rust_oauth2_server/blob/main/SECURITY.md)
+- [Deployment](deployment.md)
+- [Observability](observability.md)
+- [Security policy](../../SECURITY.md)

@@ -9,11 +9,15 @@ theme:
     icon:
         repo: fontawesome/brands/github
     features:
+        - navigation.instant
+        - navigation.instant.prefetch
+        - navigation.tracking
         - navigation.tabs
         - navigation.sections
         - navigation.top
         - search.suggest
         - search.highlight
+        - search.share
         - content.code.copy
         - toc.follow
     palette:

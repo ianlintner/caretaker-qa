@@ -1,497 +1,79 @@
-# Contributing Guide
+# Contributing
 
-Thank you for your interest in contributing to the Rust OAuth2 Server! This guide will help you get started.
+Thanks for helping. This repo is a workspace with a lot of surface area, so the shortest path to a good contribution is: change the smallest thing that solves the problem, update the real source of truth, and run the full gate before you declare victory.
 
-## Code of Conduct
+## Required local gate
 
-Be respectful, inclusive, and professional in all interactions.
-
-## Getting Started
-
-### 1. Fork and Clone
+Run these before opening or updating a PR:
 
 ```bash
-# Fork the repository on GitHub, then:
-git clone https://github.com/YOUR_USERNAME/rust_oauth2_server.git
-cd rust_oauth2_server
-
-# Add upstream remote
-git remote add upstream https://github.com/ianlintner/rust_oauth2_server.git
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --verbose --all-features --locked
 ```
 
-### 2. Set Up Development Environment
-
-```bash
-# Install Rust (if not already installed)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install dependencies
-rustup component add clippy rustfmt
-
-# Build the project
-cargo build
-
-# Run tests
-cargo test
-```
-
-### 3. Create a Branch
-
-```bash
-# Update your fork
-git checkout main
-git pull upstream main
-
-# Create a feature branch
-git checkout -b feature/your-feature-name
-```
-
-## Development Workflow
-
-### Code Style
-
-We follow the official Rust style guide. Use `rustfmt` and `clippy`:
-
-```bash
-# Format code
-cargo fmt
-
-# Run linter
-cargo clippy -- -D warnings
-
-# Check all
-cargo fmt && cargo clippy -- -D warnings && cargo test
-```
-
-### Project Structure
-
-```
-rust-oauth2-server/
-├── crates/
-│   ├── oauth2-core/           # Domain types, traits, ports
-│   ├── oauth2-ports/          # Port interfaces (storage, auth)
-│   ├── oauth2-config/         # Configuration and validation
-│   ├── oauth2-actix/          # Actix-web handlers, middleware
-│   ├── oauth2-server/         # Server assembly and startup
-│   ├── oauth2-storage-sqlx/   # SQLx storage adapter (SQLite/Postgres)
-│   ├── oauth2-storage-factory/# Storage factory
-│   ├── oauth2-observability/  # Metrics, tracing, health
-│   ├── oauth2-events/         # Event system (actors)
-│   └── oauth2-social-login/   # Social login providers
-├── tests/                     # Integration tests
-├── migrations/                # Flyway database migrations
-├── docs/                      # MkDocs documentation
-├── scripts/                   # Build and migration scripts
-└── Cargo.toml                 # Workspace root
-```
-
-### Writing Code
-
-#### Follow Rust Best Practices
-
-```rust
-// ✅ Good: Use Result for error handling
-pub async fn create_token(req: TokenRequest) -> Result<TokenResponse, OAuth2Error> {
-    // Implementation
-}
-
-// ✅ Good: Use descriptive names
-let access_token_expiration = config.access_token_expiration;
-
-// ✅ Good: Document public APIs
-/// Creates a new OAuth2 client registration.
-///
-/// # Arguments
-/// * `registration` - Client registration request
-///
-/// # Returns
-/// * `Ok(ClientCredentials)` - Successfully created client
-/// * `Err(OAuth2Error)` - Registration failed
-pub async fn register_client(
-    registration: ClientRegistration
-) -> Result<ClientCredentials, OAuth2Error> {
-    // Implementation
-}
-```
-
-#### Error Handling
-
-```rust
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum OAuth2Error {
-    #[error("Invalid client credentials")]
-    InvalidClient,
-
-    #[error("Invalid grant: {0}")]
-    InvalidGrant(String),
-
-    #[error("Database error: {0}")]
-    DatabaseError(#[from] sqlx::Error),
-}
-```
-
-#### Async Code
-
-```rust
-// ✅ Good: Use async/await
-pub async fn fetch_user(id: &str) -> Result<User, Error> {
-    let user = db.get_user(id).await?;
-    Ok(user)
-}
-
-// ✅ Good: Handle concurrent operations
-let (tokens, client) = tokio::join!(
-    fetch_tokens(&client_id),
-    fetch_client(&client_id)
-);
-```
-
-### Testing
-
-#### Unit Tests
-
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_generate_client_id() {
-        let id = generate_client_id();
-        assert_eq!(id.len(), 32);
-    }
-
-    #[tokio::test]
-    async fn test_create_token() {
-        let token = create_token(&mock_request()).await.unwrap();
-        assert!(!token.access_token.is_empty());
-    }
-}
-```
-
-#### Integration Tests
-
-```rust
-// tests/integration_test.rs
-use actix_web::{test, App};
-
-#[actix_rt::test]
-async fn test_token_endpoint() {
-    let app = test::init_service(
-        App::new().service(token_endpoint)
-    ).await;
-
-    let req = test::TestRequest::post()
-        .uri("/oauth/token")
-        .set_form(&[
-            ("grant_type", "client_credentials"),
-            ("client_id", "test_client"),
-            ("client_secret", "test_secret"),
-        ])
-        .to_request();
-
-    let resp = test::call_service(&app, req).await;
-    assert!(resp.status().is_success());
-}
-```
-
-### Documentation
-
-#### Code Comments
-
-````rust
-/// Validates an OAuth2 authorization request.
-///
-/// This function checks:
-/// - Client ID is valid and active
-/// - Redirect URI matches registered URIs
-/// - Requested scopes are allowed
-/// - PKCE parameters are valid (if provided)
-///
-/// # Arguments
-/// * `request` - The authorization request to validate
-///
-/// # Returns
-/// * `Ok(())` - Request is valid
-/// * `Err(OAuth2Error)` - Request validation failed
-///
-/// # Examples
-/// ```
-/// let request = AuthorizationRequest {
-///     client_id: "abc123".to_string(),
-///     redirect_uri: "http://localhost:3000/callback".to_string(),
-///     scope: "read write".to_string(),
-///     ..Default::default()
-/// };
-/// validate_authorization_request(&request).await?;
-/// ```
-pub async fn validate_authorization_request(
-    request: &AuthorizationRequest
-) -> Result<(), OAuth2Error> {
-    // Implementation
-}
-````
-
-#### README and Docs
-
-When adding new features, update:
-
-- `README.md` - If it affects usage
-- `docs/` - Relevant documentation files
-- API documentation comments
-
-### Commit Guidelines
-
-Follow conventional commits:
-
-```bash
-# Format: <type>(<scope>): <subject>
-
-# Types:
-# - feat: New feature
-# - fix: Bug fix
-# - docs: Documentation changes
-# - style: Code style changes (formatting)
-# - refactor: Code refactoring
-# - perf: Performance improvements
-# - test: Adding or updating tests
-# - chore: Maintenance tasks
-
-# Examples:
-git commit -m "feat(oauth): add PKCE support for public clients"
-git commit -m "fix(token): correct expiration time calculation"
-git commit -m "docs(api): add examples for token introspection"
-git commit -m "test(auth): add integration tests for auth flow"
-```
-
-### Pull Request Process
-
-1. **Update your branch**
-
-   ```bash
-   git checkout main
-   git pull upstream main
-   git checkout your-branch
-   git rebase main
-   ```
-
-2. **Run checks**
-
-   ```bash
-   cargo fmt --check
-   cargo clippy -- -D warnings
-   cargo test
-   cargo doc --no-deps
-   ```
-
-3. **Push changes**
-
-   ```bash
-   git push origin your-branch
-   ```
-
-4. **Create Pull Request**
-   - Go to GitHub and create a PR
-   - Fill out the PR template
-   - Link related issues
-   - Request reviews
-
-5. **PR Title Format**
-
-   ```
-   feat: Add support for custom token claims
-   fix: Resolve token expiration edge case
-   docs: Update deployment guide with K8s examples
-   ```
-
-6. **PR Description Template**
-
-   ```markdown
-   ## Description
-
-   Brief description of changes
-
-   ## Motivation and Context
-
-   Why is this change needed? What problem does it solve?
-
-   ## Changes Made
-
-   - Change 1
-   - Change 2
-   - Change 3
-
-   ## Testing
-
-   How was this tested?
-
-   ## Checklist
-
-   - [ ] Code follows style guidelines
-   - [ ] Self-review completed
-   - [ ] Comments added for complex code
-   - [ ] Documentation updated
-   - [ ] Tests added/updated
-   - [ ] All tests pass
-   - [ ] No new warnings
-   ```
-
-## Types of Contributions
-
-### Bug Reports
-
-Create an issue with:
-
-- Clear title
-- Steps to reproduce
-- Expected behavior
-- Actual behavior
-- Environment details
-- Relevant logs
-
-**Template:**
-
-```markdown
-**Describe the bug**
-A clear description of what the bug is.
-
-**To Reproduce**
-
-1. Start server with...
-2. Call endpoint...
-3. See error...
-
-**Expected behavior**
-What you expected to happen.
-
-**Actual behavior**
-What actually happened.
-
-**Environment:**
-
-- OS: [e.g., Ubuntu 22.04]
-- Rust version: [e.g., 1.75]
-- Server version: [e.g., 0.1.0]
-
-**Additional context**
-Any other relevant information.
-```
-
-### Feature Requests
-
-Create an issue with:
-
-- Clear description
-- Use case
-- Proposed solution
-- Alternatives considered
-
-### Documentation
-
-- Fix typos and errors
-- Improve clarity
-- Add examples
-- Update outdated information
+If formatting fails, run `cargo fmt --all` and then re-run the gate.
 
-### Code Contributions
+## Normal workflow
 
-- Bug fixes
-- New features
-- Performance improvements
-- Refactoring
+1. branch from `main`
+2. make the smallest code change that fixes the issue
+3. update tests and docs in the same branch
+4. run the local gate
+5. open a PR with the why, the change, and how you verified it
 
-## Development Tools
+Conventional commits are welcome, but correctness beats poetry.
 
-### Recommended VS Code Extensions
+## Where changes usually belong
 
-```json
-{
-  "recommendations": [
-    "rust-lang.rust-analyzer",
-    "vadimcn.vscode-lldb",
-    "serayuzgur.crates",
-    "tamasfe.even-better-toml"
-  ]
-}
-```
+| Change type | Start here | Usually update docs here |
+| --- | --- | --- |
+| OAuth routes, handlers, middleware | `crates/oauth2-actix/` | `docs/usage/oauth2-oidc.md` or `docs/usage/admin-api.md` |
+| Route registration / app wiring | `crates/oauth2-server/src/lib.rs` | `docs/development/architecture.md`, relevant usage/ops page |
+| Config keys or defaults | `crates/oauth2-config/`, `.env.example`, `application.conf.example` | `docs/getting-started/configuration.md` |
+| Storage behavior | `crates/oauth2-storage-*` | `docs/development/extending.md` |
+| Deployment/runtime assets | `docker-compose*.yml`, `k8s/`, `scripts/` | `docs/operations/deployment.md`, `docs/operations/runbooks.md` |
+| MCP wrapper | `mcp-server/src/index.js` | `mcp-server/README.md`, `docs/usage/integrations.md` |
 
-### Useful Commands
+## Docs governance
 
-```bash
-# Watch for changes and rebuild
-cargo watch -x build
+To keep drift down, treat these files as canonical before you touch prose:
 
-# Run specific test
-cargo test test_name
+- `.env.example`
+- `application.conf.example`
+- `crates/oauth2-server/src/lib.rs`
+- generated OpenAPI / Swagger surface
+- `mcp-server/src/index.js`
 
-# Generate documentation
-cargo doc --open --no-deps
+Documentation rules for this repo:
 
-# Check without building
-cargo check
+- keep the README as a front door, not a second manual
+- keep the MkDocs site task-oriented and short
+- delete stale duplicate pages instead of preserving them “just in case”
+- keep deep examples next to code or repo-local READMEs, not copied into many docs pages
+- when behavior changes, update the smallest relevant docs page instead of adding another one
 
-# Bench marks
-cargo bench
+## Known repo pitfalls
 
-# Coverage (with tarpaulin)
-cargo tarpaulin --out Html
-```
+- new `web::Data<T>` handler dependencies must also be injected in `tests/security_http.rs`
+- long `tracing::*` calls and chained `map_err` blocks often need formatting help
+- variables mutated only inside `#[cfg(feature = ...)]` sections may need `#[allow(unused_mut)]`
+- feature-gated behavior must be documented in both `.env.example` and `application.conf.example`
 
-## Architecture Decisions
+## What a good PR includes
 
-When making significant changes:
+- the code change
+- the relevant tests
+- any config updates
+- the smallest matching docs update
+- a short verification note with the commands you ran
 
-1. Open an issue for discussion
-2. Get consensus on approach
-3. Document architecture decisions
-4. Consider backward compatibility
+## Need orientation?
 
-## Performance Considerations
+Start with:
 
-- Profile code for bottlenecks
-- Use appropriate data structures
-- Minimize allocations
-- Leverage async/await effectively
-- Consider database query efficiency
+- [Architecture](architecture.md)
+- [Extending](extending.md)
+- [Testing](testing.md)
 
-## Security Considerations
-
-- Never commit secrets
-- Validate all inputs
-- Use parameterized queries
-- Follow OWASP guidelines
-- Document security implications
-
-## Release Process
-
-1. Version bump in `Cargo.toml`
-2. Update `CHANGELOG.md`
-3. Create release tag
-4. Build release binaries
-5. Publish to crates.io (if applicable)
-6. Create GitHub release
-
-## Getting Help
-
-- **Documentation**: Read the [docs](https://github.com/ianlintner/rust_oauth2_server/tree/main/docs)
-- **Issues**: Search existing issues
-- **Discussions**: Use GitHub Discussions
-- **Questions**: Open a Q&A discussion
-
-## Recognition
-
-Contributors will be:
-
-- Listed in CONTRIBUTORS.md
-- Credited in release notes
-- Acknowledged in project README
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the project's MIT OR Apache-2.0 license.
-
----
-
-Thank you for contributing to Rust OAuth2 Server! 🚀
+Less ceremony, more correct software.

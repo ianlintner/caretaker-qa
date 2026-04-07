@@ -76,6 +76,9 @@ kubectl apply -k k8s/overlays/production -n oauth2-server
 
 For the full manifest-level guide, use [`k8s/README.md`](../../k8s/README.md).
 
+!!! note
+This repo ships Kustomize overlays and raw manifests. It does **not** currently ship Helm charts.
+
 ## Distributed profile
 
 The distributed runtime is opt-in at build time.

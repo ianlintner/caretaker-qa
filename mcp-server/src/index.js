@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * OAuth2 Server MCP (Model Context Protocol) Server
- * 
- * This MCP server provides tools to interact with the Rust OAuth2 Server API,
- * enabling AI agents to perform CRUD operations on clients, tokens, and users.
+ * OAuth2 Server MCP (Model Context Protocol) Server.
+ *
+ * This is a thin wrapper over selected Rust OAuth2 Server HTTP endpoints.
+ * It is intentionally small and does not implement browser/session login.
  */
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -40,7 +40,10 @@ class OAuth2Client {
   }
 
   /**
-   * Register a new OAuth2 client
+   * Register a new OAuth2 client.
+   *
+   * Note: the target endpoint is admin-protected. This wrapper does not manage
+   * an admin browser session for you.
    */
   async registerClient(data) {
     const response = await this.axios.post('/admin/clients/register', data);
@@ -209,7 +212,7 @@ class OAuth2MCPServer {
       tools: [
         {
           name: 'register_client',
-          description: 'Register a new OAuth2 client application. Creates client credentials for accessing the OAuth2 server. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/api/endpoints.md#register-client',
+          description: 'Register a new OAuth2 client application through the admin registration endpoint. Requires admin access to the target deployment. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/usage/admin-api.md',
           inputSchema: {
             type: 'object',
             properties: {
@@ -237,7 +240,7 @@ class OAuth2MCPServer {
         },
         {
           name: 'get_token',
-          description: 'Get an access token using client credentials grant. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/flows/client-credentials.md',
+          description: 'Get an access token using the client credentials grant. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/usage/oauth2-oidc.md',
           inputSchema: {
             type: 'object',
             properties: {
@@ -259,7 +262,7 @@ class OAuth2MCPServer {
         },
         {
           name: 'exchange_code',
-          description: 'Exchange an authorization code for an access token. Part of the authorization code flow. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/flows/authorization-code.md',
+          description: 'Exchange an authorization code for an access token. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/usage/oauth2-oidc.md',
           inputSchema: {
             type: 'object',
             properties: {
@@ -289,7 +292,7 @@ class OAuth2MCPServer {
         },
         {
           name: 'refresh_token',
-          description: 'Refresh an access token using a refresh token. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/flows/refresh-token.md',
+          description: 'Refresh an access token using a refresh token. Note: many deployments leave this grant disabled by default. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/usage/oauth2-oidc.md',
           inputSchema: {
             type: 'object',
             properties: {
@@ -311,7 +314,7 @@ class OAuth2MCPServer {
         },
         {
           name: 'introspect_token',
-          description: 'Introspect a token to get its metadata and check if it is active. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/api/endpoints.md#token-introspection',
+          description: 'Introspect a token to get its metadata and check if it is active. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/usage/oauth2-oidc.md',
           inputSchema: {
             type: 'object',
             properties: {
@@ -333,7 +336,7 @@ class OAuth2MCPServer {
         },
         {
           name: 'revoke_token',
-          description: 'Revoke an access or refresh token. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/api/endpoints.md#token-revocation',
+          description: 'Revoke an access or refresh token. See docs: https://github.com/ianlintner/rust_oauth2_server/blob/main/docs/usage/oauth2-oidc.md',
           inputSchema: {
             type: 'object',
             properties: {

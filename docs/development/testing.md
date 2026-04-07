@@ -1,60 +1,73 @@
 # Testing
 
-This repository includes multiple layers of tests.
+This repo has fast local checks, database-backed integration tests, KIND-based end-to-end flows, and a benchmark harness. The only rule that really matters: run the full gate before you call a change done.
 
-## Unit tests
+## Local CI gate
 
-Run all unit tests:
+These are the required local checks for this repository:
 
 ```bash
-cargo test
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --verbose --all-features --locked
 ```
 
-## Integration tests (PostgreSQL)
+If `cargo fmt --check` fails, run `cargo fmt --all` and re-check.
 
-Integration tests expect a PostgreSQL database. In CI, Postgres is provided via a GitHub Actions service container.
+## Fast local loops
 
-Locally, you can run Postgres via Docker and set:
-
-- `OAUTH2_DATABASE_URL=postgresql://...`
-
-Then run:
+Use smaller commands while iterating:
 
 ```bash
+cargo check --all-features
+cargo test -p oauth2-actix
+cargo test --test integration
+```
+
+Useful pitfall from this repo: if you add a new `web::Data<T>` dependency to a handler, update the `App::new()` builders in `tests/security_http.rs` or the integration suite will start yelling for good reasons.
+
+## Integration tests
+
+Integration tests expect a working database.
+
+- CI provides Postgres through service containers
+- locally, point `OAUTH2_DATABASE_URL` at your Postgres instance or compose stack
+
+Example:
+
+```bash
+export OAUTH2_DATABASE_URL=postgresql://user:pass@localhost:5432/oauth2
 cargo test --test integration
 ```
 
 ## BDD tests
 
-BDD tests are implemented with `cucumber`.
-
-Run:
+BDD coverage is under `tests/features/` and runs through the dedicated test target:
 
 ```bash
 cargo test --test bdd
 ```
 
-## Testcontainers-based tests
+## Testcontainers and feature-gated backends
 
-Some tests use Testcontainers and require Docker.
+Some suites require Docker and optional features.
 
-Enable those tests by setting:
-
-- `RUN_TESTCONTAINERS=1`
-
-Then run the relevant test targets (for example, Mongo storage tests):
+Example Mongo storage run:
 
 ```bash
 RUN_TESTCONTAINERS=1 cargo test --test mongo_storage --features mongo
 ```
 
-## E2E (KIND)
+Use the same pattern for other feature-gated backends when the test target requires real infrastructure.
 
-A local + CI-compatible E2E runner is available:
+## KIND end-to-end flows
+
+Local and CI-compatible cluster smoke tests live in:
 
 - `scripts/e2e_kind.sh`
+- `scripts/e2e_kind_extended.sh`
 
-Prerequisites:
+Typical prerequisites:
 
 - Docker
 - kind
@@ -62,18 +75,16 @@ Prerequisites:
 - kustomize
 - jq
 
-The script:
+The standard flow builds an image, loads it into KIND, deploys `k8s/overlays/e2e-kind`, waits for Postgres plus Flyway, and runs an OAuth smoke path. Use `--keep-cluster` when you need to inspect a failure after the script stops.
 
-1. Creates a KIND cluster
-2. Builds and loads the OAuth2 server image
-3. Deploys `k8s/overlays/e2e-kind`
-4. Waits for Postgres + Flyway migrations
-5. Runs a small HTTP smoke test (register client → token → introspect)
+## Benchmarks and load tests
 
-Tip: pass `--keep-cluster` to inspect a failed cluster.
+The benchmark harness lives under `benchmarks/` and compares this server with other OAuth2 implementations.
 
-## Performance and load testing
+Start with:
 
-For cross-server performance comparisons, load profiles, benchmark scenarios, and latest recorded results, see:
+- `benchmarks/README.md`
+- `benchmarks/run-benchmarks.sh`
+- `benchmarks/results/comparison-report.md`
 
-- [Performance & Load Testing](performance-load-testing.md)
+Keep benchmark instructions in the benchmark repo files, not duplicated across the docs site.
