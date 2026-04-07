@@ -136,19 +136,27 @@ pub async fn run() -> std::io::Result<()> {
         acquire_timeout_secs = config.database.acquire_timeout_secs,
         "Connecting to storage backend"
     );
-    let pool_config = oauth2_storage_factory::sqlx::PoolConfig {
-        max_connections: config.database.max_connections,
-        min_connections: config.database.min_connections,
-        acquire_timeout: std::time::Duration::from_secs(config.database.acquire_timeout_secs),
-        idle_timeout: std::time::Duration::from_secs(config.database.idle_timeout_secs),
+    #[cfg(feature = "sqlx")]
+    let storage = {
+        let pool_config = oauth2_storage_factory::sqlx::PoolConfig {
+            max_connections: config.database.max_connections,
+            min_connections: config.database.min_connections,
+            acquire_timeout: std::time::Duration::from_secs(config.database.acquire_timeout_secs),
+            idle_timeout: std::time::Duration::from_secs(config.database.idle_timeout_secs),
+        };
+        oauth2_storage_factory::create_storage_with_pool_config(
+            &config.database.url,
+            Some(pool_config),
+            config.database.read_url.as_deref(),
+        )
+        .await
+        .expect("Failed to create storage backend")
     };
-    let storage = oauth2_storage_factory::create_storage_with_pool_config(
-        &config.database.url,
-        Some(pool_config),
-        config.database.read_url.as_deref(),
-    )
-    .await
-    .expect("Failed to create storage backend");
+    #[cfg(not(feature = "sqlx"))]
+    let storage =
+        oauth2_storage_factory::create_storage_with_pool_config(&config.database.url, None, None)
+            .await
+            .expect("Failed to create storage backend");
 
     storage
         .init()
