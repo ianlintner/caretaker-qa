@@ -1,7 +1,11 @@
 .hero {
   padding: 2rem;
   border-radius: 1.25rem;
-  background: linear-gradient(135deg, rgba(255, 111, 0, 0.12), rgba(33, 150, 243, 0.12));
+  background: linear-gradient(
+    135deg,
+    rgba(255, 111, 0, 0.12),
+    rgba(33, 150, 243, 0.12)
+  );
   border: 1px solid rgba(255, 111, 0, 0.2);
   margin-bottom: 2rem;
 }
@@ -51,7 +55,11 @@
 }
 
 [data-md-color-scheme="slate"] .hero {
-  background: linear-gradient(135deg, rgba(255, 138, 101, 0.16), rgba(100, 181, 246, 0.14));
+  background: linear-gradient(
+    135deg,
+    rgba(255, 138, 101, 0.16),
+    rgba(100, 181, 246, 0.14)
+  );
   border-color: rgba(255, 138, 101, 0.24);
 }
 

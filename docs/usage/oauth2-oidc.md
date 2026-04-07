@@ -4,29 +4,29 @@ This server is an OAuth2 authorization server with a practical OIDC surface: dis
 
 ## What is supported
 
-| Capability | Status | Notes |
-| --- | --- | --- |
-| Authorization Code + PKCE | Shipped | PKCE with `S256` is required for the browser flow. |
-| Client Credentials | Shipped | Best path for service-to-service access. |
-| Token introspection | Shipped | `POST /oauth/introspect`. |
-| Token revocation | Shipped | `POST /oauth/revoke`. |
-| Discovery | Shipped | `GET /.well-known/openid-configuration`. |
-| JWKS | Shipped | `GET /.well-known/jwks.json`. Returns RSA public keys when RS256 signing is configured. |
-| UserInfo | Shipped | `GET` or `POST /oauth/userinfo`. |
-| Refresh token grant | Implemented but disabled by default | Requests are rejected with `unsupported_grant_type` unless your deployment explicitly enables it. |
-| Password grant | Implemented but disabled by default | Not recommended; requests are rejected by default. |
+| Capability                | Status                              | Notes                                                                                             |
+| ------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Authorization Code + PKCE | Shipped                             | PKCE with `S256` is required for the browser flow.                                                |
+| Client Credentials        | Shipped                             | Best path for service-to-service access.                                                          |
+| Token introspection       | Shipped                             | `POST /oauth/introspect`.                                                                         |
+| Token revocation          | Shipped                             | `POST /oauth/revoke`.                                                                             |
+| Discovery                 | Shipped                             | `GET /.well-known/openid-configuration`.                                                          |
+| JWKS                      | Shipped                             | `GET /.well-known/jwks.json`. Returns RSA public keys when RS256 signing is configured.           |
+| UserInfo                  | Shipped                             | `GET` or `POST /oauth/userinfo`.                                                                  |
+| Refresh token grant       | Implemented but disabled by default | Requests are rejected with `unsupported_grant_type` unless your deployment explicitly enables it. |
+| Password grant            | Implemented but disabled by default | Not recommended; requests are rejected by default.                                                |
 
 ## Endpoint map
 
-| Endpoint | Method | Purpose |
-| --- | --- | --- |
-| `/oauth/authorize` | `GET` | Start Authorization Code + PKCE flow. |
-| `/oauth/token` | `POST` | Exchange code or client credentials for tokens. |
-| `/oauth/introspect` | `POST` | Validate a token and return metadata. |
-| `/oauth/revoke` | `POST` | Revoke an access or refresh token. |
-| `/oauth/userinfo` | `GET`, `POST` | Return claims for the authenticated subject. |
-| `/.well-known/openid-configuration` | `GET` | Discovery document for clients and proxies. |
-| `/.well-known/jwks.json` | `GET` | Public signing keys for RS256 id tokens. |
+| Endpoint                            | Method        | Purpose                                         |
+| ----------------------------------- | ------------- | ----------------------------------------------- |
+| `/oauth/authorize`                  | `GET`         | Start Authorization Code + PKCE flow.           |
+| `/oauth/token`                      | `POST`        | Exchange code or client credentials for tokens. |
+| `/oauth/introspect`                 | `POST`        | Validate a token and return metadata.           |
+| `/oauth/revoke`                     | `POST`        | Revoke an access or refresh token.              |
+| `/oauth/userinfo`                   | `GET`, `POST` | Return claims for the authenticated subject.    |
+| `/.well-known/openid-configuration` | `GET`         | Discovery document for clients and proxies.     |
+| `/.well-known/jwks.json`            | `GET`         | Public signing keys for RS256 id tokens.        |
 
 ## Authorization Code + PKCE
 
@@ -61,7 +61,7 @@ curl -X POST http://localhost:8080/oauth/token \
 ```
 
 !!! note
-    `redirect_uri` is optional for OAuth 2.1-style clients, but if you send it, it must exactly match the value used during authorization.
+`redirect_uri` is optional for OAuth 2.1-style clients, but if you send it, it must exactly match the value used during authorization.
 
 ## Client Credentials
 

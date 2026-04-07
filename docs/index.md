@@ -16,51 +16,51 @@ Run it locally, deploy it with Docker or Kubernetes, inspect it with metrics and
 
 <div class="grid cards" markdown>
 
--   **Run it locally**
+- **Run it locally**
 
-  ---
+---
 
-  Start the server with SQLite and `cargo run`, then log in as the seeded admin user.
+Start the server with SQLite and `cargo run`, then log in as the seeded admin user.
 
-  [Quickstart](getting-started/quickstart.md)
+[Quickstart](getting-started/quickstart.md)
 
--   **Integrate a client**
+- **Integrate a client**
 
-  ---
+---
 
-  Use Authorization Code + PKCE, Client Credentials, discovery, JWKS, and UserInfo without guesswork.
+Use Authorization Code + PKCE, Client Credentials, discovery, JWKS, and UserInfo without guesswork.
 
-  [OAuth & OIDC](usage/oauth2-oidc.md)
+[OAuth & OIDC](usage/oauth2-oidc.md)
 
--   **Operate it**
+- **Operate it**
 
-  ---
+---
 
-  Use the health, readiness, metrics, and eventing endpoints that are actually wired in code.
+Use the health, readiness, metrics, and eventing endpoints that are actually wired in code.
 
-  [Observability](operations/observability.md)
+[Observability](operations/observability.md)
 
--   **Change the system**
+- **Change the system**
 
-  ---
+---
 
-  Follow the workspace layout, feature flags, test matrix, and extension seams.
+Follow the workspace layout, feature flags, test matrix, and extension seams.
 
-  [Architecture](development/architecture.md)
+[Architecture](development/architecture.md)
 
 </div>
 
 ## What ships today
 
-| Area | Current state | Notes |
-| --- | --- | --- |
-| OAuth2 flows | <span class="status-pill status-pill--good">Shipped</span> | Authorization Code + PKCE, Client Credentials, introspection, revocation |
-| OIDC surface | <span class="status-pill status-pill--good">Shipped</span> | Discovery, JWKS, UserInfo |
-| Admin UI and JSON API | <span class="status-pill status-pill--good">Shipped</span> | Admin session required |
-| Eventing | <span class="status-pill status-pill--good">Shipped</span> | In-memory and console at runtime; broker backends are feature-gated |
-| Distributed runtime | <span class="status-pill status-pill--warn">Feature-gated</span> | Build with `--features distributed` |
-| Social login | <span class="status-pill status-pill--warn">Mixed</span> | Google, Microsoft, GitHub, Azure work; Okta/Auth0 currently return `503` |
-| Refresh/password grants | <span class="status-pill status-pill--muted">Disabled by default</span> | Present in code paths, intentionally rejected by default |
+| Area                    | Current state                                                           | Notes                                                                    |
+| ----------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| OAuth2 flows            | <span class="status-pill status-pill--good">Shipped</span>              | Authorization Code + PKCE, Client Credentials, introspection, revocation |
+| OIDC surface            | <span class="status-pill status-pill--good">Shipped</span>              | Discovery, JWKS, UserInfo                                                |
+| Admin UI and JSON API   | <span class="status-pill status-pill--good">Shipped</span>              | Admin session required                                                   |
+| Eventing                | <span class="status-pill status-pill--good">Shipped</span>              | In-memory and console at runtime; broker backends are feature-gated      |
+| Distributed runtime     | <span class="status-pill status-pill--warn">Feature-gated</span>        | Build with `--features distributed`                                      |
+| Social login            | <span class="status-pill status-pill--warn">Mixed</span>                | Google, Microsoft, GitHub, Azure work; Okta/Auth0 currently return `503` |
+| Refresh/password grants | <span class="status-pill status-pill--muted">Disabled by default</span> | Present in code paths, intentionally rejected by default                 |
 
 ## Source of truth
 

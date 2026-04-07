@@ -19,13 +19,13 @@ Runtime precedence is:
 
 For a useful local run, these are the only values you usually need to touch:
 
-| Variable | Why it matters |
-| --- | --- |
-| `OAUTH2_DATABASE_URL` | Defaults to SQLite and is fine for local work. |
-| `OAUTH2_JWT_SECRET` | Required for token signing; startup fails on insecure defaults. |
-| `OAUTH2_SESSION_KEY` | Keeps sessions stable across restarts. Use a 128-character hex string. |
-| `OAUTH2_SEED_PASSWORD` | Password for the seeded admin account. |
-| `RUST_LOG` | Runtime log level. |
+| Variable               | Why it matters                                                         |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `OAUTH2_DATABASE_URL`  | Defaults to SQLite and is fine for local work.                         |
+| `OAUTH2_JWT_SECRET`    | Required for token signing; startup fails on insecure defaults.        |
+| `OAUTH2_SESSION_KEY`   | Keeps sessions stable across restarts. Use a 128-character hex string. |
+| `OAUTH2_SEED_PASSWORD` | Password for the seeded admin account.                                 |
+| `RUST_LOG`             | Runtime log level.                                                     |
 
 Example:
 
@@ -39,25 +39,25 @@ RUST_LOG=info
 
 ## Common production settings
 
-| Variable | Use it when |
-| --- | --- |
-| `OAUTH2_SERVER_PUBLIC_BASE_URL` | the externally visible URL differs from the bind address |
-| `OAUTH2_ALLOWED_ORIGINS` | browsers call the server cross-origin |
-| `OAUTH2_DATABASE_MAX_CONNECTIONS` / `MIN_CONNECTIONS` | you need to tune the storage pool |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | you want traces exported to an OTEL collector or Jaeger |
-| `OAUTH2_SERVER_WORKERS` | you want to pin Actix worker count |
-| `OAUTH2_SERVER_TRUST_PROXY_HEADERS` | the server sits behind a trusted reverse proxy |
+| Variable                                              | Use it when                                              |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| `OAUTH2_SERVER_PUBLIC_BASE_URL`                       | the externally visible URL differs from the bind address |
+| `OAUTH2_ALLOWED_ORIGINS`                              | browsers call the server cross-origin                    |
+| `OAUTH2_DATABASE_MAX_CONNECTIONS` / `MIN_CONNECTIONS` | you need to tune the storage pool                        |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`                         | you want traces exported to an OTEL collector or Jaeger  |
+| `OAUTH2_SERVER_WORKERS`                               | you want to pin Actix worker count                       |
+| `OAUTH2_SERVER_TRUST_PROXY_HEADERS`                   | the server sits behind a trusted reverse proxy           |
 
 ## Security-sensitive settings
 
 These are worth calling out because the server enforces or depends on them.
 
-| Variable | Notes |
-| --- | --- |
-| `OAUTH2_JWT_SECRET` | Must be strong and must not use the insecure default. |
-| `OAUTH2_SESSION_KEY` | Persistent 64-byte key encoded as 128 hex characters. |
-| `OAUTH2_SEED_PASSWORD` | The server aborts if it is still `changeme` in normal mode. |
-| `OAUTH2_ALLOW_INSECURE_DEFAULTS` | Development-only escape hatch. Never set in production. |
+| Variable                         | Notes                                                       |
+| -------------------------------- | ----------------------------------------------------------- |
+| `OAUTH2_JWT_SECRET`              | Must be strong and must not use the insecure default.       |
+| `OAUTH2_SESSION_KEY`             | Persistent 64-byte key encoded as 128 hex characters.       |
+| `OAUTH2_SEED_PASSWORD`           | The server aborts if it is still `changeme` in normal mode. |
+| `OAUTH2_ALLOW_INSECURE_DEFAULTS` | Development-only escape hatch. Never set in production.     |
 
 Generate a session key:
 
@@ -91,11 +91,11 @@ export OAUTH2_GOOGLE_REDIRECT_URI=http://localhost:8080/auth/callback/google
 
 If you want RS256 id tokens and a populated JWKS endpoint, configure:
 
-| Variable | Purpose |
-| --- | --- |
-| `OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM` | RSA private key PEM |
-| `OAUTH2_ID_TOKEN_KID` | key id published through JWKS |
-| `OAUTH2_ID_TOKEN_ALG` | usually `RS256` |
+| Variable                          | Purpose                       |
+| --------------------------------- | ----------------------------- |
+| `OAUTH2_ID_TOKEN_PRIVATE_KEY_PEM` | RSA private key PEM           |
+| `OAUTH2_ID_TOKEN_KID`             | key id published through JWKS |
+| `OAUTH2_ID_TOKEN_ALG`             | usually `RS256`               |
 
 If these are not set, id tokens fall back to HS256 using `OAUTH2_JWT_SECRET`.
 
@@ -109,25 +109,25 @@ Runtime defaults:
 
 Feature-gated broker backends:
 
-| Backend | Build requirement |
-| --- | --- |
-| Redis Streams | `--features events-redis` |
-| Kafka | `--features events-kafka` |
-| RabbitMQ | `--features events-rabbit` |
+| Backend       | Build requirement          |
+| ------------- | -------------------------- |
+| Redis Streams | `--features events-redis`  |
+| Kafka         | `--features events-kafka`  |
+| RabbitMQ      | `--features events-rabbit` |
 
 ## Distributed runtime settings
 
 These matter only once you move beyond a single-instance deployment.
 
-| Variable | What it controls |
-| --- | --- |
-| `OAUTH2_DATABASE_READ_URL` | optional read replica |
-| `OAUTH2_CACHE_REDIS_URL` | Redis L2 cache |
-| `OAUTH2_TOKEN_ACTOR_SHARDS` | per-process token actor shard count |
-| `OAUTH2_RATE_LIMIT_ENABLED` | request throttling |
-| `OAUTH2_RATE_LIMIT_BACKEND` | `in_memory` or `redis` |
-| `OAUTH2_RATE_LIMIT_REDIS_URL` | Redis limiter backend |
-| `OAUTH2_JWT_STATELESS_VALIDATION` | JWT-only introspection path |
+| Variable                          | What it controls                    |
+| --------------------------------- | ----------------------------------- |
+| `OAUTH2_DATABASE_READ_URL`        | optional read replica               |
+| `OAUTH2_CACHE_REDIS_URL`          | Redis L2 cache                      |
+| `OAUTH2_TOKEN_ACTOR_SHARDS`       | per-process token actor shard count |
+| `OAUTH2_RATE_LIMIT_ENABLED`       | request throttling                  |
+| `OAUTH2_RATE_LIMIT_BACKEND`       | `in_memory` or `redis`              |
+| `OAUTH2_RATE_LIMIT_REDIS_URL`     | Redis limiter backend               |
+| `OAUTH2_JWT_STATELESS_VALIDATION` | JWT-only introspection path         |
 
 For the full clustered profile, build with:
 

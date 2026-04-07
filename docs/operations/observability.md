@@ -10,13 +10,13 @@ The observability surface is intentionally small and code-backed:
 
 ## Endpoints
 
-| Endpoint | Purpose | Typical use |
-| --- | --- | --- |
-| `/health` | basic process health | load balancer or uptime probe |
-| `/ready` | storage readiness | Kubernetes readiness probe |
-| `/metrics` | Prometheus text endpoint | scrape target |
-| `/events/health` | event backend/plugin health | eventing triage |
-| `/swagger-ui` | generated API surface | validation and operator checks |
+| Endpoint         | Purpose                     | Typical use                    |
+| ---------------- | --------------------------- | ------------------------------ |
+| `/health`        | basic process health        | load balancer or uptime probe  |
+| `/ready`         | storage readiness           | Kubernetes readiness probe     |
+| `/metrics`       | Prometheus text endpoint    | scrape target                  |
+| `/events/health` | event backend/plugin health | eventing triage                |
+| `/swagger-ui`    | generated API surface       | validation and operator checks |
 
 Example health response:
 
@@ -62,7 +62,7 @@ cargo run
 ```
 
 !!! note
-    The repo still supports `OAUTH2_OTLP_ENDPOINT` as a compatibility alias in `.env.example`, but standard `OTEL_*` variables are the preferred long-term path.
+The repo still supports `OAUTH2_OTLP_ENDPOINT` as a compatibility alias in `.env.example`, but standard `OTEL_*` variables are the preferred long-term path.
 
 ## What to watch first
 

@@ -4,13 +4,13 @@ This page is intentionally opinionated: start with the smallest thing that works
 
 ## Pick a runtime path
 
-| Goal | Recommended path |
-| --- | --- |
-| Run locally with the fewest moving parts | `cargo run` + SQLite |
-| Run locally with Postgres and the full app stack | `docker compose up -d` |
-| Run a packaged image without compiling | Docker Hub image |
-| Deploy to Kubernetes | `k8s/overlays/*` with Kustomize |
-| Run the clustered profile | `k8s/overlays/production-distributed` + `--features distributed` |
+| Goal                                             | Recommended path                                                 |
+| ------------------------------------------------ | ---------------------------------------------------------------- |
+| Run locally with the fewest moving parts         | `cargo run` + SQLite                                             |
+| Run locally with Postgres and the full app stack | `docker compose up -d`                                           |
+| Run a packaged image without compiling           | Docker Hub image                                                 |
+| Deploy to Kubernetes                             | `k8s/overlays/*` with Kustomize                                  |
+| Run the clustered profile                        | `k8s/overlays/production-distributed` + `--features distributed` |
 
 ## Local development
 

@@ -8,14 +8,14 @@ This project has three major integration surfaces beyond the core OAuth endpoint
 
 ## Social login
 
-| Provider | Status | Routes |
-| --- | --- | --- |
-| Google | Shipped | `/auth/login/google`, `/auth/callback/google` |
-| Microsoft | Shipped | `/auth/login/microsoft`, `/auth/callback/microsoft` |
-| GitHub | Shipped | `/auth/login/github`, `/auth/callback/github` |
-| Azure AD | Shipped | `/auth/login/azure` reuses the Microsoft flow |
-| Okta | Not implemented | `/auth/login/okta` currently returns HTTP 503 |
-| Auth0 | Not implemented | `/auth/login/auth0` currently returns HTTP 503 |
+| Provider  | Status          | Routes                                              |
+| --------- | --------------- | --------------------------------------------------- |
+| Google    | Shipped         | `/auth/login/google`, `/auth/callback/google`       |
+| Microsoft | Shipped         | `/auth/login/microsoft`, `/auth/callback/microsoft` |
+| GitHub    | Shipped         | `/auth/login/github`, `/auth/callback/github`       |
+| Azure AD  | Shipped         | `/auth/login/azure` reuses the Microsoft flow       |
+| Okta      | Not implemented | `/auth/login/okta` currently returns HTTP 503       |
+| Auth0     | Not implemented | `/auth/login/auth0` currently returns HTTP 503      |
 
 Minimum provider configuration is just the provider credentials and redirect URI. See `.env.example` and `application.conf.example` for the exact variable names.
 
@@ -41,14 +41,14 @@ The server can emit auth events and also ingest external event envelopes.
 
 ### Backends
 
-| Backend | Status | How to enable |
-| --- | --- | --- |
-| `in_memory` | Shipped | Default runtime mode |
-| `console` | Shipped | `OAUTH2_EVENTS_BACKEND=console` |
-| `both` | Shipped | `OAUTH2_EVENTS_BACKEND=both` |
-| Redis Streams | Feature-gated | Build with `--features events-redis` |
-| Kafka | Feature-gated | Build with `--features events-kafka` |
-| RabbitMQ | Feature-gated | Build with `--features events-rabbit` |
+| Backend       | Status        | How to enable                         |
+| ------------- | ------------- | ------------------------------------- |
+| `in_memory`   | Shipped       | Default runtime mode                  |
+| `console`     | Shipped       | `OAUTH2_EVENTS_BACKEND=console`       |
+| `both`        | Shipped       | `OAUTH2_EVENTS_BACKEND=both`          |
+| Redis Streams | Feature-gated | Build with `--features events-redis`  |
+| Kafka         | Feature-gated | Build with `--features events-kafka`  |
+| RabbitMQ      | Feature-gated | Build with `--features events-rabbit` |
 
 Example Redis Streams setup:
 
@@ -68,18 +68,18 @@ The repository includes a separate Node.js MCP server in `mcp-server/`.
 
 ### What it actually does
 
-| Tool | Purpose |
-| --- | --- |
-| `register_client` | Register a client through the admin registration endpoint |
-| `get_token` | Client credentials token request |
-| `exchange_code` | Authorization code token exchange |
-| `refresh_token` | Refresh-token request |
-| `introspect_token` | Token introspection |
-| `revoke_token` | Token revocation |
-| `get_health` | Health probe |
-| `get_readiness` | Readiness probe |
-| `get_metrics` | Metrics fetch |
-| `get_openid_config` | Discovery fetch |
+| Tool                | Purpose                                                   |
+| ------------------- | --------------------------------------------------------- |
+| `register_client`   | Register a client through the admin registration endpoint |
+| `get_token`         | Client credentials token request                          |
+| `exchange_code`     | Authorization code token exchange                         |
+| `refresh_token`     | Refresh-token request                                     |
+| `introspect_token`  | Token introspection                                       |
+| `revoke_token`      | Token revocation                                          |
+| `get_health`        | Health probe                                              |
+| `get_readiness`     | Readiness probe                                           |
+| `get_metrics`       | Metrics fetch                                             |
+| `get_openid_config` | Discovery fetch                                           |
 
 It does **not** currently expose general-purpose user CRUD.
 

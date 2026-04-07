@@ -27,7 +27,7 @@ Most cross-cutting behavior belongs in one of these places:
 When adding route-level or middleware-level app state, remember this repo pitfall:
 
 !!! warning
-    If you add a new `web::Data<T>` dependency to a handler, update every matching app setup in `tests/security_http.rs`.
+If you add a new `web::Data<T>` dependency to a handler, update every matching app setup in `tests/security_http.rs`.
 
 ## Add an event backend or plugin
 

@@ -4,23 +4,23 @@ This repo is a Cargo workspace, not a single giant crate pretending to be a plan
 
 ## Workspace map
 
-| Path | Role |
-| --- | --- |
-| `crates/oauth2-core` | framework-agnostic domain models and shared types |
-| `crates/oauth2-ports` | storage and integration traits |
-| `crates/oauth2-config` | HOCON and environment-backed config parsing |
-| `crates/oauth2-actix` | HTTP handlers, middleware, and actors |
-| `crates/oauth2-server` | server assembly and route registration |
-| `crates/oauth2-openapi` | generated OpenAPI document wiring |
-| `crates/oauth2-observability` | metrics, tracing, and telemetry helpers |
-| `crates/oauth2-events` | event types, plugins, and Actix event bus |
-| `crates/oauth2-social-login` | provider flows and callbacks |
-| `crates/oauth2-storage-sqlx` | SQLite/Postgres storage adapter |
-| `crates/oauth2-storage-mongo` | MongoDB storage adapter |
-| `crates/oauth2-storage-factory` | backend selection and observed storage wrapping |
-| `oauth2-ratelimit` | in-memory and Redis-backed rate limiting |
-| `oauth2-resilience` | concurrency limits, bulkheads, and circuit breaker |
-| `mcp-server/` | standalone Node.js MCP server |
+| Path                            | Role                                               |
+| ------------------------------- | -------------------------------------------------- |
+| `crates/oauth2-core`            | framework-agnostic domain models and shared types  |
+| `crates/oauth2-ports`           | storage and integration traits                     |
+| `crates/oauth2-config`          | HOCON and environment-backed config parsing        |
+| `crates/oauth2-actix`           | HTTP handlers, middleware, and actors              |
+| `crates/oauth2-server`          | server assembly and route registration             |
+| `crates/oauth2-openapi`         | generated OpenAPI document wiring                  |
+| `crates/oauth2-observability`   | metrics, tracing, and telemetry helpers            |
+| `crates/oauth2-events`          | event types, plugins, and Actix event bus          |
+| `crates/oauth2-social-login`    | provider flows and callbacks                       |
+| `crates/oauth2-storage-sqlx`    | SQLite/Postgres storage adapter                    |
+| `crates/oauth2-storage-mongo`   | MongoDB storage adapter                            |
+| `crates/oauth2-storage-factory` | backend selection and observed storage wrapping    |
+| `oauth2-ratelimit`              | in-memory and Redis-backed rate limiting           |
+| `oauth2-resilience`             | concurrency limits, bulkheads, and circuit breaker |
+| `mcp-server/`                   | standalone Node.js MCP server                      |
 
 ## Request path
 
@@ -57,16 +57,16 @@ Default runtime behavior is SQLx-backed storage. The backend is selected from th
 
 ### Feature flags
 
-| Feature | Purpose |
-| --- | --- |
-| `sqlx` | SQLx-backed storage (default) |
-| `mongo` | MongoDB backend |
-| `events-redis` | Redis Streams event backend |
-| `events-kafka` | Kafka event backend |
-| `events-rabbit` | RabbitMQ event backend |
-| `redis-cache` | Redis L2 cache for actors |
-| `redis-rate-limit` | Redis-backed rate limiting |
-| `distributed` | convenience bundle for clustered deployments |
+| Feature            | Purpose                                      |
+| ------------------ | -------------------------------------------- |
+| `sqlx`             | SQLx-backed storage (default)                |
+| `mongo`            | MongoDB backend                              |
+| `events-redis`     | Redis Streams event backend                  |
+| `events-kafka`     | Kafka event backend                          |
+| `events-rabbit`    | RabbitMQ event backend                       |
+| `redis-cache`      | Redis L2 cache for actors                    |
+| `redis-rate-limit` | Redis-backed rate limiting                   |
+| `distributed`      | convenience bundle for clustered deployments |
 
 ## Security-relevant behavior
 
@@ -80,15 +80,15 @@ A few architectural choices matter for operators and contributors:
 
 ## Where to look before changing behavior
 
-| Change | Start here |
-| --- | --- |
-| routes or middleware order | `crates/oauth2-server/src/lib.rs` |
-| OAuth request handling | `crates/oauth2-actix/src/handlers/` |
-| config keys or defaults | `crates/oauth2-config/`, `.env.example`, `application.conf.example` |
-| metrics or telemetry | `crates/oauth2-observability/` |
-| storage behavior | `crates/oauth2-storage-*` |
-| admin UI shell | `templates/` |
-| MCP tools | `mcp-server/src/index.js` |
+| Change                     | Start here                                                          |
+| -------------------------- | ------------------------------------------------------------------- |
+| routes or middleware order | `crates/oauth2-server/src/lib.rs`                                   |
+| OAuth request handling     | `crates/oauth2-actix/src/handlers/`                                 |
+| config keys or defaults    | `crates/oauth2-config/`, `.env.example`, `application.conf.example` |
+| metrics or telemetry       | `crates/oauth2-observability/`                                      |
+| storage behavior           | `crates/oauth2-storage-*`                                           |
+| admin UI shell             | `templates/`                                                        |
+| MCP tools                  | `mcp-server/src/index.js`                                           |
 
 ## Related pages
 

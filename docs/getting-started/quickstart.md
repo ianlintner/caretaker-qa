@@ -41,7 +41,7 @@ Default local URLs:
 - Swagger UI: `http://localhost:8080/swagger-ui`
 
 !!! note
-    The default local path uses SQLite. The SQLx adapter initializes the required tables at startup, so you do not need Flyway just to get moving.
+The default local path uses SQLite. The SQLx adapter initializes the required tables at startup, so you do not need Flyway just to get moving.
 
 If you want the full Postgres-based local stack instead, use Docker Compose:
 
