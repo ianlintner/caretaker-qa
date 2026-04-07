@@ -762,6 +762,8 @@ Comprehensive documentation is available in the `/docs` directory:
 - **[API Reference](docs/api/endpoints.md)** - Endpoint documentation
 - **[Deployment](docs/deployment/docker.md)** - Production deployment guides
 - **[Kubernetes Deployment](k8s/README.md)** - K8s manifests and guides
+- **[Distributed Scaling](docs/deployment/distributed-scaling.md)** - Regional shards,
+  clustered runtime, and global auth topology
 - **[MCP Server](mcp-server/README.md)** - AI integration with Model Context Protocol
 - **[Observability](docs/observability/metrics.md)** - Monitoring and troubleshooting
 

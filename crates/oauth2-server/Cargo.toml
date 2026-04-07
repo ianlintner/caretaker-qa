@@ -41,6 +41,11 @@ hex = "0.4"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1.35", features = ["sync"] }
 
+[dependencies.redis]
+version = "0.27"
+features = ["tokio-comp", "connection-manager"]
+optional = true
+
 [features]
 default = ["sqlx"]
 
@@ -53,3 +58,10 @@ mongo = ["oauth2-storage-factory/mongo"]
 events-redis = ["oauth2-events/events-redis"]
 events-kafka = ["oauth2-events/events-kafka"]
 events-rabbit = ["oauth2-events/events-rabbit"]
+
+# Optional Redis-backed distributed runtime features.
+redis-cache = ["oauth2-actix/redis-cache", "dep:redis"]
+redis-rate-limit = ["oauth2-ratelimit/redis-backend"]
+
+# Convenience feature for distributed deployments.
+distributed = ["redis-cache", "redis-rate-limit", "events-redis"]

@@ -44,6 +44,11 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: oauth2-server-config
+            - secretRef:
+                name: oauth2-server-secret
           env:
             - name: OAUTH2_SERVER_HOST
               valueFrom:

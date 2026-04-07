@@ -21,10 +21,17 @@ k8s/
 │   ├── hpa.yaml               # Horizontal Pod Autoscaler
 │   ├── rbac.yaml              # Role-Based Access Control
 │   └── kustomization.yaml     # Kustomize base configuration
+├── components/                # Optional production building blocks
+│   ├── distributed-ha/        # PDB, topology spread, shard/caching defaults
+│   ├── pgbouncer/             # Transaction-level pooling for PostgreSQL
+│   ├── postgres-tuning/       # Production PostgreSQL tuning config
+│   ├── redis/                 # Redis for shared rate limiting / L2 cache
+│   └── ...
 └── overlays/                  # Environment-specific overlays
     ├── dev/                   # Development environment
     ├── staging/               # Staging environment
-    └── production/            # Production environment
+    ├── production/            # Base production environment
+    └── production-distributed/ # Distributed production profile
 ```
 
 ## Prerequisites
@@ -267,6 +274,34 @@ kubectl get hpa -n oauth2-server
 kubectl describe hpa oauth2-server -n oauth2-server
 ```
 
+### Distributed HA / regional shards
+
+For clustered production deployments, use:
+
+```bash
+kubectl apply -k overlays/production-distributed -n oauth2-server
+```
+
+This profile adds:
+
+- `components/distributed-ha` for pod disruption budgets, topology spread, and safer rollouts
+- `components/redis` for shared rate limiting + Redis L2 cache wiring
+- `components/pgbouncer` for pooled PostgreSQL access
+- `components/postgres-tuning` for higher sustained throughput
+
+Build the image with the distributed runtime feature bundle first:
+
+```bash
+cargo build --release --features distributed
+```
+
+If you need credentialed read-replica or Redis URLs, place
+`OAUTH2_DATABASE_READ_URL` and `OAUTH2_CACHE_REDIS_URL` in
+`base/secret.yaml` (or your external secret manager). The deployment now
+loads optional keys from both the ConfigMap and Secret via `envFrom`.
+
+See `docs/deployment/distributed-scaling.md` for the full regional shard model.
+
 ## Troubleshooting
 
 ### Pod Not Starting
@@ -391,23 +426,19 @@ kubectl delete namespace oauth2-server-staging
 ## Security Best Practices
 
 1. **Secrets Management**
-
    - Never commit real secrets to version control
    - Use external secret management (e.g., HashiCorp Vault, AWS Secrets Manager)
    - Rotate secrets regularly
 
 2. **Network Policies**
-
    - Implement network policies to restrict pod-to-pod communication
    - Only allow necessary ingress/egress traffic
 
 3. **RBAC**
-
    - Follow principle of least privilege
    - Use service accounts with minimal permissions
 
 4. **TLS**
-
    - Always use TLS in production
    - Configure cert-manager for automatic certificate renewal
 

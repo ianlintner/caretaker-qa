@@ -89,6 +89,7 @@ nav:
       - Docker Hub Image: deployment/dockerhub.md
       - Docker: deployment/docker.md
       - Kubernetes: deployment/kubernetes.md
+      - Distributed Scaling: deployment/distributed-scaling.md
       - Production & Security: deployment/production.md
       - Metrics: observability/metrics.md
       - SLOs: observability/slos.md

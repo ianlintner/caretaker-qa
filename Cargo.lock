@@ -3722,6 +3722,7 @@ dependencies = [
  "config",
  "hocon",
  "serde",
+ "tempfile",
  "tracing",
 ]
 
@@ -3841,6 +3842,7 @@ dependencies = [
  "oauth2-resilience",
  "oauth2-social-login",
  "oauth2-storage-factory",
+ "redis 0.27.6",
  "serde_json",
  "tokio",
  "tracing",

@@ -32,6 +32,10 @@ pub struct Config {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    /// Optional explicit worker count for the Actix HTTP server.
+    /// When unset, Actix chooses a sensible default based on available CPUs.
+    #[serde(default)]
+    pub workers: Option<usize>,
     /// Optional externally-visible base URL (scheme + host + optional path prefix).
     ///
     /// When set, this is used for issuer / endpoint URLs in discovery docs (e.g. OIDC well-known)
@@ -88,12 +92,14 @@ fn default_min_connections() -> u32 {
 fn default_acquire_timeout_secs() -> u64 {
     std::env::var("OAUTH2_DATABASE_ACQUIRE_TIMEOUT_SECS")
         .ok()
+        .or_else(|| std::env::var("OAUTH2_DATABASE_CONNECT_TIMEOUT").ok())
         .and_then(|v| v.parse().ok())
         .unwrap_or(30)
 }
 fn default_idle_timeout_secs() -> u64 {
     std::env::var("OAUTH2_DATABASE_IDLE_TIMEOUT_SECS")
         .ok()
+        .or_else(|| std::env::var("OAUTH2_DATABASE_IDLE_TIMEOUT").ok())
         .and_then(|v| v.parse().ok())
         .unwrap_or(600)
 }
@@ -449,6 +455,10 @@ impl Config {
                     .ok()
                     .and_then(|p| p.parse().ok())
                     .unwrap_or(8080),
+                workers: std::env::var("OAUTH2_SERVER_WORKERS")
+                    .ok()
+                    .and_then(|w| w.parse::<usize>().ok())
+                    .filter(|w| *w > 0),
                 public_base_url: std::env::var("OAUTH2_SERVER_PUBLIC_BASE_URL")
                     .ok()
                     .or_else(|| std::env::var("OAUTH2_PUBLIC_BASE_URL").ok())
@@ -784,4 +794,71 @@ impl Config {
             bulkheads: vec![],
         })
     }
+}
+
+#[cfg(test)]
+mod tests {
+        use super::Config;
+        use std::fs;
+
+        #[test]
+        fn loads_distributed_scaling_settings_from_hocon() {
+                let tempdir = tempfile::tempdir().expect("tempdir");
+                let config_path = tempdir.path().join("application.conf");
+
+                fs::write(
+                        &config_path,
+                        r#"
+server {
+    host = "127.0.0.1"
+    port = 8080
+    workers = 8
+}
+
+database {
+    url = "postgresql://primary.example.internal:5432/oauth2"
+    read_url = "postgresql://replica.example.internal:5432/oauth2"
+    max_connections = 75
+    min_connections = 5
+    acquire_timeout_secs = 12
+    idle_timeout_secs = 240
+}
+
+jwt {
+    secret = "01234567890123456789012345678901"
+    key_rotation_grace_hours = 24
+    stateless_validation = true
+}
+
+events {
+    enabled = false
+    backend = "in_memory"
+    filter_mode = "allow_all"
+}
+
+cache {
+    redis_url = "redis://redis.internal:6379"
+    token_actor_shards = 8
+}
+                        "#,
+                )
+                .expect("write config");
+
+                let config = Config::from_hocon_path(&config_path).expect("load config");
+
+                assert_eq!(
+                        config.database.read_url.as_deref(),
+                        Some("postgresql://replica.example.internal:5432/oauth2")
+                );
+                assert_eq!(config.database.max_connections, 75);
+                assert_eq!(config.database.min_connections, 5);
+                assert_eq!(config.database.acquire_timeout_secs, 12);
+                assert_eq!(config.database.idle_timeout_secs, 240);
+                assert_eq!(config.server.workers, Some(8));
+                assert!(config.jwt.stateless_validation);
+
+                let cache = config.cache.expect("cache config");
+                assert_eq!(cache.redis_url.as_deref(), Some("redis://redis.internal:6379"));
+                assert_eq!(cache.token_actor_shards, 8);
+        }
 }

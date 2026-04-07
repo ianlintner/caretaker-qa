@@ -8,6 +8,8 @@ use actix_web::middleware::Condition;
 use actix_web::{cookie::Key, middleware as actix_middleware, web, App, HttpResponse, HttpServer};
 use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet, SigningKey};
 use oauth2_openapi::ApiDoc;
+#[cfg(feature = "redis-cache")]
+use redis::aio::ConnectionManager as CacheRedisConnectionManager;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -81,6 +83,105 @@ fn parse_event_types(event_type_strings: &[String]) -> Vec<oauth2_events::EventT
             }
         })
         .collect()
+}
+
+#[cfg(feature = "redis-cache")]
+type CacheRedisManager = Option<CacheRedisConnectionManager>;
+#[cfg(not(feature = "redis-cache"))]
+type CacheRedisManager = Option<()>;
+
+#[cfg(feature = "redis-cache")]
+async fn build_cache_redis_manager(config: &oauth2_config::Config) -> CacheRedisManager {
+    let redis_url = config
+        .cache
+        .as_ref()
+        .and_then(|cache| cache.redis_url.as_deref())
+        .map(str::trim)
+        .filter(|url| !url.is_empty());
+
+    match redis_url {
+        Some(url) => match redis::Client::open(url) {
+            Ok(client) => match redis::aio::ConnectionManager::new(client).await {
+                Ok(conn) => {
+                    tracing::info!("Redis L2 cache enabled for client/token actors");
+                    Some(conn)
+                }
+                Err(error) => {
+                    tracing::warn!(
+                        error = %error,
+                        "Failed to initialize Redis L2 cache; falling back to in-process caches only"
+                    );
+                    None
+                }
+            },
+            Err(error) => {
+                tracing::warn!(
+                    error = %error,
+                    "Invalid Redis L2 cache URL; falling back to in-process caches only"
+                );
+                None
+            }
+        },
+        None => None,
+    }
+}
+
+#[cfg(not(feature = "redis-cache"))]
+async fn build_cache_redis_manager(config: &oauth2_config::Config) -> CacheRedisManager {
+    let redis_url = config
+        .cache
+        .as_ref()
+        .and_then(|cache| cache.redis_url.as_deref())
+        .map(str::trim)
+        .filter(|url| !url.is_empty());
+
+    if redis_url.is_some() {
+        tracing::warn!(
+            "OAUTH2_CACHE_REDIS_URL configured but feature `redis-cache` is not enabled; using in-process caches only"
+        );
+    }
+
+    None
+}
+
+#[cfg(feature = "redis-cache")]
+fn attach_token_cache(
+    actor: oauth2_actix::actors::TokenActor,
+    cache_redis: &CacheRedisManager,
+) -> oauth2_actix::actors::TokenActor {
+    if let Some(conn) = cache_redis.clone() {
+        actor.with_redis(conn)
+    } else {
+        actor
+    }
+}
+
+#[cfg(not(feature = "redis-cache"))]
+fn attach_token_cache(
+    actor: oauth2_actix::actors::TokenActor,
+    _cache_redis: &CacheRedisManager,
+) -> oauth2_actix::actors::TokenActor {
+    actor
+}
+
+#[cfg(feature = "redis-cache")]
+fn attach_client_cache(
+    actor: oauth2_actix::actors::ClientActor,
+    cache_redis: &CacheRedisManager,
+) -> oauth2_actix::actors::ClientActor {
+    if let Some(conn) = cache_redis.clone() {
+        actor.with_redis(conn)
+    } else {
+        actor
+    }
+}
+
+#[cfg(not(feature = "redis-cache"))]
+fn attach_client_cache(
+    actor: oauth2_actix::actors::ClientActor,
+    _cache_redis: &CacheRedisManager,
+) -> oauth2_actix::actors::ClientActor {
+    actor
 }
 
 pub async fn run() -> std::io::Result<()> {
@@ -402,6 +503,9 @@ pub async fn run() -> std::io::Result<()> {
             // Explicitly set to default to make it configurable without changing call sites.
             .with_max_entries(100_000);
 
+    // Optional Redis L2 cache shared across all replicas.
+    let cache_redis_manager = build_cache_redis_manager(&config).await;
+
     // --- Rate limiting ---
     let rate_limiter: Option<Arc<dyn oauth2_ratelimit::RateLimiter>> = {
         let rl_config = config.rate_limit.clone().unwrap_or_default();
@@ -418,14 +522,57 @@ pub async fn run() -> std::io::Result<()> {
                     rl_config.window_secs,
                 )),
                 "redis" => {
-                    tracing::warn!(
-                        "Redis rate limiting backend requested but not yet available \
-                             in this build; falling back to in_memory"
-                    );
-                    Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
-                        rl_config.max_requests,
-                        rl_config.window_secs,
-                    ))
+                    #[cfg(feature = "redis-rate-limit")]
+                    {
+                        let redis_url = rl_config
+                            .redis_url
+                            .as_deref()
+                            .map(str::trim)
+                            .filter(|url| !url.is_empty());
+
+                        if let Some(redis_url) = redis_url {
+                            match oauth2_ratelimit::redis::RedisRateLimiter::new(
+                                redis_url,
+                                rl_config.max_requests,
+                                rl_config.window_secs,
+                            )
+                            .await
+                            {
+                                Ok(limiter) => {
+                                    tracing::info!("Redis rate limiting backend enabled");
+                                    Arc::new(limiter)
+                                }
+                                Err(error) => {
+                                    tracing::warn!(
+                                        error = %error,
+                                        "Failed to initialize Redis rate limiter; falling back to in_memory"
+                                    );
+                                    Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                                        rl_config.max_requests,
+                                        rl_config.window_secs,
+                                    ))
+                                }
+                            }
+                        } else {
+                            tracing::warn!(
+                                "Redis rate limiting backend requested but OAUTH2_RATE_LIMIT_REDIS_URL is not set; falling back to in_memory"
+                            );
+                            Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                                rl_config.max_requests,
+                                rl_config.window_secs,
+                            ))
+                        }
+                    }
+                    #[cfg(not(feature = "redis-rate-limit"))]
+                    {
+                        tracing::warn!(
+                            "Redis rate limiting backend requested but feature `redis-rate-limit` is not enabled; falling back to in_memory"
+                        );
+                        Arc::new(oauth2_ratelimit::in_memory::InMemoryRateLimiter::new(
+                            rl_config.max_requests,
+                            rl_config.window_secs,
+                        ))
+                    }
                 }
                 other => {
                     tracing::warn!(
@@ -604,20 +751,27 @@ pub async fn run() -> std::io::Result<()> {
         for _ in 0..shard_count {
             let shard = if let Some(ref event_bus) = event_bus {
                 let eb = event_bus.clone();
+                let cache_redis = cache_redis_manager.clone();
                 actix::Actor::create(|ctx| {
                     ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
-                    oauth2_actix::actors::TokenActor::with_events(
+                    let actor = oauth2_actix::actors::TokenActor::with_events(
                         storage.clone(),
                         jwt_secret.clone(),
                         eb,
                     )
-                    .with_keyset(keyset.clone())
+                    .with_keyset(keyset.clone());
+                    attach_token_cache(actor, &cache_redis)
                 })
             } else {
+                let cache_redis = cache_redis_manager.clone();
                 actix::Actor::create(|ctx| {
                     ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
-                    oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
-                        .with_keyset(keyset.clone())
+                    let actor = oauth2_actix::actors::TokenActor::new(
+                        storage.clone(),
+                        jwt_secret.clone(),
+                    )
+                    .with_keyset(keyset.clone());
+                    attach_token_cache(actor, &cache_redis)
                 })
             };
             shards.push(shard);
@@ -627,14 +781,19 @@ pub async fn run() -> std::io::Result<()> {
     tracing::info!(shards = shard_count, "TokenActorPool started");
 
     let client_actor = if let Some(ref event_bus) = event_bus {
+        let cache_redis = cache_redis_manager.clone();
         actix::Actor::create(|ctx| {
             ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
-            oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone())
+            let actor =
+                oauth2_actix::actors::ClientActor::with_events(storage.clone(), event_bus.clone());
+            attach_client_cache(actor, &cache_redis)
         })
     } else {
+        let cache_redis = cache_redis_manager.clone();
         actix::Actor::create(|ctx| {
             ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
-            oauth2_actix::actors::ClientActor::new(storage.clone())
+            let actor = oauth2_actix::actors::ClientActor::new(storage.clone());
+            attach_client_cache(actor, &cache_redis)
         })
     };
 
@@ -668,7 +827,7 @@ pub async fn run() -> std::io::Result<()> {
     );
 
     // Start HTTP server
-    let server = HttpServer::new(move || {
+    let mut server = HttpServer::new(move || {
         let cors = {
             let origins = server_config.allowed_origins.clone();
             let mut cors_builder = Cors::default()
@@ -978,9 +1137,14 @@ pub async fn run() -> std::io::Result<()> {
     .client_disconnect_timeout(std::time::Duration::from_secs(5))
     // Increase the listen backlog in high-traffic deployments so that the OS
     // can queue more incoming TCP connections while the server is busy.
-    .backlog(2048)
-    .bind(&bind_addr)?
-    .run();
+    .backlog(2048);
+
+    if let Some(workers) = config.server.workers {
+        tracing::info!(workers, "HTTP worker override configured");
+        server = server.workers(workers);
+    }
+
+    let server = server.bind(&bind_addr)?.run();
 
     server.await?;
 

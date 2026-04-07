@@ -1,0 +1,79 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - poddisruptionbudget.yaml
+
+patches:
+  - target:
+      kind: ConfigMap
+      name: oauth2-server-config
+    patch: |
+      - op: add
+        path: /data/OAUTH2_DATABASE_ACQUIRE_TIMEOUT_SECS
+        value: "10"
+      - op: add
+        path: /data/OAUTH2_DATABASE_IDLE_TIMEOUT_SECS
+        value: "300"
+      - op: add
+        path: /data/OAUTH2_TOKEN_ACTOR_SHARDS
+        value: "4"
+      - op: add
+        path: /data/OAUTH2_CACHE_REDIS_URL
+        value: "redis://redis:6379"
+  - target:
+      kind: Deployment
+      name: oauth2-server
+    patch: |
+      - op: add
+        path: /spec/minReadySeconds
+        value: 10
+      - op: add
+        path: /spec/revisionHistoryLimit
+        value: 5
+      - op: add
+        path: /spec/strategy
+        value:
+          type: RollingUpdate
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
+      - op: add
+        path: /spec/template/spec/terminationGracePeriodSeconds
+        value: 30
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels:
+                      app: oauth2-server
+                  topologyKey: kubernetes.io/hostname
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app: oauth2-server
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+            labelSelector:
+              matchLabels:
+                app: oauth2-server
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: oauth2-server
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 30

@@ -9,3 +9,6 @@ serde = { version = "1.0", features = ["derive"] }
 hocon = { version = "0.9", default-features = false, features = ["serde-support"] }
 config = "0.15"
 tracing = "0.1"
+
+[dev-dependencies]
+tempfile = "3"

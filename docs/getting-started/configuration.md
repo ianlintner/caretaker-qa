@@ -36,12 +36,14 @@ export OAUTH2_SERVER_WORKERS=4
 
 ### Database Configuration
 
-| Variable                          | Type    | Default                     | Description                  |
-| --------------------------------- | ------- | --------------------------- | ---------------------------- |
-| `OAUTH2_DATABASE_URL`             | String  | `sqlite:oauth2.db?mode=rwc` | Database connection URL      |
-| `OAUTH2_DATABASE_MAX_CONNECTIONS` | Integer | `10`                        | Maximum database connections |
-| `OAUTH2_DATABASE_MIN_CONNECTIONS` | Integer | `1`                         | Minimum database connections |
-| `OAUTH2_DATABASE_CONNECT_TIMEOUT` | Integer | `30`                        | Connection timeout (seconds) |
+| Variable                               | Type    | Default                     | Description                                |
+| -------------------------------------- | ------- | --------------------------- | ------------------------------------------ |
+| `OAUTH2_DATABASE_URL`                  | String  | `sqlite:oauth2.db?mode=rwc` | Primary database connection URL            |
+| `OAUTH2_DATABASE_READ_URL`             | String  | _(unset)_                   | Optional read-replica connection URL       |
+| `OAUTH2_DATABASE_MAX_CONNECTIONS`      | Integer | `50`                        | Maximum database connections per pool      |
+| `OAUTH2_DATABASE_MIN_CONNECTIONS`      | Integer | `1`                         | Minimum idle database connections per pool |
+| `OAUTH2_DATABASE_ACQUIRE_TIMEOUT_SECS` | Integer | `30`                        | Connection acquire timeout (seconds)       |
+| `OAUTH2_DATABASE_IDLE_TIMEOUT_SECS`    | Integer | `600`                       | Idle connection lifetime (seconds)         |
 
 **Supported Databases:**
 
@@ -72,6 +74,36 @@ MongoDB support is available behind a cargo feature flag to keep the default bui
     # MongoDB Atlas (SRV)
     export OAUTH2_DATABASE_URL=mongodb+srv://user:pass@cluster0.example.mongodb.net/oauth2
     ```
+
+### Distributed scaling configuration
+
+These settings are useful once you move from a single instance to a clustered or regional deployment.
+
+| Variable                          | Type    | Default     | Description                                                |
+| --------------------------------- | ------- | ----------- | ---------------------------------------------------------- |
+| `OAUTH2_CACHE_REDIS_URL`          | String  | _(unset)_   | Shared Redis L2 cache behind the per-process LRU caches    |
+| `OAUTH2_TOKEN_ACTOR_SHARDS`       | Integer | `1`         | Token actor shards per process                             |
+| `OAUTH2_RATE_LIMIT_ENABLED`       | Boolean | `false`     | Enable request throttling                                  |
+| `OAUTH2_RATE_LIMIT_BACKEND`       | String  | `in_memory` | `in_memory` or `redis`                                     |
+| `OAUTH2_RATE_LIMIT_REDIS_URL`     | String  | _(unset)_   | Redis URL for shared rate limiting                         |
+| `OAUTH2_JWT_STATELESS_VALIDATION` | Boolean | `false`     | Validate JWTs without DB/cache lookup during introspection |
+
+To enable the full distributed runtime, build with:
+
+```bash
+cargo build --release --features distributed
+```
+
+Example clustered configuration:
+
+```bash
+export OAUTH2_DATABASE_READ_URL=postgresql://oauth2_user:password@postgres-read:5432/oauth2
+export OAUTH2_CACHE_REDIS_URL=redis://redis:6379
+export OAUTH2_TOKEN_ACTOR_SHARDS=4
+export OAUTH2_RATE_LIMIT_ENABLED=true
+export OAUTH2_RATE_LIMIT_BACKEND=redis
+export OAUTH2_RATE_LIMIT_REDIS_URL=redis://redis:6379
+```
 
 ### JWT Configuration
 

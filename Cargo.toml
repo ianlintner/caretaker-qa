@@ -61,6 +61,13 @@ events-redis = ["oauth2-events/events-redis", "oauth2-server/events-redis"]
 events-kafka = ["oauth2-events/events-kafka", "oauth2-server/events-kafka"]
 events-rabbit = ["oauth2-events/events-rabbit", "oauth2-server/events-rabbit"]
 
+# Optional Redis-backed distributed runtime features.
+redis-cache = ["oauth2-server/redis-cache"]
+redis-rate-limit = ["oauth2-server/redis-rate-limit"]
+
+# Convenience feature for the distributed deployment profile.
+distributed = ["redis-cache", "redis-rate-limit", "events-redis"]
+
 [dev-dependencies]
 # Testing
 async-trait = "0.1"

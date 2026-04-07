@@ -132,9 +132,12 @@ All pool and scaling settings are configurable at runtime via env vars:
 | -------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `OAUTH2_DATABASE_MAX_CONNECTIONS`      | `50`        | Max DB pool connections per instance                                                                                          |
 | `OAUTH2_DATABASE_MIN_CONNECTIONS`      | `1`         | Min idle pool connections                                                                                                     |
+| `OAUTH2_DATABASE_READ_URL`             | _(none)_    | Optional read replica URL for local/regional read traffic                                                                     |
 | `OAUTH2_DATABASE_ACQUIRE_TIMEOUT_SECS` | `30`        | Timeout waiting for a connection                                                                                              |
 | `OAUTH2_DATABASE_IDLE_TIMEOUT_SECS`    | `600`       | Idle connection lifetime                                                                                                      |
 | `OAUTH2_SESSION_KEY`                   | _(random)_  | **Set in production** — hex string, 128 chars (`openssl rand -hex 64`). Without a fixed value, sessions reset on pod restart. |
+| `OAUTH2_CACHE_REDIS_URL`               | _(none)_    | Optional Redis L2 cache URL (requires `redis-cache` / `distributed` feature)                                                  |
+| `OAUTH2_TOKEN_ACTOR_SHARDS`            | `1`         | Per-process TokenActor shard count; use `4+` in busy clustered deployments                                                    |
 | `OAUTH2_RATE_LIMIT_ENABLED`            | `false`     | Enable rate limiting                                                                                                          |
 | `OAUTH2_RATE_LIMIT_BACKEND`            | `in_memory` | `in_memory` or `redis`                                                                                                        |
 | `OAUTH2_RATE_LIMIT_REDIS_URL`          | _(none)_    | Redis URL for shared rate limiting                                                                                            |
@@ -228,11 +231,11 @@ tokens to Redis after an L1 LRU miss. On subsequent requests the lookup
 order is L1 → L2 (Redis) → DB, cutting database reads dramatically:
 
 ```bash
-# Enable at build time
-cargo build --features redis-cache
+# Enable the distributed runtime bundle at build time
+cargo build --features distributed
 
 # Point at your Redis instance
-OAUTH2_REDIS_URL=redis://redis:6379
+OAUTH2_CACHE_REDIS_URL=redis://redis:6379
 ```
 
 Keys are stored as `token:{hash}` with the same 60 s TTL used by the
@@ -240,14 +243,14 @@ in-process L1 cache. Revocations delete from both L1 and L2.
 
 #### Read-replica routing
 
-When `DATABASE_READ_URL` is set, `SqlxStorage` maintains a second
+When `OAUTH2_DATABASE_READ_URL` is set, `SqlxStorage` maintains a second
 connection pool for read-only queries. Eight read methods
 (`find_token`, `get_client`, `find_auth_code`, etc.) are routed to
 the replica while writes continue against the primary:
 
-| Variable            | Default  | Description                            |
-| ------------------- | -------- | -------------------------------------- |
-| `DATABASE_READ_URL` | _(none)_ | Connection string for the read replica |
+| Variable                   | Default  | Description                            |
+| -------------------------- | -------- | -------------------------------------- |
+| `OAUTH2_DATABASE_READ_URL` | _(none)_ | Connection string for the read replica |
 
 Pool sizing (`max_connections`, `min_connections`, timeouts) is shared
 between primary and replica pools.
@@ -261,10 +264,13 @@ validation/revocation):
 
 | Variable                    | Default | Description                    |
 | --------------------------- | ------- | ------------------------------ |
-| `OAUTH2_TOKEN_ACTOR_SHARDS` | `4`     | Number of TokenActor instances |
+| `OAUTH2_TOKEN_ACTOR_SHARDS` | `1`     | Number of TokenActor instances |
 
 Increasing the shard count reduces contention on the per-actor LRU
 cache lock and distributes mailbox pressure.
+
+For the Kubernetes implementation of these settings, see
+`k8s/overlays/production-distributed` and the distributed deployment guide.
 
 #### Circuit breaker for social login
 

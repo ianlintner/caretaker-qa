@@ -15,6 +15,31 @@ kubectl apply -k k8s/overlays/staging
 kubectl apply -k k8s/overlays/production
 ```
 
+## Distributed / regional profile
+
+For clustered or regional production deployments, start from:
+
+- `k8s/overlays/production-distributed`
+
+This profile composes the new distributed HA defaults with Redis, PgBouncer,
+and PostgreSQL tuning.
+
+Build the image with the distributed runtime features first:
+
+```bash
+cargo build --release --features distributed
+```
+
+Or build the container image with:
+
+```bash
+docker build --build-arg CARGO_FEATURES="distributed" -t rust-oauth2-server:distributed .
+```
+
+See [Distributed Scaling, Clustering, and Regional Shards](distributed-scaling.md)
+for the full cell-based deployment model, regional shard guidance, and
+recommended routing boundaries.
+
 See the repo’s Kubernetes guide:
 
 - [`k8s/README.md`](https://github.com/ianlintner/rust_oauth2_server/blob/main/k8s/README.md)
@@ -98,7 +123,6 @@ This overlay includes:
 - Jaeger UI
 - OpenTelemetry Collector
 
-
 To access the UIs from your laptop:
 
 ```bash
@@ -107,7 +131,6 @@ kubectl -n oauth2-server port-forward svc/jaeger 16686:16686
 ```
 
 Then open:
-
 
 ### Generating demo traffic (for dashboards/SLOs)
 
