@@ -53,9 +53,7 @@ impl TokenActor {
             jwt_secret,
             event_bus: None,
             keyset: None,
-            token_cache: LruCache::new(
-                NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap(),
-            ),
+            token_cache: LruCache::new(NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap()),
             token_cache_ttl: std::time::Duration::from_secs(TOKEN_CACHE_TTL_SECS),
             redis: Default::default(),
         }
@@ -67,9 +65,7 @@ impl TokenActor {
             jwt_secret,
             event_bus: Some(event_bus),
             keyset: None,
-            token_cache: LruCache::new(
-                NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap(),
-            ),
+            token_cache: LruCache::new(NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap()),
             token_cache_ttl: std::time::Duration::from_secs(TOKEN_CACHE_TTL_SECS),
             redis: Default::default(),
         }
@@ -281,7 +277,11 @@ impl Handler<ValidateToken> for TokenActor {
         Box::pin(
             async move {
                 if let Some(token) = cached {
-                    tracing::debug!(cache = "hit", layer = "L1", "Token found in validation cache");
+                    tracing::debug!(
+                        cache = "hit",
+                        layer = "L1",
+                        "Token found in validation cache"
+                    );
                     if !token.is_valid() {
                         return Err(OAuth2Error::invalid_grant("Token is expired or revoked"));
                     }
@@ -296,14 +296,20 @@ impl Handler<ValidateToken> for TokenActor {
                         redis::cmd("GET").arg(&redis_key).query_async(conn).await;
                     if let Ok(Some(json)) = redis_result {
                         if let Ok(token) = serde_json::from_str::<Token>(&json) {
-                            tracing::debug!(cache = "hit", layer = "L2", "Token found in Redis cache");
+                            tracing::debug!(
+                                cache = "hit",
+                                layer = "L2",
+                                "Token found in Redis cache"
+                            );
                             // Promote to L1.
                             let _ = self_addr.try_send(CacheValidatedToken {
                                 access_token: token_normalized.clone(),
                                 token: token.clone(),
                             });
                             if !token.is_valid() {
-                                return Err(OAuth2Error::invalid_grant("Token is expired or revoked"));
+                                return Err(OAuth2Error::invalid_grant(
+                                    "Token is expired or revoked",
+                                ));
                             }
                             return Ok(token);
                         }
@@ -454,10 +460,8 @@ impl Handler<RevokeToken> for TokenActor {
                 // Evict from Redis L2.
                 #[cfg(feature = "redis-cache")]
                 if let Some(ref mut conn) = redis_conn.clone() {
-                    let _: Result<(), _> = redis::cmd("DEL")
-                        .arg(&redis_key)
-                        .query_async(conn)
-                        .await;
+                    let _: Result<(), _> =
+                        redis::cmd("DEL").arg(&redis_key).query_async(conn).await;
                 }
 
                 // Get token info before revoking for event
@@ -513,16 +517,14 @@ impl Handler<ValidateTokenStateless> for TokenActor {
             // We are inside the actor (synchronous handler), so we cannot
             // await the RwLock.  Use try_read — a contended lock is
             // extremely unlikely because writers (key rotation) are rare.
-            let ks = ks_lock.try_read().map_err(|_| {
-                OAuth2Error::new("server_error", Some("keyset lock contended"))
-            })?;
-            Claims::decode_with_keyset(&raw, &ks).map_err(|e| {
-                OAuth2Error::invalid_grant(&format!("JWT decode failed: {e}"))
-            })?
+            let ks = ks_lock
+                .try_read()
+                .map_err(|_| OAuth2Error::new("server_error", Some("keyset lock contended")))?;
+            Claims::decode_with_keyset(&raw, &ks)
+                .map_err(|e| OAuth2Error::invalid_grant(&format!("JWT decode failed: {e}")))?
         } else {
-            Claims::decode(&raw, &self.jwt_secret).map_err(|e| {
-                OAuth2Error::invalid_grant(&format!("JWT decode failed: {e}"))
-            })?
+            Claims::decode(&raw, &self.jwt_secret)
+                .map_err(|e| OAuth2Error::invalid_grant(&format!("JWT decode failed: {e}")))?
         };
 
         // Reconstruct a minimal Token from the claims.

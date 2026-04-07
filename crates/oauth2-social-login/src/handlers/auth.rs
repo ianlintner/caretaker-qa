@@ -161,9 +161,15 @@ pub async fn auth_callback(
 
     // Exchange code for token based on provider
     let user_info = match provider.as_str() {
-        "google" => handle_google_callback(&query.code, config.as_ref(), &social_svc, &session).await?,
-        "microsoft" => handle_microsoft_callback(&query.code, config.as_ref(), &social_svc, &session).await?,
-        "github" => handle_github_callback(&query.code, config.as_ref(), &social_svc, &session).await?,
+        "google" => {
+            handle_google_callback(&query.code, config.as_ref(), &social_svc, &session).await?
+        }
+        "microsoft" => {
+            handle_microsoft_callback(&query.code, config.as_ref(), &social_svc, &session).await?
+        }
+        "github" => {
+            handle_github_callback(&query.code, config.as_ref(), &social_svc, &session).await?
+        }
         _ => return Err(OAuth2Error::invalid_request("Unsupported provider")),
     };
 

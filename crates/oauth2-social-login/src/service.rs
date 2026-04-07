@@ -174,9 +174,15 @@ impl SocialLoginService {
             ))
     }
 
-    pub async fn fetch_google_user_info(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
+    pub async fn fetch_google_user_info(
+        &self,
+        access_token: &str,
+    ) -> Result<SocialUserInfo, OAuth2Error> {
         if !self.cb_google.allow_request() {
-            return Err(OAuth2Error::new("provider_unavailable", Some("Google circuit breaker open")));
+            return Err(OAuth2Error::new(
+                "provider_unavailable",
+                Some("Google circuit breaker open"),
+            ));
         }
 
         let result = self.do_fetch_google(access_token).await;
@@ -188,7 +194,8 @@ impl SocialLoginService {
     }
 
     async fn do_fetch_google(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
-        let response = self.http
+        let response = self
+            .http
             .get("https://www.googleapis.com/oauth2/v2/userinfo")
             .bearer_auth(access_token)
             .send()
@@ -222,7 +229,10 @@ impl SocialLoginService {
         access_token: &str,
     ) -> Result<SocialUserInfo, OAuth2Error> {
         if !self.cb_microsoft.allow_request() {
-            return Err(OAuth2Error::new("provider_unavailable", Some("Microsoft circuit breaker open")));
+            return Err(OAuth2Error::new(
+                "provider_unavailable",
+                Some("Microsoft circuit breaker open"),
+            ));
         }
 
         let result = self.do_fetch_microsoft(access_token).await;
@@ -234,7 +244,8 @@ impl SocialLoginService {
     }
 
     async fn do_fetch_microsoft(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
-        let response = self.http
+        let response = self
+            .http
             .get("https://graph.microsoft.com/v1.0/me")
             .bearer_auth(access_token)
             .send()
@@ -264,9 +275,15 @@ impl SocialLoginService {
         })
     }
 
-    pub async fn fetch_github_user_info(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
+    pub async fn fetch_github_user_info(
+        &self,
+        access_token: &str,
+    ) -> Result<SocialUserInfo, OAuth2Error> {
         if !self.cb_github.allow_request() {
-            return Err(OAuth2Error::new("provider_unavailable", Some("GitHub circuit breaker open")));
+            return Err(OAuth2Error::new(
+                "provider_unavailable",
+                Some("GitHub circuit breaker open"),
+            ));
         }
 
         let result = self.do_fetch_github(access_token).await;
@@ -278,7 +295,8 @@ impl SocialLoginService {
     }
 
     async fn do_fetch_github(&self, access_token: &str) -> Result<SocialUserInfo, OAuth2Error> {
-        let response = self.http
+        let response = self
+            .http
             .get("https://api.github.com/user")
             .bearer_auth(access_token)
             .header("User-Agent", "rust_oauth2_server")
@@ -304,7 +322,8 @@ impl SocialLoginService {
             email
         } else {
             // Fetch primary email
-            let email_response = self.http
+            let email_response = self
+                .http
                 .get("https://api.github.com/user/emails")
                 .bearer_auth(access_token)
                 .header("User-Agent", "rust_oauth2_server")

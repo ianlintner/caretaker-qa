@@ -82,9 +82,7 @@ impl CircuitBreaker {
     pub fn on_failure(&self) {
         let mut inner = self.inner.lock().unwrap();
         inner.consecutive_failures += 1;
-        if inner.consecutive_failures >= self.failure_threshold
-            || inner.state == State::HalfOpen
-        {
+        if inner.consecutive_failures >= self.failure_threshold || inner.state == State::HalfOpen {
             inner.state = State::Open {
                 since: Instant::now(),
             };

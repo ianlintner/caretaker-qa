@@ -40,9 +40,7 @@ impl ClientActor {
         Self {
             db,
             event_bus: None,
-            cache: LruCache::new(
-                NonZeroUsize::new(CLIENT_CACHE_MAX_ENTRIES).expect("non-zero"),
-            ),
+            cache: LruCache::new(NonZeroUsize::new(CLIENT_CACHE_MAX_ENTRIES).expect("non-zero")),
             cache_ttl: Duration::from_secs(CLIENT_CACHE_TTL_SECS),
             redis: Default::default(),
         }
@@ -52,9 +50,7 @@ impl ClientActor {
         Self {
             db,
             event_bus: Some(event_bus),
-            cache: LruCache::new(
-                NonZeroUsize::new(CLIENT_CACHE_MAX_ENTRIES).expect("non-zero"),
-            ),
+            cache: LruCache::new(NonZeroUsize::new(CLIENT_CACHE_MAX_ENTRIES).expect("non-zero")),
             cache_ttl: Duration::from_secs(CLIENT_CACHE_TTL_SECS),
             redis: Default::default(),
         }
@@ -229,7 +225,11 @@ impl Handler<GetClient> for ClientActor {
                         redis::cmd("GET").arg(&redis_key).query_async(conn).await;
                     if let Ok(Some(json)) = redis_result {
                         if let Ok(client) = serde_json::from_str::<Client>(&json) {
-                            tracing::debug!(cache = "hit", layer = "L2", "Client found in Redis cache");
+                            tracing::debug!(
+                                cache = "hit",
+                                layer = "L2",
+                                "Client found in Redis cache"
+                            );
                             let _ = self_addr.try_send(CacheClient {
                                 client: client.clone(),
                             });
@@ -308,20 +308,27 @@ impl Handler<ValidateClient> for ClientActor {
         Box::pin(
             async move {
                 let client = if let Some(client) = cached {
-                    tracing::debug!(cache = "hit", layer = "L1", "Client found in validation cache");
+                    tracing::debug!(
+                        cache = "hit",
+                        layer = "L1",
+                        "Client found in validation cache"
+                    );
                     client
                 } else {
                     // L2: Check Redis cache.
                     let mut from_redis = None;
                     #[cfg(feature = "redis-cache")]
                     if let Some(ref mut conn) = redis_conn.clone() {
-                        let redis_key =
-                            format!("{}{}", REDIS_CLIENT_PREFIX, requested_client_id);
+                        let redis_key = format!("{}{}", REDIS_CLIENT_PREFIX, requested_client_id);
                         let redis_result: Result<Option<String>, _> =
                             redis::cmd("GET").arg(&redis_key).query_async(conn).await;
                         if let Ok(Some(json)) = redis_result {
                             if let Ok(client) = serde_json::from_str::<Client>(&json) {
-                                tracing::debug!(cache = "hit", layer = "L2", "Client found in Redis validation cache");
+                                tracing::debug!(
+                                    cache = "hit",
+                                    layer = "L2",
+                                    "Client found in Redis validation cache"
+                                );
                                 let _ = self_addr.try_send(CacheClient {
                                     client: client.clone(),
                                 });

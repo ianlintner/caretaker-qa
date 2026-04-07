@@ -20,7 +20,10 @@ impl TokenActorPool {
     /// # Panics
     /// Panics if `shards` is empty.
     pub fn new(shards: Vec<Addr<TokenActor>>) -> Self {
-        assert!(!shards.is_empty(), "TokenActorPool requires at least one shard");
+        assert!(
+            !shards.is_empty(),
+            "TokenActorPool requires at least one shard"
+        );
         Self { shards }
     }
 

@@ -13,8 +13,8 @@ pub use oauth2_ports::{DynStorage, Storage};
 /// Backward-compatible module path for the SQLx adapter.
 #[cfg(feature = "sqlx")]
 pub mod sqlx {
-    pub use oauth2_storage_sqlx::SqlxStorage;
     pub use oauth2_storage_sqlx::PoolConfig;
+    pub use oauth2_storage_sqlx::SqlxStorage;
 }
 
 /// Backward-compatible module path for the Mongo adapter.

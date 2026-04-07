@@ -142,14 +142,13 @@ pub async fn run() -> std::io::Result<()> {
         acquire_timeout: std::time::Duration::from_secs(config.database.acquire_timeout_secs),
         idle_timeout: std::time::Duration::from_secs(config.database.idle_timeout_secs),
     };
-    let storage =
-        oauth2_storage_factory::create_storage_with_pool_config(
-            &config.database.url,
-            Some(pool_config),
-            config.database.read_url.as_deref(),
-        )
-            .await
-            .expect("Failed to create storage backend");
+    let storage = oauth2_storage_factory::create_storage_with_pool_config(
+        &config.database.url,
+        Some(pool_config),
+        config.database.read_url.as_deref(),
+    )
+    .await
+    .expect("Failed to create storage backend");
 
     storage
         .init()
