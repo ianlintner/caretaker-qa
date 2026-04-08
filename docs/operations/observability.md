@@ -94,6 +94,8 @@ Performance comparisons are generated into:
 
 The benchmark harness guide lives in [`benchmarks/README.md`](../../benchmarks/README.md).
 
+Use the repo-local benchmark guide here instead: [benchmarks/README.md](https://github.com/ianlintner/rust-oauth2-server/blob/main/benchmarks/README.md).
+
 ## Related pages
 
 - [Deployment](deployment.md)

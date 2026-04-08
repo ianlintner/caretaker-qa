@@ -141,7 +141,7 @@ Before wiring a client against this server, confirm:
 
 - your `redirect_uri` exactly matches the registered value
 - you are using PKCE for Authorization Code
-- your public base URL is correct behind a proxy (`OAUTH2_SERVER_PUBLIC_BASE_URL`)
+- your public issuer/base URL is correct behind a proxy (`OAUTH2_SERVER_PUBLIC_BASE_URL`, alias `OAUTH2_PUBLIC_URL`)
 - your chosen scopes exist in your client registration
 - you are not depending on refresh/password grants unless you have intentionally enabled them
 

@@ -4,7 +4,7 @@ global:
 
 scrape_configs:
   # Scrapes the oauth2-server running in a KIND cluster via a local port-forward.
-  # See docs/deployment/kubernetes.md ("Local observability with KIND").
+  # See k8s/README.md ("KIND + local observability").
   - job_name: oauth2-server-kind
     metrics_path: /metrics
     static_configs:

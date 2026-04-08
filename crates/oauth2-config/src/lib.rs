@@ -406,6 +406,7 @@ impl Config {
 
         // Post-process to maintain backward compatibility with flat event config
         config.normalize_event_config();
+        config.normalize_server_config();
 
         // Handle OAUTH2_EVENTS_TYPES environment variable if set
         // HOCON doesn't support array substitution from env vars directly
@@ -563,6 +564,7 @@ impl Config {
         };
 
         config.normalize_event_config();
+        config.normalize_server_config();
 
         if let Ok(val) = std::env::var("OAUTH2_ALLOWED_ORIGINS") {
             if !val.trim().is_empty() {
@@ -617,6 +619,29 @@ impl Config {
                 self.events.rabbit_routing_key = Some(rabbit.routing_key.clone());
             }
         }
+    }
+
+    /// Normalize server URL aliases so docs and config examples can use the
+    /// externally-visible base URL name without breaking OIDC discovery.
+    fn normalize_server_config(&mut self) {
+        let public_base_url = self
+            .server
+            .public_base_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(ToOwned::to_owned);
+
+        let public_url = self
+            .server
+            .public_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(ToOwned::to_owned);
+
+        self.server.public_base_url = public_base_url;
+        self.server.public_url = public_url.or_else(|| self.server.public_base_url.clone());
     }
 
     /// Load social provider configurations from environment variables
@@ -798,7 +823,7 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-        use super::Config;
+    use super::Config;
         use std::fs;
 
         #[test]
@@ -861,4 +886,47 @@ cache {
                 assert_eq!(cache.redis_url.as_deref(), Some("redis://redis.internal:6379"));
                 assert_eq!(cache.token_actor_shards, 8);
         }
+
+            #[test]
+            fn public_base_url_alias_populates_public_url() {
+                let tempdir = tempfile::tempdir().expect("tempdir");
+                let config_path = tempdir.path().join("application.conf");
+
+                fs::write(
+                    &config_path,
+                    r#"
+        server {
+            host = "127.0.0.1"
+            port = 8080
+            public_base_url = "https://auth.example.com"
+        }
+
+        database {
+            url = "sqlite:oauth2.db?mode=rwc"
+        }
+
+        jwt {
+            secret = "01234567890123456789012345678901"
+        }
+
+        events {
+            enabled = false
+            backend = "in_memory"
+            filter_mode = "allow_all"
+        }
+                    "#,
+                )
+                .expect("write config");
+
+                let config = Config::from_hocon_path(&config_path).expect("load config");
+
+                assert_eq!(
+                    config.server.public_base_url.as_deref(),
+                    Some("https://auth.example.com")
+                );
+                assert_eq!(
+                    config.server.public_url.as_deref(),
+                    Some("https://auth.example.com")
+                );
+            }
 }

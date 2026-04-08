@@ -118,10 +118,10 @@ There is no single “revoke all” endpoint. Your practical options are:
 
 Database backup strategy is deployment-specific, so this page does not pretend every team uses the same S3 bucket and cron job.
 
-Use your platform-native Postgres backup process, and verify restores on a non-production environment. For Kubernetes-specific mechanics, use [`k8s/README.md`](../../k8s/README.md).
+Use your platform-native Postgres backup process, and verify restores on a non-production environment. For Kubernetes-specific mechanics, use [the Kubernetes README](https://github.com/ianlintner/rust-oauth2-server/blob/main/k8s/README.md).
 
 ## Related pages
 
 - [Deployment](deployment.md)
 - [Observability](observability.md)
-- [Security policy](../../SECURITY.md)
+- [Security policy](https://github.com/ianlintner/rust-oauth2-server/blob/main/SECURITY.md)

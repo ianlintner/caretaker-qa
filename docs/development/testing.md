@@ -14,6 +14,12 @@ cargo test --verbose --all-features --locked
 
 If `cargo fmt --check` fails, run `cargo fmt --all` and re-check.
 
+If you changed docs, also run:
+
+```bash
+python3 -m mkdocs build --strict
+```
+
 ## Fast local loops
 
 Use smaller commands while iterating:
@@ -88,3 +94,5 @@ Start with:
 - `benchmarks/results/comparison-report.md`
 
 Keep benchmark instructions in the benchmark repo files, not duplicated across the docs site.
+
+Repo-local guide: [benchmarks/README.md](https://github.com/ianlintner/rust-oauth2-server/blob/main/benchmarks/README.md)

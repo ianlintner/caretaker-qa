@@ -12,12 +12,15 @@ Beyond the core OAuth endpoints, this repo exposes three integration surfaces th
 | --------- | --------------- | --------------------------------------------------- |
 | Google    | Shipped         | `/auth/login/google`, `/auth/callback/google`       |
 | Microsoft | Shipped         | `/auth/login/microsoft`, `/auth/callback/microsoft` |
+| Azure AD  | Alias           | `/auth/login/azure` reuses the Microsoft flow       |
 | GitHub    | Shipped         | `/auth/login/github`, `/auth/callback/github`       |
-| Azure AD  | Shipped         | `/auth/login/azure` reuses the Microsoft flow       |
 | Okta      | Not implemented | `/auth/login/okta` returns HTTP `503`               |
 | Auth0     | Not implemented | `/auth/login/auth0` returns HTTP `503`              |
 
 Minimum setup is just provider credentials plus a redirect URI. The exact variable names live in `.env.example` and `application.conf.example`.
+
+!!! note
+`/auth/login/azure` is a route alias, not a separate provider implementation. Use the Microsoft credentials and redirect URI for that path today.
 
 Example for Google:
 
@@ -65,18 +68,18 @@ The repository includes a separate Node.js stdio server in `mcp-server/`.
 
 ### What it exposes
 
-| Tool                | Purpose                                  |
-| ------------------- | ---------------------------------------- |
-| `register_client`   | Calls the admin client-registration API  |
-| `get_token`         | Client credentials token request         |
-| `exchange_code`     | Authorization code token exchange        |
-| `refresh_token`     | Refresh-token request                    |
-| `introspect_token`  | Token introspection                      |
-| `revoke_token`      | Token revocation                         |
-| `get_health`        | Health probe                             |
-| `get_readiness`     | Readiness probe                          |
-| `get_metrics`       | Metrics fetch                            |
-| `get_openid_config` | Discovery fetch                          |
+| Tool                | Purpose                                 |
+| ------------------- | --------------------------------------- |
+| `register_client`   | Calls the admin client-registration API |
+| `get_token`         | Client credentials token request        |
+| `exchange_code`     | Authorization code token exchange       |
+| `refresh_token`     | Refresh-token request                   |
+| `introspect_token`  | Token introspection                     |
+| `revoke_token`      | Token revocation                        |
+| `get_health`        | Health probe                            |
+| `get_readiness`     | Readiness probe                         |
+| `get_metrics`       | Metrics fetch                           |
+| `get_openid_config` | Discovery fetch                         |
 
 ### Important limitations
 
@@ -96,6 +99,8 @@ npm start
 
 Then point your MCP client at `mcp-server/src/index.js` with `OAUTH2_BASE_URL` set to the running server. Use [`mcp-server/README.md`](../../mcp-server/README.md) for the repo-local guide.
 
+For the fuller repo-local guide, use [the MCP server README](https://github.com/ianlintner/rust-oauth2-server/blob/main/mcp-server/README.md).
+
 ## Source of truth
 
 When you are unsure whether an integration is real or aspirational, check these files first:
@@ -104,6 +109,11 @@ When you are unsure whether an integration is real or aspirational, check these 
 - `.env.example` and `application.conf.example` for config keys
 - `mcp-server/src/index.js` for exposed MCP tools
 - `crates/oauth2-events/` for event backend support
+
+## Useful examples
+
+- [Eventing example](../examples/eventing.md)
+- [Service-to-service example](../examples/service-to-service.md)
 
 ## Related pages
 

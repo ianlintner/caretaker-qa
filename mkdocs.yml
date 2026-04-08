@@ -3,6 +3,7 @@ site_description: Self-hosted OAuth2 and OIDC server with admin tooling, observa
 site_author: Ian Lintner
 repo_url: https://github.com/ianlintner/rust-oauth2-server
 repo_name: ianlintner/rust-oauth2-server
+strict: true
 
 theme:
     name: material
@@ -10,14 +11,10 @@ theme:
         repo: fontawesome/brands/github
     features:
         - navigation.instant
-        - navigation.instant.prefetch
         - navigation.tracking
-        - navigation.tabs
-        - navigation.sections
         - navigation.top
         - search.suggest
         - search.highlight
-        - search.share
         - content.code.copy
         - toc.follow
     palette:
@@ -59,18 +56,18 @@ markdown_extensions:
 
 nav:
     - Home: index.md
-    - Get started:
+    - Start here:
             - Quickstart: getting-started/quickstart.md
             - Configuration: getting-started/configuration.md
     - Use the server:
             - OAuth & OIDC: usage/oauth2-oidc.md
             - Admin & API: usage/admin-api.md
             - Integrations: usage/integrations.md
-    - Deploy & operate:
+    - Operate:
             - Deployment: operations/deployment.md
             - Observability: operations/observability.md
             - Runbooks: operations/runbooks.md
-    - Extend & contribute:
+    - Build & change:
             - Architecture: development/architecture.md
             - Extending: development/extending.md
             - Testing: development/testing.md

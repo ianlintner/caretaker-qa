@@ -52,15 +52,15 @@ Follow the workspace layout, feature flags, test matrix, and extension seams.
 
 ## What ships today
 
-| Area                    | Current state                                                           | Notes                                                                    |
-| ----------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| OAuth2 flows            | <span class="status-pill status-pill--good">Shipped</span>              | Authorization Code + PKCE, Client Credentials, introspection, revocation |
-| OIDC surface            | <span class="status-pill status-pill--good">Shipped</span>              | Discovery, JWKS, UserInfo                                                |
-| Admin UI and JSON API   | <span class="status-pill status-pill--good">Shipped</span>              | Admin session required                                                   |
-| Eventing                | <span class="status-pill status-pill--good">Shipped</span>              | In-memory and console at runtime; broker backends are feature-gated      |
-| Distributed runtime     | <span class="status-pill status-pill--warn">Feature-gated</span>        | Build with `--features distributed`                                      |
-| Social login            | <span class="status-pill status-pill--warn">Mixed</span>                | Google, Microsoft, GitHub, Azure work; Okta/Auth0 currently return `503` |
-| Refresh/password grants | <span class="status-pill status-pill--muted">Disabled by default</span> | Present in code paths, intentionally rejected by default                 |
+| Area                    | Current state                                                           | Notes                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| OAuth2 flows            | <span class="status-pill status-pill--good">Shipped</span>              | Authorization Code + PKCE, Client Credentials, introspection, revocation                       |
+| OIDC surface            | <span class="status-pill status-pill--good">Shipped</span>              | Discovery, JWKS, UserInfo                                                                      |
+| Admin UI and JSON API   | <span class="status-pill status-pill--good">Shipped</span>              | Admin session required                                                                         |
+| Eventing                | <span class="status-pill status-pill--good">Shipped</span>              | In-memory and console at runtime; broker backends are feature-gated                            |
+| Distributed runtime     | <span class="status-pill status-pill--warn">Feature-gated</span>        | Build with `--features distributed`                                                            |
+| Social login            | <span class="status-pill status-pill--warn">Mixed</span>                | Google, Microsoft, GitHub ship; `/auth/login/azure` aliases Microsoft; Okta/Auth0 return `503` |
+| Refresh/password grants | <span class="status-pill status-pill--muted">Disabled by default</span> | Present in code paths, intentionally rejected by default                                       |
 
 ## Source of truth
 
@@ -81,3 +81,12 @@ To keep this site short and keep drift down, treat these files as canonical:
 4. [Deployment](operations/deployment.md)
 
 That gets most users from clone to working deployment without spelunking.
+
+## Need the repo-local deep guides?
+
+Use these when you want the implementation-adjacent detail without stuffing the docs nav with specialist pages:
+
+- [Kubernetes manifests and overlays](https://github.com/ianlintner/rust-oauth2-server/blob/main/k8s/README.md)
+- [Prebuilt Docker image guide](https://github.com/ianlintner/rust-oauth2-server/blob/main/DOCKERHUB.md)
+- [MCP server guide](https://github.com/ianlintner/rust-oauth2-server/blob/main/mcp-server/README.md)
+- [Benchmark harness](https://github.com/ianlintner/rust-oauth2-server/blob/main/benchmarks/README.md)

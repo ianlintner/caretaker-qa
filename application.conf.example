@@ -20,8 +20,8 @@ server {
   workers = ${?OAUTH2_SERVER_WORKERS}
 
   # Optional externally-visible base URL used for discovery docs (issuer/endpoints).
-  # Useful behind reverse proxies / local tunnels, or when the bind address differs from public URL.
-  # Example: https://auth.example.com or https://auth.example.com/oauth2
+  # Useful behind reverse proxies / local tunnels, or when the bind address differs from the public URL.
+  # Example: https://auth.example.com
   public_base_url = null
   public_base_url = ${?OAUTH2_SERVER_PUBLIC_BASE_URL}
 
@@ -29,6 +29,9 @@ server {
   # Default: false (safer). Enable only when behind a trusted proxy.
   trust_proxy_headers = false
   trust_proxy_headers = ${?OAUTH2_SERVER_TRUST_PROXY_HEADERS}
+
+  # Explicit CORS allowlist. Leave empty to deny all cross-origin requests.
+  allowed_origins = []
 }
 
 # Database Configuration
@@ -147,17 +150,18 @@ social {
     enabled = false
   }
   
-  # Azure OAuth2 (uses Microsoft endpoint) - set OAUTH2_AZURE_CLIENT_ID, OAUTH2_AZURE_CLIENT_SECRET, OAUTH2_AZURE_REDIRECT_URI
+  # Azure route currently reuses the Microsoft handler/config above.
+  # Keep this block disabled unless the dedicated Azure config path is implemented.
   azure {
     enabled = false
   }
   
-  # Okta OAuth2 - set OAUTH2_OKTA_CLIENT_ID, OAUTH2_OKTA_CLIENT_SECRET, OAUTH2_OKTA_REDIRECT_URI, OAUTH2_OKTA_DOMAIN
+  # Okta config fields exist, but /auth/login/okta currently returns HTTP 503.
   okta {
     enabled = false
   }
   
-  # Auth0 OAuth2 - set OAUTH2_AUTH0_CLIENT_ID, OAUTH2_AUTH0_CLIENT_SECRET, OAUTH2_AUTH0_REDIRECT_URI, OAUTH2_AUTH0_DOMAIN
+  # Auth0 config fields exist, but /auth/login/auth0 currently returns HTTP 503.
   auth0 {
     enabled = false
   }

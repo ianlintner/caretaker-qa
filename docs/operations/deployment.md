@@ -18,6 +18,7 @@ Fastest path:
 
 ```bash
 cp .env.example .env
+# edit OAUTH2_JWT_SECRET, OAUTH2_SESSION_KEY, and OAUTH2_SEED_PASSWORD
 cargo run
 ```
 
@@ -53,6 +54,8 @@ docker run --rm -p 8080:8080 --env-file .env rust-oauth2-server:local
 
 If you want a prebuilt image instead of compiling, use the published image documented in `DOCKERHUB.md`.
 
+Repo-local deep guide: [DOCKERHUB.md](https://github.com/ianlintner/rust-oauth2-server/blob/main/DOCKERHUB.md)
+
 ## Kubernetes
 
 The Kubernetes manifests live under `k8s/` and are organized as:
@@ -74,7 +77,7 @@ Deploy an overlay:
 kubectl apply -k k8s/overlays/production -n oauth2-server
 ```
 
-For the full manifest-level guide, use [`k8s/README.md`](../../k8s/README.md).
+For the full manifest-level guide, use [the Kubernetes README](https://github.com/ianlintner/rust-oauth2-server/blob/main/k8s/README.md).
 
 !!! note
 This repo ships Kustomize overlays and raw manifests. It does **not** currently ship Helm charts.

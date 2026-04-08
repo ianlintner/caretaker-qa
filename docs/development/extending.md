@@ -65,7 +65,7 @@ To add a tool:
 
 1. update the tool list and schema in `mcp-server/src/index.js`
 2. implement the underlying HTTP call in the client wrapper
-3. update `mcp-server/README.md`
+3. update [the repo-local MCP guide](https://github.com/ianlintner/rust-oauth2-server/blob/main/mcp-server/README.md)
 4. keep tool descriptions aligned with the actual route and auth model
 
 ## Keep docs from drifting again
@@ -78,6 +78,12 @@ When behavior changes, update the code-backed sources first:
 - the smallest relevant page under `docs/`
 
 Avoid duplicating large configuration tables across multiple pages.
+
+Also keep the doc surface small:
+
+- update the smallest relevant page
+- prefer repo-local deep guides (`k8s/README.md`, `mcp-server/README.md`, `DOCKERHUB.md`, `benchmarks/README.md`) for specialist detail
+- delete stale duplicate pages instead of preserving them “just in case”
 
 ## Related pages
 
