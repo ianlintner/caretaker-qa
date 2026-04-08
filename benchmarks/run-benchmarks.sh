@@ -299,7 +299,11 @@ run_k6() {
 
   log "  Running ${scenario} (iteration ${iteration}/${ITERATIONS})..."
 
+  # Run k6 as the host user so it can write to the bind-mounted results dir
+  # (the grafana/k6 image defaults to non-root uid 12345 which may lack
+  # write permission on the host-owned directory).
   docker compose run --rm \
+    --user "$(id -u):$(id -g)" \
     -e SERVER="$server" \
     -e LOAD_PROFILE="$LOAD_PROFILE" \
     -e ITERATION="$iteration" \
@@ -344,7 +348,7 @@ get_main_service() {
 get_health_wait() {
   local server="$1"
   case "$server" in
-    keycloak)  echo "180" ;;  # JVM startup is slow
+    keycloak)  echo "300" ;;  # JVM startup is slow, especially in CI
     authentik) echo "180" ;;  # Python + Django migrations
     *)         echo "60" ;;
   esac
