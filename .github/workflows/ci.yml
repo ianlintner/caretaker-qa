@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ format('{0}-{1}', github.workflow, github.event.pull_request.number || github.ref) }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
@@ -24,106 +28,76 @@ env:
   IMAGE_VERSION: "0.0.0-dev"
 
 jobs:
-  ci:
-    name: Rust (fmt, clippy, test)
+  checks:
+    name: Checks (fmt, clippy, test)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Rust (fmt, clippy, test)"
-            echo "Progress updates will appear below as steps complete."
-            echo
-            echo "- ✅ Checkout (1/7)"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain + cache
         uses: ./.github/actions/rust-setup
         with:
           toolchain: stable
           components: rustfmt, clippy
-          cache-key: ci
+          cache-key: checks
           install-system-deps: "true"
 
-      - name: Job summary
-        run: echo "- ✅ Rust toolchain + cache (2/7)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-      - name: Check Formatting
-        run: cargo fmt -- --check
-
-      - name: Job summary
-        run: echo "- ✅ cargo fmt (3/7)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Clippy Linting
+      - name: Clippy linting
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Job summary
-        run: echo "- ✅ cargo clippy (4/7)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Run Tests
+      - name: Run tests
         run: cargo test --verbose --all-features --locked
 
-      - name: Job summary
-        run: echo "- ✅ cargo test (5/7)" >> "$GITHUB_STEP_SUMMARY"
+  build-binaries:
+    name: Build release binaries
+    runs-on: ubuntu-latest
+    needs: [checks]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain + cache
+        uses: ./.github/actions/rust-setup
+        with:
+          toolchain: stable
+          cache-key: build-binaries
+          install-system-deps: "true"
 
       - name: Install cross (for arm64 builds)
         uses: taiki-e/install-action@v2
         with:
           tool: cross
 
-      - name: Build release binary (linux/amd64)
+      - name: Build release binaries
+        shell: bash
         run: |
-          cargo build --release --locked
-          test -f target/release/rust_oauth2_server
-          cp target/release/rust_oauth2_server target/release/rust_oauth2_server-amd64
+          set -euo pipefail
+          args=()
 
-      - name: Build release binary (linux/amd64, mongo feature)
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
-        run: |
-          cargo build --release --locked --features mongo
-          test -f target/release/rust_oauth2_server
-          cp target/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-amd64
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]] && \
+             ([[ "${GITHUB_REF}" == "refs/heads/${{ github.event.repository.default_branch }}" ]] || \
+              [[ "${GITHUB_REF}" == refs/tags/* ]]); then
+            args+=(--include-mongo-variants)
+          fi
 
-      - name: Build release binary (linux/amd64, mongo-only; no SQLx)
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
-        run: |
-          cargo build --release --locked --no-default-features --features mongo
-          test -f target/release/rust_oauth2_server
-          cp target/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-only-amd64
-
-      - name: Build release binary (linux/arm64)
-        run: |
-          cross build --release --locked --target aarch64-unknown-linux-gnu
-          test -f target/aarch64-unknown-linux-gnu/release/rust_oauth2_server
-          mkdir -p target/release
-          cp target/aarch64-unknown-linux-gnu/release/rust_oauth2_server target/release/rust_oauth2_server-arm64
-
-      - name: Build release binary (linux/arm64, mongo feature)
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
-        run: |
-          cross build --release --locked --target aarch64-unknown-linux-gnu --features mongo
-          test -f target/aarch64-unknown-linux-gnu/release/rust_oauth2_server
-          mkdir -p target/release
-          cp target/aarch64-unknown-linux-gnu/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-arm64
-
-      - name: Build release binary (linux/arm64, mongo-only; no SQLx)
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
-        run: |
-          cross build --release --locked --target aarch64-unknown-linux-gnu --no-default-features --features mongo
-          test -f target/aarch64-unknown-linux-gnu/release/rust_oauth2_server
-          mkdir -p target/release
-          cp target/aarch64-unknown-linux-gnu/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-only-arm64
-
-      - name: Job summary
-        run: echo "- ✅ cargo build --release (6/7)" >> "$GITHUB_STEP_SUMMARY"
+          bash .github/scripts/build_release_binaries.sh "${args[@]}"
 
       - name: Upload release binary artifact (linux/amd64)
         uses: actions/upload-artifact@v4
         with:
           name: rust_oauth2_server-linux-amd64
           path: target/release/rust_oauth2_server-amd64
+          if-no-files-found: error
+
+      - name: Upload release binary artifact (linux/arm64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust_oauth2_server-linux-arm64
+          path: target/release/rust_oauth2_server-arm64
           if-no-files-found: error
 
       - name: Upload release binary artifact (linux/amd64, mongo feature)
@@ -134,27 +108,20 @@ jobs:
           path: target/release/rust_oauth2_server-mongo-amd64
           if-no-files-found: error
 
-      - name: Upload release binary artifact (linux/amd64, mongo-only; no SQLx)
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust_oauth2_server-mongo-only-linux-amd64
-          path: target/release/rust_oauth2_server-mongo-only-amd64
-          if-no-files-found: error
-
-      - name: Upload release binary artifact (linux/arm64)
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust_oauth2_server-linux-arm64
-          path: target/release/rust_oauth2_server-arm64
-          if-no-files-found: error
-
       - name: Upload release binary artifact (linux/arm64, mongo feature)
         if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
         uses: actions/upload-artifact@v4
         with:
           name: rust_oauth2_server-mongo-linux-arm64
           path: target/release/rust_oauth2_server-mongo-arm64
+          if-no-files-found: error
+
+      - name: Upload release binary artifact (linux/amd64, mongo-only; no SQLx)
+        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust_oauth2_server-mongo-only-linux-amd64
+          path: target/release/rust_oauth2_server-mongo-only-amd64
           if-no-files-found: error
 
       - name: Upload release binary artifact (linux/arm64, mongo-only; no SQLx)
@@ -165,29 +132,13 @@ jobs:
           path: target/release/rust_oauth2_server-mongo-only-arm64
           if-no-files-found: error
 
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ Upload artifact (7/7)"
-            echo
-            echo "Result: **${{ job.status }}**"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # Security Scanning
   security:
     name: Security (audit, deny)
     runs-on: ubuntu-latest
-    continue-on-error: true
+    needs: [checks]
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Security (audit, deny)"
-            echo "- ✅ Checkout (1/4)"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain + cache
         uses: ./.github/actions/rust-setup
@@ -196,16 +147,10 @@ jobs:
           cache-key: security
           install-system-deps: "true"
 
-      - name: Job summary
-        run: echo "- ✅ Rust toolchain + cache (2/4)" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Install cargo-audit
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
-
-      - name: Job summary
-        run: echo "- ✅ cargo-audit installed (3/4)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Security Audit (cargo-audit)
         continue-on-error: true
@@ -217,30 +162,15 @@ jobs:
         with:
           command: check
 
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ cargo audit + cargo deny completed (4/4)"
-            echo
-            echo "Result: **${{ job.status }}** (continue-on-error: true)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   # Code Coverage
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: [ci]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [checks]
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Code Coverage"
-            echo "- ✅ Checkout (1/4)"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain + cache
         uses: ./.github/actions/rust-setup
@@ -249,16 +179,10 @@ jobs:
           cache-key: coverage
           install-system-deps: "true"
 
-      - name: Job summary
-        run: echo "- ✅ Rust toolchain + cache (2/4)" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Install tarpaulin
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-tarpaulin
-
-      - name: Job summary
-        run: echo "- ✅ cargo-tarpaulin installed (3/4)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Generate Coverage
         run: cargo tarpaulin --out Xml --output-dir ./coverage --all-features --locked
@@ -269,20 +193,12 @@ jobs:
           files: ./coverage/cobertura.xml
           fail_ci_if_error: false
 
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ Coverage uploaded (4/4)"
-            echo
-            echo "Result: **${{ job.status }}**"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   # Integration Tests
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: [ci]
+    needs: [checks]
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:15
@@ -300,22 +216,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Integration Tests"
-            echo "- ✅ Checkout (1/4)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Rust toolchain + cache
         uses: ./.github/actions/rust-setup
         with:
           toolchain: stable
           cache-key: integration
           install-system-deps: "true"
-
-      - name: Job summary
-        run: echo "- ✅ Rust toolchain + cache (2/4)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run Flyway Migrations
         run: |
@@ -329,36 +235,18 @@ jobs:
             -locations=filesystem:/flyway/sql \
             migrate
 
-      - name: Job summary
-        run: echo "- ✅ Flyway migrations applied (3/4)" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Run Integration Tests
         env:
           OAUTH2_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/oauth2_test
         run: cargo test --test integration --locked
 
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ Integration test suite finished (4/4)"
-            echo
-            echo "Result: **${{ job.status }}**"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   mongo-storage:
     name: Mongo Storage Tests (feature)
     runs-on: ubuntu-latest
-    needs: [ci]
+    needs: [checks]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Mongo Storage Tests (feature)"
-            echo "- ✅ Checkout (1/3)"
-          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rust toolchain + cache
         uses: ./.github/actions/rust-setup
@@ -367,248 +255,74 @@ jobs:
           cache-key: mongo-storage
           install-system-deps: "true"
 
-      - name: Job summary
-        run: echo "- ✅ Rust toolchain + cache (2/3)" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Run Mongo storage tests (requires Docker)
         env:
           RUN_TESTCONTAINERS: "1"
         run: cargo test --test mongo_storage --features mongo --locked
 
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ Mongo storage tests finished (3/3)"
-            echo
-            echo "Result: **${{ job.status }}**"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # E2E Tests on KIND (reuses prebuilt binary from the 'ci' job)
+  # E2E Tests on KIND (reuses prebuilt binaries from the build-binaries job)
   e2e-kind:
-    name: E2E Tests on KIND
-    runs-on: ubuntu-latest
-    needs: [ci]
-    timeout-minutes: 35
-    permissions:
-      contents: read
-    env:
-      # Persist kubeconfig across steps so kubectl never falls back to http://localhost:8080.
-      KUBECONFIG: ${{ github.workspace }}/.kubeconfig-kind-oauth2
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## E2E Tests on KIND"
-            echo "- ✅ Checkout (1/8)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Download prebuilt server binaries
-        uses: actions/download-artifact@v4
-        with:
-          name: rust_oauth2_server-linux-amd64
-          path: target/release
-
-      - name: Download prebuilt server binary (arm64)
-        uses: actions/download-artifact@v4
-        with:
-          name: rust_oauth2_server-linux-arm64
-          path: target/release
-
-      - name: Job summary
-        run: echo "- ✅ Download binary (2/8)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Ensure binaries are executable
-        run: chmod +x target/release/rust_oauth2_server-amd64 target/release/rust_oauth2_server-arm64
-
-      - name: Job summary
-        run: echo "- ✅ Binary prepared (3/8)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Job summary
-        run: echo "- ✅ Docker Buildx ready (4/8)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Install KIND
-        shell: bash
-        run: |
-          set -euo pipefail
-          KIND_VERSION="v0.24.0"
-          curl -fsSL -o kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
-          chmod +x kind
-          sudo mv kind /usr/local/bin/kind
-          kind version
-
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.29.0
-
-      - name: Job summary
-        run: echo "- ✅ KIND installed (5/8)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Install kustomize
-        run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/
-
-      - name: Job summary
-        run: echo "- ✅ kustomize installed (6/8)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Enable config debug logging
-        run: echo "OAUTH2_DEBUG_CONFIG=1" >> $GITHUB_ENV
-
-      - name: Build Docker image (from prebuilt binary)
-        timeout-minutes: 20
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.prebuilt
-          tags: docker.io/ianlintner068/oauth2-server:test
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Job summary
-        run: echo "- ✅ Docker image built (7/8)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Run E2E (shared script)
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Keep cluster + namespace so the next steps can export/upload logs if the script fails.
-          SKIP_IMAGE_BUILD=1 \
-          KEEP_CLUSTER=1 \
-          KEEP_NAMESPACE=1 \
-          CLUSTER_NAME=oauth2-test \
-          NAMESPACE=oauth2-server \
-          IMAGE_REF=docker.io/ianlintner068/oauth2-server:test \
-          bash scripts/e2e_kind.sh
-
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ E2E run finished (8/8)"
-            echo
-            echo "Result: **${{ job.status }}**"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Export cluster logs
-        if: failure()
-        run: |
-          set -euo pipefail
-          # Prefer KIND-native log export (does not depend on kubectl context).
-          if kind get clusters | grep -qx oauth2-test; then
-            kind export logs ./kind-logs --name oauth2-test || true
-          fi
-
-          # Use explicit kubeconfig/context to avoid kubectl defaulting to localhost:8080.
-          kubectl --kubeconfig "${KUBECONFIG}" --context kind-oauth2-test \
-            logs deployment/oauth2-server -n oauth2-server --tail=200 > oauth2-server.log || echo "No oauth2-server logs"
-          kubectl --kubeconfig "${KUBECONFIG}" --context kind-oauth2-test \
-            describe pods -n oauth2-server > pods-describe.log || true
-
-      - name: Upload logs
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kind-cluster-logs
-          path: |
-            oauth2-server.log
-            pods-describe.log
-            kind-logs
-          retention-days: 7
-
-      - name: Cleanup
-        if: always()
-        run: |
-          kubectl --kubeconfig "${KUBECONFIG}" --context kind-oauth2-test delete namespace oauth2-server || true
-          kind delete cluster --name oauth2-test || true
+    needs: [build-binaries]
+    uses: ./.github/workflows/reusable-kind-e2e.yml
+    with:
+      job_name: E2E Tests on KIND
+      script_path: scripts/e2e_kind.sh
+      use_prebuilt_binaries: true
+      timeout_minutes: 35
+      enable_config_debug: true
 
   # Docker Build
   docker:
-    name: Docker Build
+    name: Docker (${{ matrix.variant_name }})
     runs-on: ubuntu-latest
-    needs: [ci, security, integration, mongo-storage, e2e-kind]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    needs: [build-binaries, security, integration, mongo-storage, e2e-kind]
+    if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant_name: base
+            artifact_prefix: rust_oauth2_server
+            binary_suffix: ""
+            tag_suffix: ""
+          - variant_name: mongo
+            artifact_prefix: rust_oauth2_server-mongo
+            binary_suffix: -mongo
+            tag_suffix: -mongo
+          - variant_name: mongo-only
+            artifact_prefix: rust_oauth2_server-mongo-only
+            binary_suffix: -mongo-only
+            tag_suffix: -mongo-only
     steps:
       - uses: actions/checkout@v4
 
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Docker Build & Push"
-            echo "- ✅ Checkout (1/6)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Download prebuilt server binaries
+      - name: Download prebuilt server binary (amd64)
         uses: actions/download-artifact@v4
         with:
-          name: rust_oauth2_server-linux-amd64
+          name: ${{ matrix.artifact_prefix }}-linux-amd64
           path: target/release
 
       - name: Download prebuilt server binary (arm64)
         uses: actions/download-artifact@v4
         with:
-          name: rust_oauth2_server-linux-arm64
+          name: ${{ matrix.artifact_prefix }}-linux-arm64
           path: target/release
-
-      - name: Download prebuilt server binaries (mongo feature)
-        uses: actions/download-artifact@v4
-        with:
-          name: rust_oauth2_server-mongo-linux-amd64
-          path: target/release
-
-      - name: Download prebuilt server binary (arm64, mongo feature)
-        uses: actions/download-artifact@v4
-        with:
-          name: rust_oauth2_server-mongo-linux-arm64
-          path: target/release
-
-      - name: Download prebuilt server binaries (mongo-only; no SQLx)
-        uses: actions/download-artifact@v4
-        with:
-          name: rust_oauth2_server-mongo-only-linux-amd64
-          path: target/release
-
-      - name: Download prebuilt server binary (arm64, mongo-only; no SQLx)
-        uses: actions/download-artifact@v4
-        with:
-          name: rust_oauth2_server-mongo-only-linux-arm64
-          path: target/release
-
-      - name: Job summary
-        run: echo "- ✅ Download binary (2/6)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Ensure binaries are executable
         run: |
           chmod +x \
-            target/release/rust_oauth2_server-amd64 \
-            target/release/rust_oauth2_server-arm64 \
-            target/release/rust_oauth2_server-mongo-amd64 \
-            target/release/rust_oauth2_server-mongo-arm64 \
-            target/release/rust_oauth2_server-mongo-only-amd64 \
-            target/release/rust_oauth2_server-mongo-only-arm64
-
-      - name: Job summary
-        run: echo "- ✅ Binary prepared (3/6)" >> "$GITHUB_STEP_SUMMARY"
+            "target/release/rust_oauth2_server${{ matrix.binary_suffix }}-amd64" \
+            "target/release/rust_oauth2_server${{ matrix.binary_suffix }}-arm64"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-
-      - name: Job summary
-        run: echo "- ✅ Buildx + QEMU ready (4/6)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Decide publishing targets
         id: publish
@@ -658,40 +372,9 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/oauth2-server
           tags: |
-            # Main branch publishes: latest + commit SHA
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=sha,format=short,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-
-            # Tag publishes: versioned image (e.g., 0.0.1)
-            type=raw,value=${{ env.IMAGE_VERSION }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Extract metadata (GHCR, mongo)
-        id: meta_ghcr_mongo
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/${{ github.repository_owner }}/oauth2-server
-          tags: |
-            # Main branch publishes: latest-mongo + commit SHA suffix
-            type=raw,value=latest-mongo,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=sha,format=short,suffix=-mongo,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-
-            # Tag publishes: versioned image (e.g., 0.0.1-mongo)
-            type=raw,value=${{ env.IMAGE_VERSION }}-mongo,enable=${{ startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Extract metadata (GHCR, mongo-only)
-        id: meta_ghcr_mongo_only
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/${{ github.repository_owner }}/oauth2-server
-          tags: |
-            # Main branch publishes: latest-mongo-only + commit SHA suffix
-            type=raw,value=latest-mongo-only,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=sha,format=short,suffix=-mongo-only,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-
-            # Tag publishes: versioned image (e.g., 0.0.1-mongo-only)
-            type=raw,value=${{ env.IMAGE_VERSION }}-mongo-only,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=raw,value=latest${{ matrix.tag_suffix }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=sha,format=short,suffix=${{ matrix.tag_suffix }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=${{ env.IMAGE_VERSION }}${{ matrix.tag_suffix }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
       - name: Extract metadata (Docker Hub)
         if: steps.publish.outputs.dockerhub == 'true'
@@ -701,50 +384,19 @@ jobs:
           images: |
             docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server
           tags: |
-            # Main branch publishes: latest + commit SHA
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=sha,format=short,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=latest${{ matrix.tag_suffix }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=sha,format=short,suffix=${{ matrix.tag_suffix }},enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+            type=raw,value=${{ env.IMAGE_VERSION }}${{ matrix.tag_suffix }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
 
-            # Tag publishes: versioned image (e.g., 0.0.1)
-            type=raw,value=${{ env.IMAGE_VERSION }},enable=${{ startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Extract metadata (Docker Hub, mongo)
-        if: steps.publish.outputs.dockerhub == 'true'
-        id: meta_dockerhub_mongo
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server
-          tags: |
-            # Main branch publishes: latest-mongo + commit SHA suffix
-            type=raw,value=latest-mongo,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=sha,format=short,suffix=-mongo,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-
-            # Tag publishes: versioned image (e.g., 0.0.1-mongo)
-            type=raw,value=${{ env.IMAGE_VERSION }}-mongo,enable=${{ startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Extract metadata (Docker Hub, mongo-only)
-        if: steps.publish.outputs.dockerhub == 'true'
-        id: meta_dockerhub_mongo_only
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server
-          tags: |
-            # Main branch publishes: latest-mongo-only + commit SHA suffix
-            type=raw,value=latest-mongo-only,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-            type=sha,format=short,suffix=-mongo-only,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
-
-            # Tag publishes: versioned image (e.g., 0.0.1-mongo-only)
-            type=raw,value=${{ env.IMAGE_VERSION }}-mongo-only,enable=${{ startsWith(github.ref, 'refs/tags/') }}
-
-      - name: Build and Push
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           file: Dockerfile.prebuilt
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            BINARY_SUFFIX=${{ matrix.binary_suffix }}
           tags: |
             ${{ steps.meta_ghcr.outputs.tags }}
             ${{ steps.meta_dockerhub.outputs.tags }}
@@ -752,308 +404,43 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and Push (mongo image)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          file: Dockerfile.prebuilt
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            BINARY_SUFFIX=-mongo
-          tags: |
-            ${{ steps.meta_ghcr_mongo.outputs.tags }}
-            ${{ steps.meta_dockerhub_mongo.outputs.tags }}
-          labels: ${{ steps.meta_ghcr_mongo.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and Push (mongo-only image; no SQLx)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          file: Dockerfile.prebuilt
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            BINARY_SUFFIX=-mongo-only
-          tags: |
-            ${{ steps.meta_ghcr_mongo_only.outputs.tags }}
-            ${{ steps.meta_dockerhub_mongo_only.outputs.tags }}
-          labels: ${{ steps.meta_ghcr_mongo_only.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Validate multi-arch manifest (GHCR)
         shell: bash
         run: |
           set -euo pipefail
-
-          inspect_and_check() {
-            local image="$1"
-            local out="$2"
-            local max_attempts=10
-            local delay=3
-
-            for i in $(seq 1 "$max_attempts"); do
-              echo "Attempt $i/$max_attempts: Inspecting manifest for: $image"
-              if docker buildx imagetools inspect "$image" | tee "$out"; then
-                if grep -Eqi 'linux/amd64' "$out" && grep -Eqi 'linux/arm64' "$out"; then
-                  return 0
-                fi
-                echo "Manifest present but missing expected platforms; retrying..."
-              else
-                echo "Manifest not yet available; retrying..."
-              fi
-
-              sleep "$delay"
-              delay=$((delay * 2))
-              if [ "$delay" -gt 30 ]; then delay=30; fi
-            done
-
-            echo "Failed to validate multi-arch manifest for: $image"
-            echo "Last output:"
-            cat "$out" || true
-            return 1
-          }
-
           if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            tag="${{ env.IMAGE_VERSION }}"
+            tag="${{ env.IMAGE_VERSION }}${{ matrix.tag_suffix }}"
           else
-            tag="latest"
+            tag="latest${{ matrix.tag_suffix }}"
           fi
 
           image="ghcr.io/${{ github.repository_owner }}/oauth2-server:${tag}"
-          inspect_and_check "$image" /tmp/imagetools.txt
-
-      - name: Validate multi-arch manifest (GHCR, mongo)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          inspect_and_check() {
-            local image="$1"
-            local out="$2"
-            local max_attempts=10
-            local delay=3
-
-            for i in $(seq 1 "$max_attempts"); do
-              echo "Attempt $i/$max_attempts: Inspecting manifest for: $image"
-              if docker buildx imagetools inspect "$image" | tee "$out"; then
-                if grep -Eqi 'linux/amd64' "$out" && grep -Eqi 'linux/arm64' "$out"; then
-                  return 0
-                fi
-                echo "Manifest present but missing expected platforms; retrying..."
-              else
-                echo "Manifest not yet available; retrying..."
-              fi
-
-              sleep "$delay"
-              delay=$((delay * 2))
-              if [ "$delay" -gt 30 ]; then delay=30; fi
-            done
-
-            echo "Failed to validate multi-arch manifest for: $image"
-            echo "Last output:"
-            cat "$out" || true
-            return 1
-          }
-
-          if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            tag="${{ env.IMAGE_VERSION }}-mongo"
-          else
-            tag="latest-mongo"
-          fi
-
-          image="ghcr.io/${{ github.repository_owner }}/oauth2-server:${tag}"
-          inspect_and_check "$image" /tmp/imagetools-mongo.txt
-
-      - name: Validate multi-arch manifest (GHCR, mongo-only)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          inspect_and_check() {
-            local image="$1"
-            local out="$2"
-            local max_attempts=10
-            local delay=3
-
-            for i in $(seq 1 "$max_attempts"); do
-              echo "Attempt $i/$max_attempts: Inspecting manifest for: $image"
-              if docker buildx imagetools inspect "$image" | tee "$out"; then
-                if grep -Eqi 'linux/amd64' "$out" && grep -Eqi 'linux/arm64' "$out"; then
-                  return 0
-                fi
-                echo "Manifest present but missing expected platforms; retrying..."
-              else
-                echo "Manifest not yet available; retrying..."
-              fi
-
-              sleep "$delay"
-              delay=$((delay * 2))
-              if [ "$delay" -gt 30 ]; then delay=30; fi
-            done
-
-            echo "Failed to validate multi-arch manifest for: $image"
-            echo "Last output:"
-            cat "$out" || true
-            return 1
-          }
-
-          if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            tag="${{ env.IMAGE_VERSION }}-mongo-only"
-          else
-            tag="latest-mongo-only"
-          fi
-
-          image="ghcr.io/${{ github.repository_owner }}/oauth2-server:${tag}"
-          inspect_and_check "$image" /tmp/imagetools-mongo-only.txt
+          bash .github/scripts/validate_multiarch_manifest.sh \
+            "$image" \
+            "/tmp/imagetools-${{ matrix.variant_name }}.txt"
 
       - name: Validate multi-arch manifest (Docker Hub)
         if: steps.publish.outputs.dockerhub == 'true'
         shell: bash
         run: |
           set -euo pipefail
-
-          inspect_and_check() {
-            local image="$1"
-            local out="$2"
-            local max_attempts=10
-            local delay=3
-
-            for i in $(seq 1 "$max_attempts"); do
-              echo "Attempt $i/$max_attempts: Inspecting manifest for: $image"
-              if docker buildx imagetools inspect "$image" | tee "$out"; then
-                if grep -Eqi 'linux/amd64' "$out" && grep -Eqi 'linux/arm64' "$out"; then
-                  return 0
-                fi
-                echo "Manifest present but missing expected platforms; retrying..."
-              else
-                echo "Manifest not yet available; retrying..."
-              fi
-
-              sleep "$delay"
-              delay=$((delay * 2))
-              if [ "$delay" -gt 30 ]; then delay=30; fi
-            done
-
-            echo "Failed to validate multi-arch manifest for: $image"
-            echo "Last output:"
-            cat "$out" || true
-            return 1
-          }
-
           if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            tag="${{ env.IMAGE_VERSION }}"
+            tag="${{ env.IMAGE_VERSION }}${{ matrix.tag_suffix }}"
           else
-            tag="latest"
+            tag="latest${{ matrix.tag_suffix }}"
           fi
 
           image="docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server:${tag}"
-          inspect_and_check "$image" /tmp/imagetools-dockerhub.txt
-
-      - name: Validate multi-arch manifest (Docker Hub, mongo)
-        if: steps.publish.outputs.dockerhub == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          inspect_and_check() {
-            local image="$1"
-            local out="$2"
-            local max_attempts=10
-            local delay=3
-
-            for i in $(seq 1 "$max_attempts"); do
-              echo "Attempt $i/$max_attempts: Inspecting manifest for: $image"
-              if docker buildx imagetools inspect "$image" | tee "$out"; then
-                if grep -Eqi 'linux/amd64' "$out" && grep -Eqi 'linux/arm64' "$out"; then
-                  return 0
-                fi
-                echo "Manifest present but missing expected platforms; retrying..."
-              else
-                echo "Manifest not yet available; retrying..."
-              fi
-
-              sleep "$delay"
-              delay=$((delay * 2))
-              if [ "$delay" -gt 30 ]; then delay=30; fi
-            done
-
-            echo "Failed to validate multi-arch manifest for: $image"
-            echo "Last output:"
-            cat "$out" || true
-            return 1
-          }
-
-          if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            tag="${{ env.IMAGE_VERSION }}-mongo"
-          else
-            tag="latest-mongo"
-          fi
-
-          image="docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server:${tag}"
-          inspect_and_check "$image" /tmp/imagetools-dockerhub-mongo.txt
-
-      - name: Validate multi-arch manifest (Docker Hub, mongo-only)
-        if: steps.publish.outputs.dockerhub == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          inspect_and_check() {
-            local image="$1"
-            local out="$2"
-            local max_attempts=10
-            local delay=3
-
-            for i in $(seq 1 "$max_attempts"); do
-              echo "Attempt $i/$max_attempts: Inspecting manifest for: $image"
-              if docker buildx imagetools inspect "$image" | tee "$out"; then
-                if grep -Eqi 'linux/amd64' "$out" && grep -Eqi 'linux/arm64' "$out"; then
-                  return 0
-                fi
-                echo "Manifest present but missing expected platforms; retrying..."
-              else
-                echo "Manifest not yet available; retrying..."
-              fi
-
-              sleep "$delay"
-              delay=$((delay * 2))
-              if [ "$delay" -gt 30 ]; then delay=30; fi
-            done
-
-            echo "Failed to validate multi-arch manifest for: $image"
-            echo "Last output:"
-            cat "$out" || true
-            return 1
-          }
-
-          if [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            tag="${{ env.IMAGE_VERSION }}-mongo-only"
-          else
-            tag="latest-mongo-only"
-          fi
-
-          image="docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server:${tag}"
-          inspect_and_check "$image" /tmp/imagetools-dockerhub-mongo-only.txt
-
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ Image build/push complete (5/6)"
-            echo "- ℹ️  Version: `${{ env.IMAGE_VERSION }}`"
-            echo
-            echo "Result: **${{ job.status }}**"
-          } >> "$GITHUB_STEP_SUMMARY"
+          bash .github/scripts/validate_multiarch_manifest.sh \
+            "$image" \
+            "/tmp/imagetools-dockerhub-${{ matrix.variant_name }}.txt"
 
   # Documentation
   docs:
     name: Build and Deploy Documentation
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    timeout-minutes: 20
     permissions:
       contents: read
       pages: write
@@ -1064,13 +451,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Documentation (MkDocs + Rustdoc)"
-            echo "- ✅ Checkout (1/6)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Rust toolchain + cache
         uses: ./.github/actions/rust-setup
         with:
@@ -1078,17 +458,11 @@ jobs:
           cache-key: docs
           install-system-deps: "true"
 
-      - name: Job summary
-        run: echo "- ✅ Rust toolchain + cache (2/6)" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Build Rust Docs
         run: cargo doc --no-deps --all-features
 
-      - name: Job summary
-        run: echo "- ✅ Rustdoc built (3/6)" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -1110,17 +484,14 @@ jobs:
             pip install mkdocs-material mkdocs-mermaid2-plugin
           fi
 
-      - name: Job summary
-        run: echo "- ✅ MkDocs deps installed (4/6)" >> "$GITHUB_STEP_SUMMARY"
-
       - name: Build MkDocs
         run: |
           if [ -f mkdocs.yml ]; then
             mkdocs build
           fi
 
-      - name: Job summary
-        run: echo "- ✅ MkDocs site built (5/6)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Prepare docs for deployment
         run: |
@@ -1142,29 +513,22 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      - name: Job summary (final)
-        if: always()
-        run: |
-          {
-            echo "- ✅ Pages deployment step finished (6/6)"
-            echo
-            echo "Result: **${{ job.status }}**"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   # Quality Gate
   gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [ci, security, integration, mongo-storage, e2e-kind, coverage]
+    needs:
+      [
+        checks,
+        build-binaries,
+        security,
+        integration,
+        mongo-storage,
+        e2e-kind,
+        coverage,
+      ]
     if: always()
     steps:
-      - name: Job summary (init)
-        run: |
-          {
-            echo "## Quality Gate"
-            echo "This job evaluates results from other jobs."
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Check Job Results
         run: |
           # Security scan results are informational only
@@ -1178,7 +542,8 @@ jobs:
           fi
 
           # Only fail on critical job failures
-          if [ "${{ needs.ci.result }}" != "success" ] || \
+          if [ "${{ needs.checks.result }}" != "success" ] || \
+             [ "${{ needs.build-binaries.result }}" != "success" ] || \
              [ "${{ needs.integration.result }}" != "success" ] || \
              [ "${{ needs.mongo-storage.result }}" != "success" ] || \
              [ "${{ needs.e2e-kind.result }}" != "success" ]; then
@@ -1194,7 +559,8 @@ jobs:
             echo
             echo "Result: **${{ job.status }}**"
             echo "\nUpstream results:"
-            echo "- ci: ${{ needs.ci.result }}"
+            echo "- checks: ${{ needs.checks.result }}"
+            echo "- build-binaries: ${{ needs.build-binaries.result }}"
             echo "- security: ${{ needs.security.result }}"
             echo "- integration: ${{ needs.integration.result }}"
             echo "- mongo-storage: ${{ needs.mongo-storage.result }}"

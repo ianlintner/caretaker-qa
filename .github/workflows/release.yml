@@ -25,12 +25,13 @@ jobs:
   release:
     name: Bump Cargo.toml + Cargo.lock + tag + publish images
     runs-on: ubuntu-latest
+    timeout-minutes: 90
 
     steps:
-      - name: Checkout main
+      - name: Checkout default branch
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
       - name: Rust toolchain + cache
@@ -80,7 +81,7 @@ jobs:
           # Keep dependency versions pinned, but ensure the workspace package version is reflected.
           cargo generate-lockfile
 
-      - name: Commit version bump to main
+      - name: Commit version bump to default branch
         shell: bash
         run: |
           set -euo pipefail
@@ -95,7 +96,7 @@ jobs:
 
           git add Cargo.toml Cargo.lock
           git commit -m "chore(release): bump version to ${{ steps.ver.outputs.version }}"
-          git push origin main
+          git push origin "${{ github.event.repository.default_branch }}"
 
       - name: Capture release commit SHA
         id: commit
@@ -126,37 +127,7 @@ jobs:
 
       - name: Build release binaries (amd64 + arm64; all variants)
         shell: bash
-        run: |
-          set -euo pipefail
-
-          # linux/amd64 binaries
-          cargo build --release --locked
-          test -f target/release/rust_oauth2_server
-          cp target/release/rust_oauth2_server target/release/rust_oauth2_server-amd64
-
-          cargo build --release --locked --features mongo
-          test -f target/release/rust_oauth2_server
-          cp target/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-amd64
-
-          cargo build --release --locked --no-default-features --features mongo
-          test -f target/release/rust_oauth2_server
-          cp target/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-only-amd64
-
-          # linux/arm64 binaries
-          cross build --release --locked --target aarch64-unknown-linux-gnu
-          test -f target/aarch64-unknown-linux-gnu/release/rust_oauth2_server
-          mkdir -p target/release
-          cp target/aarch64-unknown-linux-gnu/release/rust_oauth2_server target/release/rust_oauth2_server-arm64
-
-          cross build --release --locked --target aarch64-unknown-linux-gnu --features mongo
-          test -f target/aarch64-unknown-linux-gnu/release/rust_oauth2_server
-          mkdir -p target/release
-          cp target/aarch64-unknown-linux-gnu/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-arm64
-
-          cross build --release --locked --target aarch64-unknown-linux-gnu --no-default-features --features mongo
-          test -f target/aarch64-unknown-linux-gnu/release/rust_oauth2_server
-          mkdir -p target/release
-          cp target/aarch64-unknown-linux-gnu/release/rust_oauth2_server target/release/rust_oauth2_server-mongo-only-arm64
+        run: bash .github/scripts/build_release_binaries.sh --include-mongo-variants
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
