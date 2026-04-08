@@ -2,10 +2,12 @@
 # Rust OAuth2 Server
 
 [![Build Status](https://github.com/ianlintner/rust-oauth2-server/actions/workflows/ci.yml/badge.svg)](https://github.com/ianlintner/rust-oauth2-server/actions/workflows/ci.yml)
-
+<br/>
+<p align="center"><img width="256" alt="rustoauth2" src="https://github.com/user-attachments/assets/0a009caa-a37a-4c87-88d3-373229e01e0b" /></p>
+<br/>
 Self-Hosted OAuth2 and OIDC in Rust with Actix, an admin UI, generated OpenAPI, eventing, and kubernetes-ready deployment assets.
 
-<p align="center"><img width="256" alt="rustoauth2" src="https://github.com/user-attachments/assets/0a009caa-a37a-4c87-88d3-373229e01e0b" /></p>
+
 
 ## Start in 60 seconds
 
