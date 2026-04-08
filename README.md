@@ -90,4 +90,3 @@ If you changed docs, also run:
 python3 -m mkdocs build --strict
 ```
 
-That’s the short front door. The rest of the old manual got evicted on purpose.
