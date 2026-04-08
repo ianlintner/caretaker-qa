@@ -1,6 +1,6 @@
 # Rust OAuth2 Server
 
-[![CI/CD Pipeline](https://github.com/ianlintner/rust-oauth2-server/actions/workflows/ci.yml/badge.svg)](https://github.com/ianlintner/rust-oauth2-server/actions/workflows/ci.yml)
+[![CI](https://github.com/ianlintner/rust-oauth2-server/actions/workflows/ci.yml/badge.svg)](https://github.com/ianlintner/rust-oauth2-server/actions/workflows/ci.yml)
 
 Self-hosted OAuth2 and OIDC in Rust with Actix, an admin UI, generated OpenAPI, eventing, and Kubernetes-ready deployment assets.
 
