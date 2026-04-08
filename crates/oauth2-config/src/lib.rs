@@ -113,6 +113,10 @@ pub struct JwtConfig {
     /// Trades revocation checking for higher throughput.
     #[serde(default)]
     pub stateless_validation: bool,
+    /// Allow anonymous callers to use the introspection endpoint.
+    /// Default is false so introspection is authenticated unless explicitly opened.
+    #[serde(default)]
+    pub public_introspection: bool,
 }
 
 fn default_grace_hours() -> u64 {
@@ -150,6 +154,13 @@ pub struct EventConfig {
     pub filter_mode: String,
     #[serde(default)]
     pub event_types: Vec<String>,
+    /// Allow unauthenticated callers to POST external event envelopes.
+    /// Default is false so `/events/ingest` requires a bearer secret unless explicitly opened.
+    #[serde(default)]
+    pub public_ingest: bool,
+    /// Shared bearer token for `/events/ingest` when `public_ingest` is false.
+    #[serde(skip_serializing)]
+    pub ingest_bearer_token: Option<String>,
 
     // Nested backend-specific settings
     #[serde(default)]
@@ -502,6 +513,11 @@ impl Config {
                     .ok()
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(false),
+                public_introspection: std::env::var("OAUTH2_PUBLIC_INTROSPECTION")
+                    .ok()
+                    .or_else(|| std::env::var("OAUTH2_INTROSPECTION_PUBLIC").ok())
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(false),
             },
             events: EventConfig {
                 enabled: std::env::var("OAUTH2_EVENTS_ENABLED")
@@ -518,6 +534,14 @@ impl Config {
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
                     .collect(),
+                public_ingest: std::env::var("OAUTH2_EVENTS_PUBLIC_INGEST")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(false),
+                ingest_bearer_token: std::env::var("OAUTH2_EVENTS_INGEST_BEARER_TOKEN")
+                    .ok()
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty()),
                 redis: None,
                 kafka: None,
                 rabbit: None,

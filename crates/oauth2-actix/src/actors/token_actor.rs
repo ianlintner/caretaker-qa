@@ -230,6 +230,38 @@ pub struct ValidateToken {
     pub span: tracing::Span,
 }
 
+#[derive(Message)]
+#[rtype(result = "Result<Option<Token>, OAuth2Error>")]
+pub struct LookupToken {
+    pub token: String,
+    pub span: tracing::Span,
+}
+
+impl Handler<LookupToken> for TokenActor {
+    type Result = ResponseFuture<Result<Option<Token>, OAuth2Error>>;
+
+    fn handle(&mut self, msg: LookupToken, _: &mut Self::Context) -> Self::Result {
+        let db = self.db.clone();
+        let normalized_token = Self::normalize_token_key(&msg.token);
+
+        let parent_span = msg.span.clone();
+        let actor_span = tracing::info_span!(
+            parent: &parent_span,
+            "actor.token.lookup",
+            trace_id = tracing::field::Empty,
+            span_id = tracing::field::Empty,
+            token_prefix = %normalized_token.chars().take(12).collect::<String>(),
+            token_len = normalized_token.len()
+        );
+        annotate_span_with_trace_ids(&actor_span);
+
+        Box::pin(
+            async move { db.get_token_by_access_token(&normalized_token).await }
+                .instrument(actor_span),
+        )
+    }
+}
+
 impl Handler<ValidateToken> for TokenActor {
     type Result = ResponseFuture<Result<Token, OAuth2Error>>;
 
@@ -428,32 +460,31 @@ impl Handler<RevokeToken> for TokenActor {
     fn handle(&mut self, msg: RevokeToken, _: &mut Self::Context) -> Self::Result {
         let db = self.db.clone();
         let event_bus = self.event_bus.clone();
+        let normalized_token = Self::normalize_token_key(&msg.token);
 
         let parent_span = msg.span.clone();
-        let token_prefix = msg.token.trim().chars().take(12).collect::<String>();
+        let token_prefix = normalized_token.chars().take(12).collect::<String>();
         let actor_span = tracing::info_span!(
             parent: &parent_span,
             "actor.token.revoke",
             trace_id = tracing::field::Empty,
             span_id = tracing::field::Empty,
             token_prefix = %token_prefix,
-            token_len = msg.token.len()
+            token_len = normalized_token.len()
         );
         annotate_span_with_trace_ids(&actor_span);
 
         // Evict from the validation cache immediately so subsequent
         // ValidateToken requests won't return a stale cached result.
-        self.invalidate_cached_token(&msg.token);
+        self.invalidate_cached_token(&normalized_token);
 
         // Clone Redis connection for async eviction.
         #[cfg(feature = "redis-cache")]
         let redis_conn = self.redis.clone();
         #[cfg(feature = "redis-cache")]
-        let redis_key = format!(
-            "{}{}",
-            REDIS_TOKEN_PREFIX,
-            Self::normalize_token_key(&msg.token)
-        );
+        let redis_key = format!("{}{}", REDIS_TOKEN_PREFIX, normalized_token);
+
+        let normalized_token_for_db = normalized_token.clone();
 
         Box::pin(
             async move {
@@ -465,9 +496,9 @@ impl Handler<RevokeToken> for TokenActor {
                 }
 
                 // Get token info before revoking for event
-                let token_info = db.get_token_by_access_token(&msg.token).await?;
+                let token_info = db.get_token_by_access_token(&normalized_token_for_db).await?;
 
-                db.revoke_token(&msg.token).await?;
+                db.revoke_token(&normalized_token_for_db).await?;
 
                 // Emit revoked event
                 if let Some(event_bus) = event_bus {

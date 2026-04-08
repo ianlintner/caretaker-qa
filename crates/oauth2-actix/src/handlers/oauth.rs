@@ -20,7 +20,9 @@ use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
 /// Parse RFC6749 client authentication via HTTP Basic.
 ///
 /// Header format (RFC7617): `Authorization: Basic base64(client_id:client_secret)`
-fn parse_client_basic_auth(req: &HttpRequest) -> Result<Option<(String, String)>, OAuth2Error> {
+pub(crate) fn parse_client_basic_auth(
+    req: &HttpRequest,
+) -> Result<Option<(String, String)>, OAuth2Error> {
     let header = match req.headers().get(actix_web::http::header::AUTHORIZATION) {
         Some(h) => h,
         None => return Ok(None),
@@ -91,7 +93,10 @@ fn validate_scope_subset(requested: &str, allowed: &str) -> Result<(), OAuth2Err
     Ok(())
 }
 
-fn client_secret_matches(client: &oauth2_core::Client, presented_secret: &str) -> bool {
+pub(crate) fn client_secret_matches(
+    client: &oauth2_core::Client,
+    presented_secret: &str,
+) -> bool {
     client
         .client_secret
         .as_bytes()
