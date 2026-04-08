@@ -12,8 +12,38 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESULTS_DIR="${SCRIPT_DIR}/results"
-FORMAT="${1:-markdown}"
+RESULTS_DIR="${BENCHMARK_RESULTS_DIR:-${SCRIPT_DIR}/results}"
+FORMAT="markdown"
+PROFILE_FILTER="${BENCHMARK_PROFILE_FILTER:-}"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --format)
+      FORMAT="$2"
+      shift 2
+      ;;
+    --profile)
+      PROFILE_FILTER="$2"
+      shift 2
+      ;;
+    --results-dir)
+      RESULTS_DIR="$2"
+      shift 2
+      ;;
+    markdown|csv)
+      FORMAT="$1"
+      shift
+      ;;
+    --help|-h)
+      echo "Usage: $0 [--format markdown|csv] [--profile PROFILE] [--results-dir DIR]"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+done
 
 # ── Colours ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
@@ -182,12 +212,19 @@ PY
 parse_results() {
   local scenario="$1"
   local server="$2"
+  local pattern
+
+  if [[ -n "$PROFILE_FILTER" ]]; then
+    pattern="${server}_${scenario}_${PROFILE_FILTER}_*_summary.json"
+  else
+    pattern="${server}_${scenario}_*_summary.json"
+  fi
 
   # Find all iterations for this server+scenario
   local files=()
   while IFS= read -r f; do
     files+=("$f")
-  done < <(find "$RESULTS_DIR" -name "${server}_${scenario}_*_summary.json" 2>/dev/null | sort)
+  done < <(find "$RESULTS_DIR" -name "$pattern" 2>/dev/null | sort)
 
   if [[ ${#files[@]} -eq 0 ]]; then
     parse_results_from_raw "$scenario" "$server"
@@ -328,6 +365,9 @@ REPORT_FILE="${RESULTS_DIR}/comparison-report.md"
   echo "# OAuth2 Server Load Test Comparison Report"
   echo ""
   echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+  if [[ -n "$PROFILE_FILTER" ]]; then
+    echo "Profile filter: ${PROFILE_FILTER}"
+  fi
   echo ""
   echo "> [!IMPORTANT]"
   echo "> These benchmark numbers are **relative local-machine comparisons**."

@@ -1,0 +1,371 @@
+name: Weekly Benchmarks
+
+on:
+  schedule:
+    # Every Monday at 03:17 UTC — off the top of the hour to reduce scheduler contention.
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      servers:
+        description: "Comma-separated servers to run (empty = auto-select from recent changes)"
+        required: false
+        type: string
+      scenarios:
+        description: "Comma-separated scenarios to run"
+        required: false
+        default: "client-credentials,token-introspect,discovery,health"
+        type: string
+      profile:
+        description: "Load profile"
+        required: false
+        default: "light"
+        type: choice
+        options:
+          - light
+          - medium
+          - heavy
+      iterations:
+        description: "Iterations per scenario"
+        required: false
+        default: "1"
+        type: choice
+        options:
+          - "1"
+          - "3"
+          - "5"
+      force:
+        description: "Run even if the planner finds no qualifying changes"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: weekly-benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Plan weekly benchmark run
+    runs-on: ubuntu-latest
+    outputs:
+      since_date: ${{ steps.plan.outputs.since_date }}
+      recent_commit_count: ${{ steps.plan.outputs.recent_commit_count }}
+      should_run: ${{ steps.plan.outputs.should_run }}
+      selected_servers_csv: ${{ steps.plan.outputs.selected_servers_csv }}
+      selected_servers_markdown: ${{ steps.plan.outputs.selected_servers_markdown }}
+      unselected_servers_csv: ${{ steps.plan.outputs.unselected_servers_csv }}
+      uses_repo_baselines: ${{ steps.plan.outputs.uses_repo_baselines }}
+      skip_reason: ${{ steps.plan.outputs.skip_reason }}
+      changed_files_markdown: ${{ steps.plan.outputs.changed_files_markdown }}
+      selection_reasons_markdown: ${{ steps.plan.outputs.selection_reasons_markdown }}
+      has_first_party_changes: ${{ steps.plan.outputs.has_first_party_changes }}
+      has_third_party_version_bumps: ${{ steps.plan.outputs.has_third_party_version_bumps }}
+      third_party_version_bumps_markdown: ${{ steps.plan.outputs.third_party_version_bumps_markdown }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Plan benchmark selection
+        id: plan
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MANUAL_SERVERS: ${{ inputs.servers }}
+          FORCE_RUN: ${{ inputs.force && 'true' || 'false' }}
+          SINCE_DAYS: "7"
+        run: bash .github/scripts/plan_benchmark_run.sh
+
+      - name: Job summary
+        env:
+          CHANGED_FILES: ${{ steps.plan.outputs.changed_files_markdown }}
+          SELECTED_SERVERS: ${{ steps.plan.outputs.selected_servers_markdown }}
+          REASONS: ${{ steps.plan.outputs.selection_reasons_markdown }}
+          VERSION_BUMPS: ${{ steps.plan.outputs.third_party_version_bumps_markdown }}
+          SUMMARY_PROFILE: ${{ inputs.profile || 'light' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "## Weekly benchmark plan"
+            echo
+            echo "- Event: \`${{ github.event_name }}\`"
+            echo "- Default branch: \`${{ github.event.repository.default_branch }}\`"
+            echo "- Since: \`${{ steps.plan.outputs.since_date }}\`"
+            echo "- Recent commits: \`${{ steps.plan.outputs.recent_commit_count }}\`"
+
+            if [[ "${{ steps.plan.outputs.should_run }}" == "true" ]]; then
+              echo "- Benchmarks selected:"
+              if [[ -n "$SELECTED_SERVERS" ]]; then
+                printf '%s\n' "$SELECTED_SERVERS"
+              fi
+            else
+              echo "- Status: skipped"
+              echo "- Reason: ${{ steps.plan.outputs.skip_reason }}"
+            fi
+
+            if [[ -n "$REASONS" ]]; then
+              echo
+              echo "### Why these servers"
+              printf '%s\n' "$REASONS"
+            fi
+
+            if [[ -n "$VERSION_BUMPS" ]]; then
+              echo
+              echo "### Third-party version bumps"
+              printf '%s\n' "$VERSION_BUMPS"
+            fi
+
+            if [[ -n "$CHANGED_FILES" ]]; then
+              echo
+              echo "### Files changed in the last 7 days"
+              printf '%s\n' "$CHANGED_FILES"
+            fi
+
+            if [[ "${{ steps.plan.outputs.uses_repo_baselines }}" == "true" && "$SUMMARY_PROFILE" == "light" ]]; then
+              echo
+              echo "> [!NOTE]"
+              echo "> Unselected servers will reuse the checked-in baseline files under \`benchmarks/results/\` for this run's merged report."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  create-third-party-followup-issue:
+    name: Create follow-up issue for version bumps
+    runs-on: ubuntu-latest
+    needs: [plan]
+    if: needs.plan.outputs.has_third_party_version_bumps == 'true' && github.event_name == 'schedule'
+    steps:
+      - name: Create or reuse Copilot issue
+        id: issue
+        uses: actions/github-script@v7
+        env:
+          VERSION_BUMPS: ${{ needs.plan.outputs.third_party_version_bumps_markdown }}
+          SELECTED_SERVERS: ${{ needs.plan.outputs.selected_servers_csv }}
+          SINCE_DATE: ${{ needs.plan.outputs.since_date }}
+        with:
+          script: |
+            const marker = '<!-- benchmark-third-party-version-bump -->';
+            const today = new Date().toISOString().split('T')[0];
+            const labels = ['benchmarks'];
+
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'benchmarks',
+              });
+            } catch {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: 'benchmarks',
+                color: '5319e7',
+                description: 'Benchmark automation and performance tracking',
+              });
+            }
+
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'benchmarks',
+              per_page: 100,
+            });
+
+            const existing = openIssues.find((issue) => issue.body && issue.body.includes(marker));
+            if (existing) {
+              core.info(`Reusing existing open benchmark version bump issue #${existing.number}`);
+              core.setOutput('created', 'false');
+              core.setOutput('issue_number', String(existing.number));
+              return;
+            }
+
+            const body = [
+              marker,
+              `## Third-party benchmark version bump detected — ${today}`,
+              '',
+              `Pinned third-party benchmark targets changed on \`${context.payload.repository.default_branch}\` since \`${process.env.SINCE_DATE}\`.`,
+              '',
+              '### Version changes',
+              '',
+              process.env.VERSION_BUMPS,
+              '',
+              '### What to do',
+              '',
+              '- [ ] Review the new upstream versions for startup, health-check, or API compatibility changes',
+              '- [ ] Run or inspect the scheduled benchmark artifact for the bumped server(s)',
+              '- [ ] Refresh any checked-in benchmark baselines in `benchmarks/results/` if the new versions should become the repo baseline',
+              '- [ ] Update benchmark-facing docs if the pinned versions changed (`benchmarks/README.md`, `benchmarks/PLAN.md`)',
+              '- [ ] Open a PR with any required baseline or docs updates',
+              '',
+              '### Context',
+              '',
+              `- Selected servers for the scheduled run: \`${process.env.SELECTED_SERVERS}\``,
+              `- Workflow run: https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              '',
+              'This issue was created automatically by the weekly benchmark workflow and assigned to `copilot` for follow-through.',
+            ].join('\n');
+
+            const issue = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `benchmarks: reconcile third-party version bumps (${today})`,
+              body,
+              labels,
+              assignees: ['copilot'],
+            });
+
+            core.setOutput('created', 'true');
+            core.setOutput('issue_number', String(issue.data.number));
+            core.info(`Created issue #${issue.data.number}`);
+
+      - name: Job summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Third-party version bump issue"
+            echo
+            if [[ "${{ steps.issue.outputs.created }}" == "true" ]]; then
+              echo "- Created issue #${{ steps.issue.outputs.issue_number }} and assigned it to \`copilot\`."
+            else
+              echo "- Reused existing open issue #${{ steps.issue.outputs.issue_number }}."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  run-benchmarks:
+    name: Run selected benchmarks
+    runs-on: ubuntu-latest
+    needs: [plan]
+    if: needs.plan.outputs.should_run == 'true'
+    timeout-minutes: 330
+    env:
+      BENCHMARK_PROFILE: ${{ inputs.profile || 'light' }}
+      BENCHMARK_SCENARIOS: ${{ inputs.scenarios || 'client-credentials,token-introspect,discovery,health' }}
+      BENCHMARK_ITERATIONS: ${{ inputs.iterations || '1' }}
+      SELECTED_SERVERS: ${{ needs.plan.outputs.selected_servers_csv }}
+      DOCKER_BUILDKIT: "1"
+      COMPOSE_DOCKER_CLI_BUILD: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install report dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y jq bc
+
+      - name: Remove stale result files for selected servers/profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          IFS=',' read -r -a servers <<< "$SELECTED_SERVERS"
+          for server in "${servers[@]}"; do
+            server="${server// /}"
+            [[ -z "$server" ]] && continue
+            rm -f benchmarks/results/${server}_*_${BENCHMARK_PROFILE}_*.json
+            rm -f benchmarks/results/${server}_stats_pre.json
+            rm -f benchmarks/results/${server}_stats_post.json
+          done
+          rm -f benchmarks/results/raw.json
+
+      - name: Run benchmark harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash benchmarks/run-benchmarks.sh \
+            --servers "$SELECTED_SERVERS" \
+            --scenarios "$BENCHMARK_SCENARIOS" \
+            --profile "$BENCHMARK_PROFILE" \
+            --iterations "$BENCHMARK_ITERATIONS"
+
+      - name: Generate filtered comparison report
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash benchmarks/analyze-results.sh \
+            --profile "$BENCHMARK_PROFILE" \
+            --results-dir "$(pwd)/benchmarks/results"
+
+      - name: Write CI benchmark manifest
+        shell: bash
+        env:
+          SINCE_DATE: ${{ needs.plan.outputs.since_date }}
+          RECENT_COMMIT_COUNT: ${{ needs.plan.outputs.recent_commit_count }}
+          VERSION_BUMPS: ${{ needs.plan.outputs.third_party_version_bumps_markdown }}
+          SELECTION_REASONS: ${{ needs.plan.outputs.selection_reasons_markdown }}
+          USES_REPO_BASELINES: ${{ needs.plan.outputs.uses_repo_baselines }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+
+          manifest = {
+              "generated_at": datetime.now(timezone.utc).isoformat(),
+              "event_name": os.environ.get("GITHUB_EVENT_NAME"),
+              "since_date": os.environ.get("SINCE_DATE"),
+              "recent_commit_count": int(os.environ.get("RECENT_COMMIT_COUNT", "0")),
+              "selected_servers": [s for s in os.environ.get("SELECTED_SERVERS", "").split(",") if s],
+              "profile": os.environ.get("BENCHMARK_PROFILE"),
+              "scenarios": [s for s in os.environ.get("BENCHMARK_SCENARIOS", "").split(",") if s],
+              "iterations": int(os.environ.get("BENCHMARK_ITERATIONS", "1")),
+                "uses_repo_baselines": (
+                  os.environ.get("USES_REPO_BASELINES", "false") == "true"
+                  and os.environ.get("BENCHMARK_PROFILE") == "light"
+                ),
+              "selection_reasons_markdown": os.environ.get("SELECTION_REASONS", ""),
+              "third_party_version_bumps_markdown": os.environ.get("VERSION_BUMPS", ""),
+              "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+              "github_sha": os.environ.get("GITHUB_SHA"),
+          }
+
+          with open("benchmarks/results/ci-run-manifest.json", "w", encoding="utf-8") as fh:
+              json.dump(manifest, fh, indent=2)
+              fh.write("\n")
+          PY
+
+      - name: Upload benchmark artifact bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.run_number }}
+          path: |
+            benchmarks/results/**/*.json
+            benchmarks/results/**/*.csv
+            benchmarks/results/**/*.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Job summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Benchmark run"
+            echo
+            echo "- Servers: \`${SELECTED_SERVERS}\`"
+            echo "- Profile: \`${BENCHMARK_PROFILE}\`"
+            echo "- Scenarios: \`${BENCHMARK_SCENARIOS}\`"
+            echo "- Iterations: \`${BENCHMARK_ITERATIONS}\`"
+            echo "- Artifact: \`benchmark-results-${{ github.run_number }}\`"
+
+            if [[ "${{ needs.plan.outputs.uses_repo_baselines }}" == "true" && "$BENCHMARK_PROFILE" == "light" ]]; then
+              echo "- Unselected servers reused the checked-in baseline files under \`benchmarks/results/\`."
+            fi
+
+            echo
+            echo "### Limitations"
+            echo "- GitHub-hosted runners are good for directional trend checks, not lab-grade benchmark reproducibility."
+            echo "- Scheduled workflows can start late; the cron is best-effort, not a hard SLA."
+            echo "- For a full cross-server refresh, trigger this workflow manually with all servers selected."
+          } >> "$GITHUB_STEP_SUMMARY"
