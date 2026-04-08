@@ -208,7 +208,7 @@ impl Handler<GetClient> for ClientActor {
         #[cfg(feature = "redis-cache")]
         let redis_conn = self.redis.clone();
         #[cfg(feature = "redis-cache")]
-        let cache_ttl_secs = self.cache_ttl.as_secs().max(1) as u64;
+        let cache_ttl_secs = self.cache_ttl.as_secs().max(1);
 
         Box::pin(
             async move {
@@ -303,7 +303,7 @@ impl Handler<ValidateClient> for ClientActor {
         #[cfg(feature = "redis-cache")]
         let redis_conn = self.redis.clone();
         #[cfg(feature = "redis-cache")]
-        let cache_ttl_secs = self.cache_ttl.as_secs().max(1) as u64;
+        let cache_ttl_secs = self.cache_ttl.as_secs().max(1);
 
         Box::pin(
             async move {

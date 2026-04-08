@@ -15,6 +15,7 @@ You are a specialized database agent for the Rust OAuth2 Server. Your role is to
 ### Tables
 
 #### `clients`
+
 OAuth2 client applications
 
 ```sql
@@ -31,6 +32,7 @@ CREATE TABLE clients (
 ```
 
 #### `tokens`
+
 Access and refresh tokens
 
 ```sql
@@ -49,6 +51,7 @@ CREATE TABLE tokens (
 ```
 
 #### `authorization_codes`
+
 Temporary authorization codes
 
 ```sql
@@ -67,6 +70,7 @@ CREATE TABLE authorization_codes (
 ```
 
 #### `users`
+
 User accounts
 
 ```sql
@@ -101,29 +105,32 @@ postgresql://oauth2_user:password@localhost:5432/oauth2
 ### Queries
 
 #### Check Active Clients
+
 ```sql
-SELECT client_id, client_name, created_at 
-FROM clients 
+SELECT client_id, client_name, created_at
+FROM clients
 ORDER BY created_at DESC;
 ```
 
 #### Check Active Tokens
+
 ```sql
-SELECT 
-    token_id, 
-    client_id, 
-    token_type, 
+SELECT
+    token_id,
+    client_id,
+    token_type,
     expires_at,
     (expires_at > NOW()) AS is_active
-FROM tokens 
+FROM tokens
 WHERE revoked_at IS NULL
-ORDER BY created_at DESC 
+ORDER BY created_at DESC
 LIMIT 100;
 ```
 
 #### Token Statistics
+
 ```sql
-SELECT 
+SELECT
     token_type,
     COUNT(*) as total,
     SUM(CASE WHEN expires_at > NOW() AND revoked_at IS NULL THEN 1 ELSE 0 END) as active,
@@ -134,25 +141,27 @@ GROUP BY token_type;
 ```
 
 #### Recent Authorization Codes
+
 ```sql
-SELECT 
-    code, 
-    client_id, 
-    user_id, 
+SELECT
+    code,
+    client_id,
+    user_id,
     expires_at,
     used_at
-FROM authorization_codes 
+FROM authorization_codes
 WHERE created_at > NOW() - INTERVAL '1 hour'
 ORDER BY created_at DESC;
 ```
 
 #### User Registration Stats
+
 ```sql
-SELECT 
+SELECT
     DATE(created_at) as date,
     COUNT(*) as registrations,
     COUNT(DISTINCT provider) as providers_used
-FROM users 
+FROM users
 WHERE created_at > NOW() - INTERVAL '30 days'
 GROUP BY DATE(created_at)
 ORDER BY date DESC;
@@ -197,6 +206,7 @@ COMMENT ON COLUMN user_sessions.session_token IS 'Secure session token';
 ### Running Migrations
 
 #### Local Development
+
 ```bash
 # Using Docker
 docker run --rm --network host \
@@ -213,6 +223,7 @@ docker run --rm --network host \
 ```
 
 #### Kubernetes
+
 ```bash
 # Apply migration job
 kubectl apply -f k8s/base/flyway-migration-job.yaml
@@ -233,6 +244,7 @@ kubectl exec -it postgres-0 -n oauth2-server -- \
    - Use multi-phase migrations for breaking changes
 
 2. **Test migrations locally first**
+
    ```bash
    # Test on a copy of production data
    pg_dump -h prod-db > prod-backup.sql
@@ -316,8 +328,9 @@ REINDEX INDEX CONCURRENTLY idx_tokens_client_id;
 ### Index Management
 
 #### Check Missing Indexes
+
 ```sql
-SELECT 
+SELECT
     schemaname,
     tablename,
     attname,
@@ -331,8 +344,9 @@ ORDER BY n_distinct DESC;
 ```
 
 #### Check Index Usage
+
 ```sql
-SELECT 
+SELECT
     schemaname,
     tablename,
     indexname,
@@ -345,6 +359,7 @@ ORDER BY idx_scan ASC;
 ```
 
 #### Unused Indexes
+
 ```sql
 SELECT
     schemaname,
@@ -356,8 +371,8 @@ FROM pg_stat_user_indexes
 WHERE schemaname = 'public'
   AND idx_scan = 0
   AND indexrelid NOT IN (
-    SELECT DISTINCT conindid 
-    FROM pg_constraint 
+    SELECT DISTINCT conindid
+    FROM pg_constraint
     WHERE contype IN ('p', 'u')
   )
 ORDER BY pg_relation_size(indexrelid) DESC;
@@ -366,13 +381,14 @@ ORDER BY pg_relation_size(indexrelid) DESC;
 ### Query Performance
 
 #### Slow Query Log
+
 ```sql
 -- Enable slow query logging (requires restart)
 ALTER SYSTEM SET log_min_duration_statement = 1000; -- 1 second
 SELECT pg_reload_conf();
 
 -- View slow queries
-SELECT 
+SELECT
     query,
     calls,
     total_time / 1000 as total_seconds,
@@ -385,11 +401,12 @@ LIMIT 20;
 ```
 
 #### Explain Analyze
+
 ```sql
 -- Analyze query performance
 EXPLAIN (ANALYZE, BUFFERS, VERBOSE)
-SELECT * FROM tokens 
-WHERE client_id = 'abc123' 
+SELECT * FROM tokens
+WHERE client_id = 'abc123'
   AND expires_at > NOW()
   AND revoked_at IS NULL;
 ```
@@ -407,9 +424,10 @@ let pool = PgPoolOptions::new()
 ```
 
 #### Monitor Connections
+
 ```sql
 -- Current connections
-SELECT 
+SELECT
     datname,
     usename,
     application_name,
@@ -429,42 +447,46 @@ SELECT * FROM pg_stat_activity WHERE application_name LIKE 'oauth2%';
 ## Data Cleanup
 
 ### Expired Tokens
+
 ```sql
 -- View expired tokens
-SELECT COUNT(*) 
-FROM tokens 
-WHERE expires_at < NOW() 
+SELECT COUNT(*)
+FROM tokens
+WHERE expires_at < NOW()
   AND revoked_at IS NULL;
 
 -- Delete expired tokens (run regularly)
-DELETE FROM tokens 
+DELETE FROM tokens
 WHERE expires_at < NOW() - INTERVAL '7 days';
 
 -- Archive before deleting
-INSERT INTO tokens_archive 
-SELECT * FROM tokens 
+INSERT INTO tokens_archive
+SELECT * FROM tokens
 WHERE expires_at < NOW() - INTERVAL '30 days';
 ```
 
 ### Used Authorization Codes
+
 ```sql
 -- Clean up old authorization codes
-DELETE FROM authorization_codes 
+DELETE FROM authorization_codes
 WHERE created_at < NOW() - INTERVAL '1 hour';
 ```
 
 ### Old Sessions
+
 ```sql
 -- Clean up expired sessions
-DELETE FROM user_sessions 
+DELETE FROM user_sessions
 WHERE expires_at < NOW() - INTERVAL '24 hours';
 ```
 
 ## Monitoring
 
 ### Table Sizes
+
 ```sql
-SELECT 
+SELECT
     schemaname,
     tablename,
     pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size,
@@ -475,8 +497,9 @@ ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
 ```
 
 ### Database Size
+
 ```sql
-SELECT 
+SELECT
     pg_database.datname,
     pg_size_pretty(pg_database_size(pg_database.datname)) AS size
 FROM pg_database
@@ -484,8 +507,9 @@ WHERE datname = 'oauth2';
 ```
 
 ### Table Bloat
+
 ```sql
-SELECT 
+SELECT
     schemaname,
     tablename,
     pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as total_size,
@@ -508,12 +532,12 @@ ORDER BY n_dead_tup DESC;
 SELECT version();
 
 -- Check connection limit
-SELECT 
+SELECT
     max_conn,
     used,
     res_for_super,
     max_conn-used-res_for_super as remaining
-FROM 
+FROM
     (SELECT COUNT(*) used FROM pg_stat_activity) t1,
     (SELECT setting::int res_for_super FROM pg_settings WHERE name='superuser_reserved_connections') t2,
     (SELECT setting::int max_conn FROM pg_settings WHERE name='max_connections') t3;
@@ -523,7 +547,7 @@ FROM
 
 ```sql
 -- Check for locks
-SELECT 
+SELECT
     pid,
     usename,
     pg_blocking_pids(pid) as blocked_by,
@@ -542,7 +566,7 @@ SELECT pg_terminate_backend(pid);
 SELECT * FROM pg_stat_replication;
 
 -- On standby
-SELECT 
+SELECT
     now() - pg_last_xact_replay_timestamp() AS replication_lag;
 ```
 
@@ -624,4 +648,4 @@ find /backups -name "oauth2_*.sql.gz" -mtime +30 -delete
 - [SQLx Documentation](https://docs.rs/sqlx/)
 - [Flyway Documentation](https://flywaydb.org/documentation/)
 - Project migrations: `migrations/sql/`
-- Database schema: `docs/architecture/database.md`
+- Storage overview: `docs/development/architecture.md`

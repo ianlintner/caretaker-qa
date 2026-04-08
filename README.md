@@ -33,7 +33,7 @@ The default local path uses SQLite. If you want Postgres plus the supporting ser
 Important reality checks:
 
 - refresh-token and password grants are present in code paths but disabled by default
-- Google, Microsoft, and GitHub login flows are wired; `/auth/login/azure` is a Microsoft alias; Okta/Auth0 currently return `503`
+- Google, Microsoft, GitHub, and Azure login flows are wired; `/auth/login/azure` prefers `OAUTH2_AZURE_*` config and falls back to Microsoft if unset; Okta/Auth0 currently return `503`
 - the repo ships Kustomize manifests, not Helm charts
 
 ## Docs by job

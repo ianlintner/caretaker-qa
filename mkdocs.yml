@@ -6,69 +6,72 @@ repo_name: ianlintner/rust-oauth2-server
 strict: true
 
 theme:
-    name: material
-    icon:
-        repo: fontawesome/brands/github
-    features:
-        - navigation.instant
-        - navigation.tracking
-        - navigation.top
-        - search.suggest
-        - search.highlight
-        - content.code.copy
-        - toc.follow
-    palette:
-        - media: "(prefers-color-scheme: light)"
-            scheme: default
-            primary: deep orange
-            accent: blue
-            toggle:
-                icon: material/weather-night
-                name: Switch to dark mode
-        - media: "(prefers-color-scheme: dark)"
-            scheme: slate
-            primary: deep orange
-            accent: blue
-            toggle:
-                icon: material/weather-sunny
-                name: Switch to light mode
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
 
 extra_css:
-    - assets/stylesheets/extra.css
+  - assets/stylesheets/extra.css
 
 plugins:
-    - search
+  - search
 
 markdown_extensions:
-    - pymdownx.highlight:
-            anchor_linenums: true
-    - pymdownx.inlinehilite
-    - pymdownx.snippets
-    - pymdownx.superfences
-    - pymdownx.tasklist:
-            custom_checkbox: true
-    - admonition
-    - pymdownx.details
-    - toc:
-            permalink: true
-    - attr_list
-    - md_in_html
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - admonition
+  - pymdownx.details
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
 
 nav:
-    - Home: index.md
-    - Start here:
-            - Quickstart: getting-started/quickstart.md
-            - Configuration: getting-started/configuration.md
-    - Use the server:
-            - OAuth & OIDC: usage/oauth2-oidc.md
-            - Admin & API: usage/admin-api.md
-            - Integrations: usage/integrations.md
-    - Operate:
-            - Deployment: operations/deployment.md
-            - Observability: operations/observability.md
-            - Runbooks: operations/runbooks.md
-    - Build & change:
-            - Architecture: development/architecture.md
-            - Extending: development/extending.md
-            - Testing: development/testing.md
-            - Contributing: development/contributing.md
+  - Home: index.md
+  - Start here:
+      - Quickstart: getting-started/quickstart.md
+      - Configuration: getting-started/configuration.md
+  - Use the server:
+      - OAuth & OIDC: usage/oauth2-oidc.md
+      - Admin & API: usage/admin-api.md
+      - Integrations: usage/integrations.md
+  - Examples:
+      - Eventing: examples/eventing.md
+      - Service-to-service: examples/service-to-service.md
+  - Operate:
+      - Deployment: operations/deployment.md
+      - Observability: operations/observability.md
+      - Runbooks: operations/runbooks.md
+  - Build & change:
+      - Architecture: development/architecture.md
+      - Extending: development/extending.md
+      - Testing: development/testing.md
+      - Contributing: development/contributing.md

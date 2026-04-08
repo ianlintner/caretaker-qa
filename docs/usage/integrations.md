@@ -12,7 +12,7 @@ Beyond the core OAuth endpoints, this repo exposes three integration surfaces th
 | --------- | --------------- | --------------------------------------------------- |
 | Google    | Shipped         | `/auth/login/google`, `/auth/callback/google`       |
 | Microsoft | Shipped         | `/auth/login/microsoft`, `/auth/callback/microsoft` |
-| Azure AD  | Alias           | `/auth/login/azure` reuses the Microsoft flow       |
+| Azure AD  | Shipped         | `/auth/login/azure`, `/auth/callback/azure`         |
 | GitHub    | Shipped         | `/auth/login/github`, `/auth/callback/github`       |
 | Okta      | Not implemented | `/auth/login/okta` returns HTTP `503`               |
 | Auth0     | Not implemented | `/auth/login/auth0` returns HTTP `503`              |
@@ -20,7 +20,7 @@ Beyond the core OAuth endpoints, this repo exposes three integration surfaces th
 Minimum setup is just provider credentials plus a redirect URI. The exact variable names live in `.env.example` and `application.conf.example`.
 
 !!! note
-`/auth/login/azure` is a route alias, not a separate provider implementation. Use the Microsoft credentials and redirect URI for that path today.
+`/auth/login/azure` uses the same Microsoft identity platform client as the Microsoft flow. It prefers dedicated `OAUTH2_AZURE_*` settings and falls back to `OAUTH2_MICROSOFT_*` when Azure-specific settings are unset.
 
 Example for Google:
 
@@ -97,9 +97,9 @@ cp .env.example .env
 npm start
 ```
 
-Then point your MCP client at `mcp-server/src/index.js` with `OAUTH2_BASE_URL` set to the running server. Use [`mcp-server/README.md`](../../mcp-server/README.md) for the repo-local guide.
+Then point your MCP client at `mcp-server/src/index.js` with `OAUTH2_BASE_URL` set to the running server. The fuller repo-local guide lives in `mcp-server/README.md`.
 
-For the fuller repo-local guide, use [the MCP server README](https://github.com/ianlintner/rust-oauth2-server/blob/main/mcp-server/README.md).
+Use the published copy here: [the MCP server README](https://github.com/ianlintner/rust-oauth2-server/blob/main/mcp-server/README.md).
 
 ## Source of truth
 

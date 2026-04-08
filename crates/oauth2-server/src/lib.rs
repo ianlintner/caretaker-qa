@@ -670,6 +670,7 @@ pub async fn run() -> std::io::Result<()> {
         .server
         .public_url
         .clone()
+        .or_else(|| config.server.public_base_url.clone())
         .unwrap_or_else(|| format!("http://{}:{}", config.server.host, config.server.port));
 
     // Optional: RS256 id_token signing (recommended for OIDC clients like oauth2-proxy).
@@ -766,11 +767,9 @@ pub async fn run() -> std::io::Result<()> {
                 let cache_redis = cache_redis_manager.clone();
                 actix::Actor::create(|ctx| {
                     ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
-                    let actor = oauth2_actix::actors::TokenActor::new(
-                        storage.clone(),
-                        jwt_secret.clone(),
-                    )
-                    .with_keyset(keyset.clone());
+                    let actor =
+                        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
+                            .with_keyset(keyset.clone());
                     attach_token_cache(actor, &cache_redis)
                 })
             };
@@ -981,8 +980,8 @@ pub async fn run() -> std::io::Result<()> {
                             )
                             .route(
                                 "/azure",
-                                web::get().to(oauth2_social_login::handlers::auth::microsoft_login),
-                            ) // Azure uses Microsoft endpoint
+                                web::get().to(oauth2_social_login::handlers::auth::azure_login),
+                            )
                             // NOTE: Okta and Auth0 handlers not yet implemented - buttons should be hidden in UI
                             // or implement proper handlers in handlers::auth module
                             .route(

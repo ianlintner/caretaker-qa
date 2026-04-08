@@ -92,6 +92,46 @@ pub async fn microsoft_login(
         .finish())
 }
 
+/// Initiate Azure login.
+///
+/// This uses the same Microsoft identity platform flow as `microsoft_login`,
+/// but allows deployments to configure a separate `azure` provider alias.
+pub async fn azure_login(
+    config: web::Data<Arc<SocialLoginConfig>>,
+    session: Session,
+) -> Result<HttpResponse, OAuth2Error> {
+    let provider_config = config
+        .azure
+        .as_ref()
+        .or(config.microsoft.as_ref())
+        .ok_or_else(|| {
+            OAuth2Error::new(
+                "provider_not_configured",
+                Some("Azure login not configured"),
+            )
+        })?;
+
+    let client = SocialLoginService::get_microsoft_client(provider_config)?;
+
+    let (auth_url, csrf_token) = client
+        .authorize_url(CsrfToken::new_random)
+        .add_scope(Scope::new("openid".to_string()))
+        .add_scope(Scope::new("email".to_string()))
+        .add_scope(Scope::new("profile".to_string()))
+        .url();
+
+    session
+        .insert("csrf_token", csrf_token.secret())
+        .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
+    session
+        .insert("provider", "azure")
+        .map_err(|e| OAuth2Error::new("session_error", Some(&e.to_string())))?;
+
+    Ok(HttpResponse::Found()
+        .append_header(("Location", auth_url.to_string()))
+        .finish())
+}
+
 /// Initiate GitHub login
 pub async fn github_login(
     config: web::Data<Arc<SocialLoginConfig>>,
@@ -166,6 +206,9 @@ pub async fn auth_callback(
         }
         "microsoft" => {
             handle_microsoft_callback(&query.code, config.as_ref(), &social_svc, &session).await?
+        }
+        "azure" => {
+            handle_azure_callback(&query.code, config.as_ref(), &social_svc, &session).await?
         }
         "github" => {
             handle_github_callback(&query.code, config.as_ref(), &social_svc, &session).await?
@@ -301,6 +344,31 @@ async fn handle_microsoft_callback(
     let provider_config = config.microsoft.as_ref().ok_or_else(|| {
         OAuth2Error::new("provider_not_configured", Some("Microsoft not configured"))
     })?;
+
+    let client = SocialLoginService::get_microsoft_client(provider_config)?;
+
+    let http_client = reqwest::Client::new();
+    let token_result = client
+        .exchange_code(AuthorizationCode::new(code.to_string()))
+        .request_async(&http_client)
+        .await
+        .map_err(|e| OAuth2Error::new("token_exchange_failed", Some(&e.to_string())))?;
+
+    let access_token = token_result.access_token().secret();
+    social_svc.fetch_microsoft_user_info(access_token).await
+}
+
+async fn handle_azure_callback(
+    code: &str,
+    config: &SocialLoginConfig,
+    social_svc: &SocialLoginService,
+    _session: &Session,
+) -> Result<SocialUserInfo, OAuth2Error> {
+    let provider_config = config
+        .azure
+        .as_ref()
+        .or(config.microsoft.as_ref())
+        .ok_or_else(|| OAuth2Error::new("provider_not_configured", Some("Azure not configured")))?;
 
     let client = SocialLoginService::get_microsoft_client(provider_config)?;
 

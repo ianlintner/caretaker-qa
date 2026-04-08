@@ -150,8 +150,9 @@ social {
     enabled = false
   }
   
-  # Azure route currently reuses the Microsoft handler/config above.
-  # Keep this block disabled unless the dedicated Azure config path is implemented.
+  # Azure login uses the Microsoft identity platform client and can use its own
+  # OAUTH2_AZURE_* settings. If Azure is unset, the runtime can fall back to the
+  # Microsoft config above for /auth/login/azure.
   azure {
     enabled = false
   }

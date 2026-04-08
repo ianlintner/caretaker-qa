@@ -300,7 +300,7 @@ If you need credentialed read-replica or Redis URLs, place
 `base/secret.yaml` (or your external secret manager). The deployment now
 loads optional keys from both the ConfigMap and Secret via `envFrom`.
 
-See `docs/deployment/distributed-scaling.md` for the full regional shard model.
+See `docs/operations/deployment.md` for the operator-facing distributed-runtime summary. This README remains the deeper manifest-level guide.
 
 ## Troubleshooting
 

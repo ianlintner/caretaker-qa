@@ -78,11 +78,12 @@ Implemented provider flows today:
 
 - Google
 - Microsoft
+- Azure
 - GitHub
 
 Important caveats:
 
-- `/auth/login/azure` is an alias of the Microsoft flow, so use the Microsoft credentials and redirect URI.
+- `/auth/login/azure` and `/auth/callback/azure` prefer `OAUTH2_AZURE_*` settings and fall back to `OAUTH2_MICROSOFT_*` when Azure-specific config is unset.
 - Okta and Auth0 config fields exist, but those routes currently return HTTP `503`.
 
 Example Microsoft setup:

@@ -52,8 +52,9 @@ kubectl apply -k k8s/overlays/production
 kubectl get all -n oauth2-server
 kubectl wait --for=condition=ready pod -l app=oauth2-server -n oauth2-server --timeout=300s
 
-# 4. Run smoke tests
-./scripts/smoke-test.sh https://oauth.example.com
+# 4. Run smoke checks
+curl -f https://oauth.example.com/health
+curl -f https://oauth.example.com/ready
 ```
 
 ### Update Deployment
@@ -224,7 +225,7 @@ rate(oauth2_server_http_requests_total[5m])
 rate(oauth2_server_http_requests_total{status=~"5.."}[5m])
 
 # Average response time
-rate(oauth2_server_http_request_duration_seconds_sum[5m]) 
+rate(oauth2_server_http_request_duration_seconds_sum[5m])
   / rate(oauth2_server_http_request_duration_seconds_count[5m])
 
 # Token issuance rate
@@ -234,7 +235,7 @@ rate(oauth2_server_oauth_token_issued_total[5m])
 oauth2_server_oauth_active_tokens
 
 # Database query latency (p95)
-histogram_quantile(0.95, 
+histogram_quantile(0.95,
   rate(oauth2_server_db_query_duration_seconds_bucket[5m]))
 ```
 
@@ -315,9 +316,9 @@ curl https://oauth.example.com/metrics | grep duration
 # 4. Check database performance
 kubectl exec -it postgres-0 -n oauth2-server -- \
   psql -U oauth2_user -d oauth2 -c "
-    SELECT query, calls, total_time, mean_time 
-    FROM pg_stat_statements 
-    ORDER BY mean_time DESC 
+    SELECT query, calls, total_time, mean_time
+    FROM pg_stat_statements
+    ORDER BY mean_time DESC
     LIMIT 10;"
 
 # 5. Scale manually if needed
@@ -458,10 +459,10 @@ kubectl exec -it postgres-0 -n oauth2-server -- \
 # Check bloat
 kubectl exec -it postgres-0 -n oauth2-server -- \
   psql -U oauth2_user -d oauth2 -c "
-    SELECT 
-      schemaname, tablename, 
+    SELECT
+      schemaname, tablename,
       pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
-    FROM pg_tables 
+    FROM pg_tables
     WHERE schemaname = 'public'
     ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;"
 ```
@@ -575,6 +576,6 @@ Type: Graph
 ## Resources
 
 - [K8s Documentation](../k8s/README.md)
-- [API Documentation](../docs/api/endpoints.md)
-- [Architecture Overview](../docs/architecture/overview.md)
-- [Deployment Guide](../docs/deployment/production.md)
+- [OAuth & OIDC](../docs/usage/oauth2-oidc.md)
+- [Architecture Overview](../docs/development/architecture.md)
+- [Deployment Guide](../docs/operations/deployment.md)

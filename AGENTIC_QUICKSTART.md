@@ -354,7 +354,8 @@ npm start
 ### Documentation
 
 - [Main README](README.md) - Project overview
-- [API Documentation](docs/api/endpoints.md) - API reference
+- [Quickstart](docs/getting-started/quickstart.md) - Fastest local setup path
+- [OAuth & OIDC](docs/usage/oauth2-oidc.md) - Client integration reference
 - [K8s Guide](k8s/README.md) - Kubernetes deployment
 - [MCP Server](mcp-server/README.md) - AI integration
 - [Runbooks](docs/operations/runbooks.md) - Operational procedures

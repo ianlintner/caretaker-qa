@@ -824,16 +824,16 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::Config;
-        use std::fs;
+    use std::fs;
 
-        #[test]
-        fn loads_distributed_scaling_settings_from_hocon() {
-                let tempdir = tempfile::tempdir().expect("tempdir");
-                let config_path = tempdir.path().join("application.conf");
+    #[test]
+    fn loads_distributed_scaling_settings_from_hocon() {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let config_path = tempdir.path().join("application.conf");
 
-                fs::write(
-                        &config_path,
-                        r#"
+        fs::write(
+            &config_path,
+            r#"
 server {
     host = "127.0.0.1"
     port = 8080
@@ -866,35 +866,38 @@ cache {
     token_actor_shards = 8
 }
                         "#,
-                )
-                .expect("write config");
+        )
+        .expect("write config");
 
-                let config = Config::from_hocon_path(&config_path).expect("load config");
+        let config = Config::from_hocon_path(&config_path).expect("load config");
 
-                assert_eq!(
-                        config.database.read_url.as_deref(),
-                        Some("postgresql://replica.example.internal:5432/oauth2")
-                );
-                assert_eq!(config.database.max_connections, 75);
-                assert_eq!(config.database.min_connections, 5);
-                assert_eq!(config.database.acquire_timeout_secs, 12);
-                assert_eq!(config.database.idle_timeout_secs, 240);
-                assert_eq!(config.server.workers, Some(8));
-                assert!(config.jwt.stateless_validation);
+        assert_eq!(
+            config.database.read_url.as_deref(),
+            Some("postgresql://replica.example.internal:5432/oauth2")
+        );
+        assert_eq!(config.database.max_connections, 75);
+        assert_eq!(config.database.min_connections, 5);
+        assert_eq!(config.database.acquire_timeout_secs, 12);
+        assert_eq!(config.database.idle_timeout_secs, 240);
+        assert_eq!(config.server.workers, Some(8));
+        assert!(config.jwt.stateless_validation);
 
-                let cache = config.cache.expect("cache config");
-                assert_eq!(cache.redis_url.as_deref(), Some("redis://redis.internal:6379"));
-                assert_eq!(cache.token_actor_shards, 8);
-        }
+        let cache = config.cache.expect("cache config");
+        assert_eq!(
+            cache.redis_url.as_deref(),
+            Some("redis://redis.internal:6379")
+        );
+        assert_eq!(cache.token_actor_shards, 8);
+    }
 
-            #[test]
-            fn public_base_url_alias_populates_public_url() {
-                let tempdir = tempfile::tempdir().expect("tempdir");
-                let config_path = tempdir.path().join("application.conf");
+    #[test]
+    fn public_base_url_alias_populates_public_url() {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let config_path = tempdir.path().join("application.conf");
 
-                fs::write(
-                    &config_path,
-                    r#"
+        fs::write(
+            &config_path,
+            r#"
         server {
             host = "127.0.0.1"
             port = 8080
@@ -915,18 +918,18 @@ cache {
             filter_mode = "allow_all"
         }
                     "#,
-                )
-                .expect("write config");
+        )
+        .expect("write config");
 
-                let config = Config::from_hocon_path(&config_path).expect("load config");
+        let config = Config::from_hocon_path(&config_path).expect("load config");
 
-                assert_eq!(
-                    config.server.public_base_url.as_deref(),
-                    Some("https://auth.example.com")
-                );
-                assert_eq!(
-                    config.server.public_url.as_deref(),
-                    Some("https://auth.example.com")
-                );
-            }
+        assert_eq!(
+            config.server.public_base_url.as_deref(),
+            Some("https://auth.example.com")
+        );
+        assert_eq!(
+            config.server.public_url.as_deref(),
+            Some("https://auth.example.com")
+        );
+    }
 }

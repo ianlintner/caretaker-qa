@@ -268,7 +268,7 @@ impl Handler<ValidateToken> for TokenActor {
         #[cfg(feature = "redis-cache")]
         let redis_conn = self.redis.clone();
         #[cfg(feature = "redis-cache")]
-        let redis_ttl_secs = cache_ttl.as_secs().max(1) as u64;
+        let redis_ttl_secs = cache_ttl.as_secs().max(1);
 
         // Capture the actor's own address so the async block can send a
         // CacheValidatedToken message back for insertion.

@@ -59,52 +59,13 @@ cargo test --verbose --all-features --locked
 ```
 
 If you need a longer narrative, use the docs site. This file exists to keep future summaries from drifting into fan fiction.
-- Admin user management UI
-- Audit log viewer
-- OAuth2 device flow
-- JWT key rotation
-- Redis session store
 
-## Performance Considerations
+## Repo-local deep guides
 
-- Actor model for concurrent request handling
-- Connection pooling for database access
-- Session management with secure cookies
-- Efficient JWT validation
-- Prometheus metrics with minimal overhead
+These stay outside the main docs nav on purpose:
 
-## Security Best Practices
-
-- Always use HTTPS in production
-- Store secrets securely (use secret management services)
-- Rotate JWT secrets regularly
-- Implement rate limiting
-- Monitor audit logs
-- Keep dependencies updated
-- Use strong client secrets
-- Validate redirect URIs strictly
-
-## License
-
-MIT OR Apache-2.0
-
-## Credits
-
-Inspired by:
-
-- [Keycloak](https://www.keycloak.org/) - Feature set reference
-- [RFC 6749](https://tools.ietf.org/html/rfc6749) - OAuth 2.0 Authorization Framework
-- [RFC 7636](https://tools.ietf.org/html/rfc7636) - PKCE
-- [RFC 7662](https://tools.ietf.org/html/rfc7662) - Token Introspection
-- [RFC 7009](https://tools.ietf.org/html/rfc7009) - Token Revocation
-- [RFC 8414](https://tools.ietf.org/html/rfc8414) - Authorization Server Metadata
-
-## Support
-
-- Repository: <https://github.com/ianlintner/rust_oauth2_server>
-- Issues: <https://github.com/ianlintner/rust_oauth2_server/issues>
-- Documentation: See `/docs` directory
-
----
-
-**Project Status**: ✅ Production-ready with comprehensive feature set complete!
+- `k8s/README.md`
+- `DOCKERHUB.md`
+- `mcp-server/README.md`
+- `benchmarks/README.md`
+- `SECURITY.md`

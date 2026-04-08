@@ -5,6 +5,7 @@ You are a specialized documentation reconciliation agent for the Rust OAuth2 Ser
 ## Project Overview
 
 This is a production-ready OAuth2 authorization server built with:
+
 - **Language**: Rust 2021 edition
 - **Framework**: Actix-web 4 with the Actix actor model
 - **Database**: SQLx (PostgreSQL/SQLite) and optional MongoDB
@@ -13,25 +14,23 @@ This is a production-ready OAuth2 authorization server built with:
 
 ## Documentation Sources
 
-| Location | Description |
-|---|---|
-| `docs/` | MkDocs site pages (Markdown) |
-| `README.md` | Project overview and quickstart |
-| `SUMMARY.md` | Table of contents for docs |
-| `mkdocs.yml` | MkDocs configuration |
-| `docs/api/` | API endpoint documentation |
-| `docs/architecture/` | Architecture and design docs |
-| `docs/deployment/` | Deployment guides (Docker, K8s) |
-| `docs/development/` | Developer setup and contribution |
-| `docs/getting-started/` | Quickstart and tutorials |
-| `docs/operations/` | Operational runbooks |
-| `docs/admin/` | Admin and management docs |
-| `docs/observability/` | Metrics, tracing, and logging |
-| `docs/flows/` | OAuth2 flow diagrams and explanations |
-| `docs/superpowers/` | Advanced features (rate limiting, resilience, etc.) |
-| `application.conf.example` | Configuration reference |
-| `.env.example` | Environment variable reference |
-| `DOCKERHUB.md` | Docker Hub image documentation |
+| Location                   | Description                                        |
+| -------------------------- | -------------------------------------------------- |
+| `docs/`                    | MkDocs site pages (Markdown)                       |
+| `README.md`                | Project overview and quickstart                    |
+| `SUMMARY.md`               | Canonical docs summary for humans and agents       |
+| `mkdocs.yml`               | MkDocs configuration                               |
+| `docs/getting-started/`    | Quickstart and configuration                       |
+| `docs/usage/`              | OAuth/OIDC, admin/API, and integrations            |
+| `docs/operations/`         | Deployment, observability, and runbooks            |
+| `docs/development/`        | Architecture, extending, testing, and contributing |
+| `docs/examples/`           | Small task-focused walkthroughs                    |
+| `application.conf.example` | Configuration reference                            |
+| `.env.example`             | Environment variable reference                     |
+| `DOCKERHUB.md`             | Docker Hub image documentation                     |
+| `k8s/README.md`            | Manifest-level Kubernetes guide                    |
+| `mcp-server/README.md`     | MCP wrapper guide                                  |
+| `benchmarks/README.md`     | Benchmark harness guide                            |
 
 ## How to Perform a Reconciliation
 
@@ -52,18 +51,19 @@ Read the issue body carefully. It contains a list of commits from the past week.
 
 For each significant change, verify the following documentation areas:
 
-- **API docs** (`docs/api/`): Do endpoint descriptions, request/response schemas, and examples match the code? Cross-reference `utoipa` OpenAPI annotations in the handlers.
-- **Architecture docs** (`docs/architecture/`): Are module descriptions, data flows, and component diagrams still accurate?
+- **Usage docs** (`docs/usage/`): Do OAuth/OIDC behavior, admin routes, and integration caveats match the code and generated OpenAPI surface?
+- **Architecture docs** (`docs/development/architecture.md`): Are workspace boundaries, storage choices, and component diagrams still accurate?
 - **Configuration** (`application.conf.example`, `.env.example`): Are all new or renamed config keys documented with descriptions and defaults?
-- **Deployment** (`docs/deployment/`, `docker-compose*.yml`, `k8s/`): Do container images, environment variables, and deployment steps reflect current state?
+- **Deployment** (`docs/operations/deployment.md`, `docker-compose*.yml`, `k8s/`): Do container images, environment variables, and deployment steps reflect current state?
 - **Getting started** (`docs/getting-started/`): Does the quickstart guide still work end-to-end with the latest code?
+- **Operations** (`docs/operations/`): Do health checks, metrics, and runbooks still match the runtime surface?
 - **README.md**: Is the feature list, setup instructions, and project description current?
 
 ### Step 3: Make Changes
 
 1. Create a new branch from `main`.
 2. Update all affected documentation files.
-3. If new features require entirely new documentation pages, create them under the appropriate `docs/` subdirectory and add entries to `mkdocs.yml` and `SUMMARY.md`.
+3. If new features require entirely new documentation pages, create them under the appropriate `docs/` subdirectory and add entries to `mkdocs.yml` and `SUMMARY.md` only when they belong in the canonical docs set. Keep deep repo-local guides outside the main nav when that keeps the IA simpler.
 4. Ensure all Markdown follows existing formatting conventions (see below).
 
 ### Step 4: Validate
@@ -73,15 +73,16 @@ Run the following checks before submitting:
 ```bash
 # Verify MkDocs builds without errors
 pip install -r requirements-docs.txt
-mkdocs build --strict
+python3 -m mkdocs build --strict
 
 # Check for broken internal links (if available)
-mkdocs serve  # Manual review at http://localhost:8000
+python3 -m mkdocs serve  # Manual review at http://localhost:8000
 ```
 
 ### Step 5: Submit
 
 Open a pull request with:
+
 - Title: `docs: reconcile documentation for week of YYYY-MM-DD`
 - Description listing each documentation change and the commit(s) it relates to.
 - Reference the reconciliation issue (e.g., `Closes #123`).
@@ -91,27 +92,26 @@ Open a pull request with:
 - Use **ATX-style headings** (`# H1`, `## H2`, etc.).
 - Use **fenced code blocks** with language identifiers (` ```bash `, ` ```rust `, ` ```yaml `).
 - Keep lines under 120 characters where practical.
-- Use **relative links** between documentation pages (e.g., `[Config](../operations/configuration.md)`).
+- Use **relative links** between documentation pages (e.g., `[Config](../getting-started/configuration.md)`).
 - Include **Mermaid diagrams** for architecture and flow documentation.
 - Use **admonitions** for warnings and notes (MkDocs Material syntax):
   ```markdown
   !!! warning
-      This endpoint requires admin privileges.
+  This endpoint requires admin privileges.
   ```
 
 ## Key Crate-to-Doc Mapping
 
-| Crate / Module | Documentation Area |
-|---|---|
-| `crates/oauth2-actix/` (handlers, middleware) | `docs/api/`, `docs/flows/` |
-| `crates/oauth2-core/` (models, services) | `docs/architecture/` |
-| `crates/oauth2-server/` (server bootstrap) | `docs/deployment/`, `docs/getting-started/` |
-| `oauth2-ratelimit/` | `docs/operations/`, `docs/superpowers/` |
-| `oauth2-resilience/` | `docs/operations/`, `docs/superpowers/` |
-| `migrations/` | `docs/development/`, `docs/deployment/` |
-| `k8s/`, `docker-compose*.yml` | `docs/deployment/` |
-| `observability/` | `docs/observability/` |
-| `application.conf`, `.env.example` | `docs/operations/` |
+| Crate / Module                                | Documentation Area                                                    |
+| --------------------------------------------- | --------------------------------------------------------------------- |
+| `crates/oauth2-actix/` (handlers, middleware) | `docs/usage/`, `docs/operations/`                                     |
+| `crates/oauth2-core/`, `crates/oauth2-ports/` | `docs/development/architecture.md`                                    |
+| `crates/oauth2-server/` (bootstrap, routing)  | `README.md`, `docs/getting-started/`, `docs/operations/deployment.md` |
+| `oauth2-ratelimit/`, `oauth2-resilience/`     | `docs/getting-started/configuration.md`, `docs/operations/`           |
+| `migrations/`                                 | `docs/operations/deployment.md`, `docs/development/testing.md`        |
+| `k8s/`, `docker-compose*.yml`                 | `docs/operations/deployment.md`, `k8s/README.md`                      |
+| `observability/`                              | `docs/operations/observability.md`                                    |
+| `application.conf`, `.env.example`            | `docs/getting-started/configuration.md`                               |
 
 ## Priority Guidelines
 

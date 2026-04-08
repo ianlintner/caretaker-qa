@@ -5,6 +5,7 @@ You are a specialized development agent for the Rust OAuth2 Server project. Your
 ## Project Overview
 
 This is a production-ready OAuth2 authorization server built with:
+
 - **Language**: Rust 2021 edition
 - **Framework**: Actix-web with actor model
 - **Database**: SQLx with PostgreSQL/SQLite support
@@ -14,6 +15,7 @@ This is a production-ready OAuth2 authorization server built with:
 ## Core Technologies
 
 ### Rust Dependencies
+
 - `actix-web` (4.4) - Web framework
 - `actix` (0.13) - Actor system
 - `sqlx` (0.8) - Database access
@@ -23,9 +25,11 @@ This is a production-ready OAuth2 authorization server built with:
 - `opentelemetry` (0.21) - Distributed tracing
 
 ### Key Features
-- OAuth2 flows: Authorization Code, Client Credentials, Password, Refresh Token
+
+- OAuth2 flows: Authorization Code + PKCE, Client Credentials, introspection, and revocation
+- Password and refresh-token grant code paths exist, but they are disabled by default in normal deployments
 - PKCE support for enhanced security
-- Social login integration (Google, Microsoft, GitHub, Azure, Okta, Auth0)
+- Social login integration (Google, Microsoft, GitHub, Azure) with Okta/Auth0 config present but routes currently returning `503`
 - Token introspection and revocation
 - Health checks and metrics
 - Swagger UI documentation
@@ -33,6 +37,7 @@ This is a production-ready OAuth2 authorization server built with:
 ## Development Workflow
 
 ### Building
+
 ```bash
 cargo build                    # Development build
 cargo build --release          # Production build
@@ -40,6 +45,7 @@ cargo check                    # Fast syntax check
 ```
 
 ### Testing
+
 ```bash
 cargo test                     # Run unit tests
 cargo test --test integration  # Run integration tests
@@ -47,6 +53,7 @@ cargo test --test bdd          # Run BDD tests
 ```
 
 ### Code Quality
+
 ```bash
 cargo fmt                      # Format code
 cargo clippy --all-targets --all-features -- -D warnings  # Lint
@@ -56,22 +63,23 @@ cargo audit                    # Security audit
 ## Project Structure
 
 ```
-src/
-├── main.rs              # Application entry point
-├── config/              # Configuration management
-├── db/                  # Database layer
-├── handlers/            # HTTP request handlers
-├── actors/              # Actor system components
-├── models/              # Data models
-├── services/            # Business logic
-├── middleware/          # HTTP middleware
-├── metrics.rs           # Prometheus metrics
-└── telemetry.rs         # OpenTelemetry setup
+src/main.rs                         # Thin entry binary
+crates/oauth2-server/              # Runtime assembly and route wiring
+crates/oauth2-actix/               # HTTP handlers, middleware, actors
+crates/oauth2-core/                # Domain logic and shared models
+crates/oauth2-ports/               # Storage and integration traits
+crates/oauth2-storage-*/           # Concrete storage implementations
+crates/oauth2-events/              # Eventing subsystem
+oauth2-ratelimit/                  # Rate limiting middleware
+oauth2-resilience/                 # Resilience / back-pressure middleware
+tests/                             # Integration and behavior tests
+docs/                              # Canonical docs site sources
 ```
 
 ## Coding Standards
 
 ### Style Guidelines
+
 1. **Follow Rust idioms**:
    - Use `Result<T, E>` for error handling
    - Prefer `Option<T>` over null-like patterns
@@ -96,6 +104,7 @@ src/
    - Include migrations for schema changes
 
 ### Code Organization
+
 ```rust
 // Imports grouped and sorted
 use actix_web::{web, HttpResponse};
@@ -125,14 +134,15 @@ pub async fn register_client(
 
 ### Adding a New Endpoint
 
-1. **Define the model** in `src/models/`
-2. **Create handler** in `src/handlers/`
-3. **Add route** in `src/main.rs`
-4. **Add OpenAPI docs** with `#[utoipa::path]`
+1. **Find the owning crate** under `crates/` and place the change there instead of inventing new top-level modules.
+2. **Define or extend the model/service** in the owning crate.
+3. **Register the route** in `crates/oauth2-server/src/lib.rs` or the relevant scope configuration.
+4. **Add OpenAPI docs** with `#[utoipa::path]` when the endpoint is externally visible.
 5. **Write tests** in `tests/`
-6. **Update documentation** in `docs/api/`
+6. **Update the relevant docs page** in `docs/usage/`, `docs/getting-started/`, or `docs/operations/`
 
 Example:
+
 ```rust
 #[utoipa::path(
     post,
@@ -155,6 +165,7 @@ pub async fn create_resource(
 ### Adding Database Migrations
 
 1. Create migration file in `migrations/sql/`:
+
    ```sql
    -- V5__description.sql
    CREATE TABLE new_table (
@@ -164,6 +175,7 @@ pub async fn create_resource(
    ```
 
 2. Run migration:
+
    ```bash
    ./scripts/migrate.sh
    ```
@@ -219,12 +231,14 @@ impl Handler<Request> for MyActor {
 ## Debugging Tips
 
 ### Enable Verbose Logging
+
 ```bash
 export RUST_LOG=debug,actix_web=debug,sqlx=debug
 cargo run
 ```
 
 ### Database Debugging
+
 ```rust
 // Log query
 sqlx::query!("SELECT * FROM clients WHERE client_id = $1", client_id)
@@ -237,6 +251,7 @@ sqlx::query!("SELECT * FROM clients WHERE client_id = $1", client_id)
 ```
 
 ### Actor Debugging
+
 ```rust
 impl Handler<Message> for Actor {
     fn handle(&mut self, msg: Message, _ctx: &mut Context<Self>) -> Self::Result {
@@ -249,6 +264,7 @@ impl Handler<Message> for Actor {
 ## Testing Guidelines
 
 ### Unit Tests
+
 ```rust
 #[cfg(test)]
 mod tests {
@@ -269,7 +285,9 @@ mod tests {
 ```
 
 ### Integration Tests
+
 Located in `tests/integration.rs`:
+
 ```rust
 #[actix_rt::test]
 async fn test_register_client() {
@@ -279,7 +297,9 @@ async fn test_register_client() {
 ```
 
 ### BDD Tests
+
 Located in `tests/features/*.feature` and `tests/bdd.rs`:
+
 ```gherkin
 Feature: Client Registration
   Scenario: Register new client
@@ -332,16 +352,19 @@ Feature: Client Registration
 ## Common Issues
 
 ### Database Connection Errors
+
 - Check `OAUTH2_DATABASE_URL` environment variable
 - Ensure PostgreSQL is running
 - Verify database exists and migrations are applied
 
 ### Build Errors
+
 - Update dependencies: `cargo update`
 - Clean build: `cargo clean && cargo build`
 - Check Rust version: `rustc --version` (need 1.70+)
 
 ### Actor Message Errors
+
 - Ensure message types implement `Message` trait
 - Check actor is started and address is valid
 - Use `.send()` for async, `.do_send()` for fire-and-forget
