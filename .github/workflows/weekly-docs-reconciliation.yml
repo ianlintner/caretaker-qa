@@ -50,6 +50,7 @@ jobs:
 
       - name: Create documentation reconciliation issue
         if: steps.check_commits.outputs.has_commits == 'true'
+        id: create_issue
         uses: actions/github-script@v8
         env:
           COMMIT_SUMMARY: ${{ steps.check_commits.outputs.commit_summary }}
@@ -128,18 +129,87 @@ jobs:
 
             core.info(`Created issue #${issue.data.number}`);
 
-            // Assign Copilot coding agent to the issue
-            try {
-              await github.rest.issues.addAssignees({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.data.number,
-                assignees: ['copilot'],
-              });
-              core.info(`Assigned Copilot to issue #${issue.data.number}`);
-            } catch (assignErr) {
-              core.warning(`Could not assign Copilot to issue #${issue.data.number}: ${assignErr.message}. Ensure Copilot coding agent is enabled for this repository.`);
-            }
+            core.setOutput('issue_number', String(issue.data.number));
+            core.setOutput(
+              'default_branch',
+              context.payload.repository?.default_branch || 'main'
+            );
+
+      - name: Assign Copilot cloud agent
+        if: steps.create_issue.outputs.issue_number != ''
+        id: assign_copilot
+        env:
+          COPILOT_ASSIGN_TOKEN: ${{ secrets['COPILOT_ASSIGN_TOKEN'] }}
+          COPILOT_ASSIGN_MODEL: ${{ vars['COPILOT_ASSIGN_MODEL'] }}
+          ISSUE_NUMBER: ${{ steps.create_issue.outputs.issue_number }}
+          TARGET_REPO: ${{ github.repository }}
+          BASE_BRANCH: ${{ steps.create_issue.outputs.default_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${COPILOT_ASSIGN_TOKEN:-}" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "detail=Secret COPILOT_ASSIGN_TOKEN is not configured." >> "$GITHUB_OUTPUT"
+            echo "::warning::Secret COPILOT_ASSIGN_TOKEN is not configured. Set a fine-grained PAT or GitHub App user-to-server token with metadata:read and actions/contents/issues/pull-requests:write to enable Copilot assignment."
+            exit 0
+          fi
+
+          custom_instructions="Use the repository Copilot instructions and CI gate checklist. Focus on documentation reconciliation for the issue content and commit summary."
+
+          if [ -n "${COPILOT_ASSIGN_MODEL:-}" ]; then
+            payload=$(jq -n \
+              --arg assignee "copilot-swe-agent[bot]" \
+              --arg target_repo "$TARGET_REPO" \
+              --arg base_branch "$BASE_BRANCH" \
+              --arg custom_instructions "$custom_instructions" \
+              --arg model "$COPILOT_ASSIGN_MODEL" \
+              '{
+                assignees: [$assignee],
+                agent_assignment: {
+                  target_repo: $target_repo,
+                  base_branch: $base_branch,
+                  custom_instructions: $custom_instructions,
+                  model: $model
+                }
+              }')
+          else
+            payload=$(jq -n \
+              --arg assignee "copilot-swe-agent[bot]" \
+              --arg target_repo "$TARGET_REPO" \
+              --arg base_branch "$BASE_BRANCH" \
+              --arg custom_instructions "$custom_instructions" \
+              '{
+                assignees: [$assignee],
+                agent_assignment: {
+                  target_repo: $target_repo,
+                  base_branch: $base_branch,
+                  custom_instructions: $custom_instructions
+                }
+              }')
+          fi
+
+          response_file="$(mktemp)"
+          status_code=$(curl -sS -o "$response_file" -w "%{http_code}" \
+            -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${COPILOT_ASSIGN_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${TARGET_REPO}/issues/${ISSUE_NUMBER}/assignees" \
+            --data "$payload")
+
+          if [ "$status_code" -lt 200 ] || [ "$status_code" -ge 300 ]; then
+            response_compact=$(jq -c . "$response_file" 2>/dev/null || cat "$response_file")
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+            echo "detail=HTTP ${status_code}: ${response_compact}" >> "$GITHUB_OUTPUT"
+            echo "::warning::Could not assign Copilot cloud agent (HTTP ${status_code}): ${response_compact}"
+            exit 0
+          fi
+
+          assigned_logins=$(jq -r '.assignees[]?.login' "$response_file" | paste -sd ', ' -)
+          echo "status=assigned" >> "$GITHUB_OUTPUT"
+          echo "detail=${assigned_logins:-copilot-swe-agent[bot]}" >> "$GITHUB_OUTPUT"
+          echo "Assigned Copilot cloud agent to issue #${ISSUE_NUMBER}."
 
       - name: Job summary
         shell: bash
@@ -151,6 +221,20 @@ jobs:
             if [ "${{ steps.check_commits.outputs.has_commits }}" = "true" ]; then
               echo "- **Commits found**: ${{ steps.check_commits.outputs.commit_count }}"
               echo "- **Issue created**: ✅"
+              case "${{ steps.assign_copilot.outputs.status }}" in
+                assigned)
+                  echo "- **Copilot assignment**: ✅ ${{ steps.assign_copilot.outputs.detail }}"
+                  ;;
+                skipped)
+                  echo "- **Copilot assignment**: ⚠️ skipped — ${{ steps.assign_copilot.outputs.detail }}"
+                  ;;
+                failed)
+                  echo "- **Copilot assignment**: ⚠️ failed — ${{ steps.assign_copilot.outputs.detail }}"
+                  ;;
+                *)
+                  echo "- **Copilot assignment**: not attempted"
+                  ;;
+              esac
             else
               echo "- No commits found in the past 7 days."
               echo "- **Issue created**: ❌ (skipped)"
