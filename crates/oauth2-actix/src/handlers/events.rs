@@ -4,9 +4,20 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use subtle::ConstantTimeEq;
 use tokio::sync::Mutex;
 
 use oauth2_events::{event_actor::GetPluginHealth, EventBusHandle, EventEnvelope};
+
+fn extract_bearer_token(req: &HttpRequest) -> Option<String> {
+    req.headers()
+        .get(actix_web::http::header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+}
 
 /// Best-effort in-memory idempotency store for `/events/ingest`.
 ///
@@ -80,7 +91,40 @@ pub async fn ingest(
     envelope: web::Json<EventEnvelope>,
     idempotency: web::Data<IdempotencyStore>,
     event_bus: Option<web::Data<EventBusHandle>>,
+    config: Option<web::Data<oauth2_config::Config>>,
 ) -> Result<HttpResponse> {
+    let public_ingest = config
+        .as_ref()
+        .map(|cfg| cfg.events.public_ingest)
+        .unwrap_or(false);
+
+    if !public_ingest {
+        let Some(expected_token) = config
+            .as_ref()
+            .and_then(|cfg| cfg.events.ingest_bearer_token.as_deref())
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+        else {
+            return Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
+                "error": "event_ingest_auth_not_configured"
+            })));
+        };
+
+        let authorized = extract_bearer_token(&req)
+            .as_deref()
+            .map(|presented| expected_token.as_bytes().ct_eq(presented.as_bytes()).into())
+            .unwrap_or(false);
+
+        if !authorized {
+            return Ok(HttpResponse::Unauthorized()
+                .insert_header(("WWW-Authenticate", "Bearer"))
+                .json(serde_json::json!({
+                    "error": "invalid_token",
+                    "error_description": "Missing or invalid bearer token"
+                })));
+        }
+    }
+
     let Some(event_bus) = event_bus else {
         return Ok(HttpResponse::ServiceUnavailable().json(serde_json::json!({
             "error": "eventing_disabled"

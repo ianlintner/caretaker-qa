@@ -1,24 +1,127 @@
-use actix_web::{web, HttpResponse, Result};
+use actix::Addr;
+use actix_web::{web, HttpRequest, HttpResponse, Result};
 use serde::Deserialize;
 
-use crate::actors::{RevokeToken, TokenActorPool, ValidateToken, ValidateTokenStateless};
+use crate::actors::{
+    ClientActor, GetClient, LookupToken, RevokeToken, TokenActorPool, ValidateToken,
+    ValidateTokenStateless,
+};
+use crate::handlers::oauth::{client_secret_matches, parse_client_basic_auth};
+use oauth2_config::Config;
 use oauth2_core::{Claims, IntrospectionResponse, OAuth2Error};
+
+fn no_store_headers(mut response: HttpResponse) -> HttpResponse {
+    response.headers_mut().insert(
+        actix_web::http::header::CACHE_CONTROL,
+        "no-store".parse().unwrap(),
+    );
+    response
+        .headers_mut()
+        .insert(actix_web::http::header::PRAGMA, "no-cache".parse().unwrap());
+    response
+}
+
+fn inactive_introspection_response() -> HttpResponse {
+    no_store_headers(HttpResponse::Ok().json(IntrospectionResponse {
+        active: false,
+        scope: None,
+        client_id: None,
+        username: None,
+        token_type: None,
+        exp: None,
+        iat: None,
+        sub: None,
+    }))
+}
+
+async fn authenticate_client(
+    req: &HttpRequest,
+    form_client_id: Option<&str>,
+    form_client_secret: Option<&str>,
+    client_actor: &web::Data<Addr<ClientActor>>,
+    require_auth: bool,
+) -> Result<Option<oauth2_core::Client>, OAuth2Error> {
+    let basic = parse_client_basic_auth(req)?;
+    let basic_client_id = basic.as_ref().map(|(client_id, _)| client_id.as_str());
+    let basic_client_secret = basic
+        .as_ref()
+        .map(|(_, client_secret)| client_secret.as_str());
+
+    if let (Some(body_id), Some(basic_id)) = (form_client_id, basic_client_id) {
+        if body_id != basic_id {
+            return Err(OAuth2Error::invalid_request(
+                "client_id mismatch between body and Basic auth",
+            ));
+        }
+    }
+
+    if let (Some(body_secret), Some(basic_secret)) = (form_client_secret, basic_client_secret) {
+        if body_secret != basic_secret {
+            return Err(OAuth2Error::invalid_client(
+                "client_secret mismatch between body and Basic auth",
+            ));
+        }
+    }
+
+    let client_id = form_client_id.or(basic_client_id);
+    let client_secret = form_client_secret.or(basic_client_secret);
+
+    match (client_id, client_secret) {
+        (None, None) if !require_auth => Ok(None),
+        (None, None) => Err(OAuth2Error::invalid_client("Missing client authentication")),
+        (Some(_), None) => Err(OAuth2Error::invalid_client("Missing client_secret")),
+        (None, Some(_)) => Err(OAuth2Error::invalid_request("Missing client_id")),
+        (Some(client_id), Some(client_secret)) => {
+            let client = client_actor
+                .send(GetClient {
+                    client_id: client_id.to_string(),
+                    span: tracing::Span::current(),
+                })
+                .await
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+            if !client_secret_matches(&client, client_secret) {
+                return Err(OAuth2Error::invalid_client("Invalid client credentials"));
+            }
+
+            Ok(Some(client))
+        }
+    }
+}
 
 #[derive(Debug, Deserialize)]
 pub struct IntrospectRequest {
     token: String,
     #[allow(dead_code)] // OAuth2 spec field, can be used for optimization
     token_type_hint: Option<String>,
+    client_id: Option<String>,
+    client_secret: Option<String>,
 }
 
 /// Token introspection endpoint
 /// Returns information about a token
 pub async fn introspect(
+    req: HttpRequest,
     form: web::Form<IntrospectRequest>,
     token_actor: web::Data<TokenActorPool>,
+    client_actor: web::Data<Addr<ClientActor>>,
     jwt_secret: web::Data<String>,
     stateless: web::Data<bool>,
+    config: Option<web::Data<Config>>,
 ) -> Result<HttpResponse, OAuth2Error> {
+    let public_introspection = config
+        .as_ref()
+        .map(|cfg| cfg.jwt.public_introspection)
+        .unwrap_or(false);
+    let caller = authenticate_client(
+        &req,
+        form.client_id.as_deref(),
+        form.client_secret.as_deref(),
+        &client_actor,
+        !public_introspection,
+    )
+    .await?;
+
     let token_prefix = form.token.chars().take(20).collect::<String>();
     tracing::info!(
         token_len = form.token.len(),
@@ -51,6 +154,18 @@ pub async fn introspect(
 
     match token_result {
         Ok(token) => {
+            if let Some(caller) = caller.as_ref() {
+                if token.client_id != caller.client_id {
+                    tracing::warn!(
+                        caller_client_id = %caller.client_id,
+                        token_client_id = %token.client_id,
+                        token_prefix = %token_prefix,
+                        "Authenticated caller attempted to introspect a token owned by another client"
+                    );
+                    return Ok(inactive_introspection_response());
+                }
+            }
+
             // Decode JWT to get claims
             let claims = Claims::decode(&token.access_token, &jwt_secret).ok();
 
@@ -71,10 +186,7 @@ pub async fn introspect(
                 sub: claims.as_ref().map(|c| c.sub.clone()).or(user_id),
             };
 
-            Ok(HttpResponse::Ok()
-                .insert_header((actix_web::http::header::CACHE_CONTROL, "no-store"))
-                .insert_header((actix_web::http::header::PRAGMA, "no-cache"))
-                .json(response))
+            Ok(no_store_headers(HttpResponse::Ok().json(response)))
         }
         Err(err) => {
             tracing::warn!(
@@ -83,21 +195,7 @@ pub async fn introspect(
                 token_prefix = %token_prefix,
                 "Token introspection failed; returning inactive"
             );
-            // Token is invalid
-            let response = IntrospectionResponse {
-                active: false,
-                scope: None,
-                client_id: None,
-                username: None,
-                token_type: None,
-                exp: None,
-                iat: None,
-                sub: None,
-            };
-            Ok(HttpResponse::Ok()
-                .insert_header((actix_web::http::header::CACHE_CONTROL, "no-store"))
-                .insert_header((actix_web::http::header::PRAGMA, "no-cache"))
-                .json(response))
+            Ok(inactive_introspection_response())
         }
     }
 }
@@ -107,25 +205,55 @@ pub struct RevokeRequest {
     token: String,
     #[allow(dead_code)] // OAuth2 spec field, can be used for optimization
     token_type_hint: Option<String>,
+    client_id: Option<String>,
+    client_secret: Option<String>,
 }
 
 /// Token revocation endpoint
 /// Revokes an access or refresh token
 pub async fn revoke(
+    req: HttpRequest,
     form: web::Form<RevokeRequest>,
     token_actor: web::Data<TokenActorPool>,
+    client_actor: web::Data<Addr<ClientActor>>,
 ) -> Result<HttpResponse, OAuth2Error> {
-    token_actor
+    let caller = authenticate_client(
+        &req,
+        form.client_id.as_deref(),
+        form.client_secret.as_deref(),
+        &client_actor,
+        true,
+    )
+    .await?
+    .expect("client auth is required for token revocation");
+
+    let token = token_actor
         .route(&form.token)
-        .send(RevokeToken {
+        .send(LookupToken {
             token: form.token.clone(),
             span: tracing::Span::current(),
         })
         .await
         .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
 
-    Ok(HttpResponse::Ok()
-        .insert_header((actix_web::http::header::CACHE_CONTROL, "no-store"))
-        .insert_header((actix_web::http::header::PRAGMA, "no-cache"))
-        .finish())
+    if let Some(token) = token {
+        if token.client_id == caller.client_id {
+            token_actor
+                .route(&form.token)
+                .send(RevokeToken {
+                    token: form.token.clone(),
+                    span: tracing::Span::current(),
+                })
+                .await
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+        } else {
+            tracing::warn!(
+                caller_client_id = %caller.client_id,
+                token_client_id = %token.client_id,
+                "Authenticated caller attempted to revoke a token owned by another client"
+            );
+        }
+    }
+
+    Ok(no_store_headers(HttpResponse::Ok().finish()))
 }

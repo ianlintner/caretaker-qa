@@ -89,6 +89,7 @@ sha2 = "0.10"
 tempfile = "3"
 testcontainers = "0.27.2"
 testcontainers-modules = { version = "0.15", features = ["postgres", "mongo"] }
+tracing = "0.1"
 
 # Workspace crates used directly by root integration tests.
 oauth2-storage-sqlx = { path = "crates/oauth2-storage-sqlx" }

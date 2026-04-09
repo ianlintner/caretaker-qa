@@ -6,12 +6,11 @@ use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::traits::PublicKeyParts;
 use rsa::RsaPrivateKey;
-use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::RwLock;
 
+use crate::actors::{TokenActorPool, ValidateToken};
 use oauth2_core::models::key_set::{Algorithm as KeyAlgorithm, KeySet};
-use oauth2_core::Claims;
 
 /// Shared OIDC / server configuration injected as `web::Data<OidcConfig>`.
 #[derive(Debug, Clone)]
@@ -33,18 +32,37 @@ pub struct OidcConfig {
 
 /// OAuth2 / OIDC discovery endpoint
 /// Returns server metadata according to RFC 8414 + OpenID Connect Discovery 1.0
-pub async fn openid_configuration(oidc: web::Data<OidcConfig>) -> Result<HttpResponse> {
+pub async fn openid_configuration(
+    oidc: web::Data<OidcConfig>,
+    config: Option<web::Data<oauth2_config::Config>>,
+) -> Result<HttpResponse> {
     let base = oidc.issuer.trim_end_matches('/');
+    let public_introspection = config
+        .as_ref()
+        .map(|cfg| cfg.jwt.public_introspection)
+        .unwrap_or(false);
 
     let id_token_algs = if oidc.id_token_alg.eq_ignore_ascii_case("RS256") {
         ["RS256"]
     } else {
         ["HS256"]
     };
+    let introspection_auth_methods = if public_introspection {
+        vec!["none", "client_secret_basic", "client_secret_post"]
+    } else {
+        vec!["client_secret_basic", "client_secret_post"]
+    };
     let config = json!({
         "issuer": base,
         "authorization_endpoint": format!("{}/oauth/authorize", base),
         "token_endpoint": format!("{}/oauth/token", base),
+        "introspection_endpoint": format!("{}/oauth/introspect", base),
+        "introspection_endpoint_auth_methods_supported": introspection_auth_methods,
+        "revocation_endpoint": format!("{}/oauth/revoke", base),
+        "revocation_endpoint_auth_methods_supported": [
+            "client_secret_basic",
+            "client_secret_post"
+        ],
         "token_introspection_endpoint": format!("{}/oauth/introspect", base),
         "token_revocation_endpoint": format!("{}/oauth/revoke", base),
         "userinfo_endpoint": format!("{}/oauth/userinfo", base),
@@ -140,26 +158,21 @@ pub async fn jwks(
         .json(json!({ "keys": jwk_entries })))
 }
 
-/// Query parameters for userinfo (not commonly used, but spec allows GET).
-#[derive(Debug, Deserialize)]
-pub struct UserinfoQuery {
-    pub access_token: Option<String>,
-}
-
 /// OIDC UserInfo endpoint – returns claims about the authenticated user.
 pub async fn userinfo(
     req: HttpRequest,
-    query: web::Query<UserinfoQuery>,
+    token_actor: web::Data<TokenActorPool>,
     oidc: web::Data<OidcConfig>,
 ) -> Result<HttpResponse> {
-    // Extract Bearer token from Authorization header or query parameter
+    // Extract Bearer token from the Authorization header only.
     let token_str = req
         .headers()
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .map(|s| s.to_string())
-        .or_else(|| query.access_token.clone());
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
 
     let token_str = match token_str {
         Some(t) => t,
@@ -172,29 +185,33 @@ pub async fn userinfo(
         }
     };
 
-    // Decode the access token JWT against the keyset
-    let keyset_read = if let Some(ks) = req.app_data::<web::Data<Arc<RwLock<KeySet>>>>() {
-        Some(ks.read().await)
-    } else {
-        None
-    };
+    let token_result = token_actor
+        .route(&token_str)
+        .send(ValidateToken {
+            token: token_str,
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
-    let claims_result = if let Some(ref ks) = keyset_read {
-        Claims::decode_with_keyset(&token_str, ks)
-    } else {
-        // Fallback to single-secret decode
-        Claims::decode(&token_str, &oidc.jwt_secret)
-    };
+    match token_result {
+        Ok(token) => {
+            let Some(subject) = token.user_id.clone() else {
+                return Ok(HttpResponse::Unauthorized()
+                    .insert_header(("WWW-Authenticate", "Bearer error=\"invalid_token\""))
+                    .json(json!({
+                        "error": "invalid_token",
+                        "error_description": "Access token does not represent an authenticated user"
+                    })));
+            };
 
-    match claims_result {
-        Ok(claims) => {
             let response = json!({
-                "sub": claims.sub,
+                "sub": subject,
                 "iss": oidc.issuer,
-                "aud": claims.aud,
-                "scope": claims.scope,
-                "preferred_username": claims.sub,
-                "email": format!("{}@placeholder.local", claims.sub),
+                "aud": token.client_id,
+                "scope": token.scope,
+                "preferred_username": token.user_id,
+                "email": format!("{}@placeholder.local", subject),
             });
             Ok(HttpResponse::Ok().json(response))
         }

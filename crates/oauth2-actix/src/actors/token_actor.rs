@@ -496,7 +496,9 @@ impl Handler<RevokeToken> for TokenActor {
                 }
 
                 // Get token info before revoking for event
-                let token_info = db.get_token_by_access_token(&normalized_token_for_db).await?;
+                let token_info = db
+                    .get_token_by_access_token(&normalized_token_for_db)
+                    .await?;
 
                 db.revoke_token(&normalized_token_for_db).await?;
 

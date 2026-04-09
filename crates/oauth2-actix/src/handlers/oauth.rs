@@ -93,10 +93,7 @@ fn validate_scope_subset(requested: &str, allowed: &str) -> Result<(), OAuth2Err
     Ok(())
 }
 
-pub(crate) fn client_secret_matches(
-    client: &oauth2_core::Client,
-    presented_secret: &str,
-) -> bool {
+pub(crate) fn client_secret_matches(client: &oauth2_core::Client, presented_secret: &str) -> bool {
     client
         .client_secret
         .as_bytes()

@@ -21,6 +21,15 @@ fn s256_challenge(verifier: &str) -> String {
     general_purpose::URL_SAFE_NO_PAD.encode(hash)
 }
 
+fn basic_auth_header(client_id: &str, client_secret: &str) -> String {
+    use base64::{engine::general_purpose, Engine as _};
+
+    format!(
+        "Basic {}",
+        general_purpose::STANDARD.encode(format!("{client_id}:{client_secret}"))
+    )
+}
+
 fn extract_query_param(url: &str, key: &str) -> Option<String> {
     // Very small helper for test-only parsing.
     let (_base, query) = url.split_once('?')?;
@@ -65,11 +74,26 @@ async fn setup_context(
     Metrics,
     OidcConfig,
 ) {
+    setup_context_with_clients(vec![client]).await
+}
+
+async fn setup_context_with_clients(
+    clients: Vec<Client>,
+) -> (
+    TokenActorPool,
+    Addr<oauth2_actix::actors::ClientActor>,
+    Addr<oauth2_actix::actors::AuthActor>,
+    String,
+    Metrics,
+    OidcConfig,
+) {
     let storage = oauth2_storage_factory::create_storage("sqlite::memory:")
         .await
         .expect("create storage");
     storage.init().await.expect("init storage");
-    storage.save_client(&client).await.expect("save client");
+    for client in clients {
+        storage.save_client(&client).await.expect("save client");
+    }
 
     // The authorize endpoint reads user_id from the session (set by test_set_session).
     // SQL backends enforce an FK from authorization_codes.user_id -> users.id, so we must ensure
@@ -112,6 +136,46 @@ async fn setup_context(
         metrics,
         oidc_config,
     )
+}
+
+fn test_runtime_config(jwt_secret: &str) -> oauth2_config::Config {
+    let mut config = oauth2_config::Config::default();
+    config.jwt.secret = jwt_secret.to_string();
+    config.jwt.public_introspection = false;
+    config.events.public_ingest = false;
+    config.events.ingest_bearer_token = Some("test-events-token".to_string());
+    config
+}
+
+async fn issue_access_token(
+    token_pool: &TokenActorPool,
+    client_id: &str,
+    user_id: Option<&str>,
+    scope: &str,
+) -> Token {
+    token_pool
+        .route(client_id)
+        .send(oauth2_actix::actors::CreateToken {
+            user_id: user_id.map(|value| value.to_string()),
+            client_id: client_id.to_string(),
+            scope: scope.to_string(),
+            include_refresh: false,
+            span: tracing::Span::current(),
+        })
+        .await
+        .expect("send create token")
+        .expect("create token")
+}
+
+fn sample_event_envelope() -> oauth2_events::EventEnvelope {
+    let event = oauth2_events::AuthEvent::new(
+        oauth2_events::EventType::TokenCreated,
+        oauth2_events::EventSeverity::Info,
+        Some("user_123".to_string()),
+        Some("client_events".to_string()),
+    );
+
+    oauth2_events::EventEnvelope::from_current_span(event, "security_http_tests")
 }
 
 #[derive(Default)]
@@ -1724,4 +1788,498 @@ async fn is_safe_redirect_is_importable_from_oauth2_core() {
     assert!(!is_safe_redirect("//evil.example.com"));
     assert!(!is_safe_redirect("/\\evil.example.com"));
     assert!(!is_safe_redirect("javascript:alert(1)"));
+}
+
+#[actix_web::test]
+async fn introspect_requires_client_auth_by_default() {
+    let client = Client::new(
+        "client_introspect".to_string(),
+        "secret_introspect".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "test".to_string(),
+    );
+
+    let (token_pool, client_actor, _auth_actor, jwt_secret, _metrics, _oidc_config) =
+        setup_context(client).await;
+    let access_token = issue_access_token(&token_pool, "client_introspect", None, "read").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_pool))
+            .app_data(web::Data::new(client_actor))
+            .app_data(web::Data::new(jwt_secret))
+            .app_data(web::Data::new(false))
+            .service(web::scope("/oauth").route(
+                "/introspect",
+                web::post().to(oauth2_actix::handlers::token::introspect),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::post()
+            .uri("/oauth/introspect")
+            .set_form([("token", access_token.access_token.as_str())])
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 401);
+    let body: OAuth2Error = test::read_body_json(resp).await;
+    assert_eq!(body.error, "invalid_client");
+}
+
+#[actix_web::test]
+async fn introspect_public_mode_can_be_enabled_explicitly() {
+    let client = Client::new(
+        "client_public_introspect".to_string(),
+        "secret_public_introspect".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "test".to_string(),
+    );
+
+    let (token_pool, client_actor, _auth_actor, jwt_secret, _metrics, _oidc_config) =
+        setup_context(client).await;
+    let access_token =
+        issue_access_token(&token_pool, "client_public_introspect", None, "read").await;
+
+    let mut config = test_runtime_config(&jwt_secret);
+    config.jwt.public_introspection = true;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_pool))
+            .app_data(web::Data::new(client_actor))
+            .app_data(web::Data::new(jwt_secret))
+            .app_data(web::Data::new(false))
+            .app_data(web::Data::new(config))
+            .service(web::scope("/oauth").route(
+                "/introspect",
+                web::post().to(oauth2_actix::handlers::token::introspect),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::post()
+            .uri("/oauth/introspect")
+            .set_form([("token", access_token.access_token.as_str())])
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body.get("active").and_then(|value| value.as_bool()),
+        Some(true)
+    );
+}
+
+#[actix_web::test]
+async fn introspect_returns_inactive_for_other_clients_token() {
+    let owner = Client::new(
+        "client_owner".to_string(),
+        "secret_owner".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "owner".to_string(),
+    );
+    let observer = Client::new(
+        "client_observer".to_string(),
+        "secret_observer".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "observer".to_string(),
+    );
+
+    let (token_pool, client_actor, _auth_actor, jwt_secret, _metrics, _oidc_config) =
+        setup_context_with_clients(vec![owner, observer]).await;
+    let access_token = issue_access_token(&token_pool, "client_owner", None, "read").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_pool))
+            .app_data(web::Data::new(client_actor))
+            .app_data(web::Data::new(jwt_secret))
+            .app_data(web::Data::new(false))
+            .service(web::scope("/oauth").route(
+                "/introspect",
+                web::post().to(oauth2_actix::handlers::token::introspect),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::post()
+            .uri("/oauth/introspect")
+            .insert_header((
+                "Authorization",
+                basic_auth_header("client_observer", "secret_observer"),
+            ))
+            .set_form([("token", access_token.access_token.as_str())])
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 200);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body.get("active").and_then(|value| value.as_bool()),
+        Some(false)
+    );
+}
+
+#[actix_web::test]
+async fn revoke_requires_authenticated_client_and_preserves_other_clients_tokens() {
+    let owner = Client::new(
+        "client_revoke_owner".to_string(),
+        "secret_revoke_owner".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "owner".to_string(),
+    );
+    let observer = Client::new(
+        "client_revoke_observer".to_string(),
+        "secret_revoke_observer".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["client_credentials".to_string()],
+        "read".to_string(),
+        "observer".to_string(),
+    );
+
+    let (token_pool, client_actor, _auth_actor, _jwt_secret, _metrics, _oidc_config) =
+        setup_context_with_clients(vec![owner, observer]).await;
+    let token_pool_for_assert = token_pool.clone();
+    let access_token = issue_access_token(&token_pool, "client_revoke_owner", None, "read").await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_pool))
+            .app_data(web::Data::new(client_actor))
+            .service(web::scope("/oauth").route(
+                "/revoke",
+                web::post().to(oauth2_actix::handlers::token::revoke),
+            )),
+    )
+    .await;
+
+    let unauthenticated = test::call_service(
+        &app,
+        test::TestRequest::post()
+            .uri("/oauth/revoke")
+            .set_form([("token", access_token.access_token.as_str())])
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(unauthenticated.status(), 401);
+    let body: OAuth2Error = test::read_body_json(unauthenticated).await;
+    assert_eq!(body.error, "invalid_client");
+
+    let wrong_client = test::call_service(
+        &app,
+        test::TestRequest::post()
+            .uri("/oauth/revoke")
+            .insert_header((
+                "Authorization",
+                basic_auth_header("client_revoke_observer", "secret_revoke_observer"),
+            ))
+            .set_form([("token", access_token.access_token.as_str())])
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(wrong_client.status(), 200);
+    let still_valid = token_pool_for_assert
+        .route(&access_token.access_token)
+        .send(oauth2_actix::actors::ValidateToken {
+            token: access_token.access_token.clone(),
+            span: tracing::Span::current(),
+        })
+        .await
+        .expect("validate token send")
+        .expect("token should remain valid");
+    assert_eq!(still_valid.client_id, "client_revoke_owner");
+}
+
+#[actix_web::test]
+async fn userinfo_rejects_query_access_tokens() {
+    let client = Client::new(
+        "client_userinfo_query".to_string(),
+        "secret_userinfo_query".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["authorization_code".to_string()],
+        "openid profile".to_string(),
+        "userinfo".to_string(),
+    );
+
+    let (token_pool, _client_actor, _auth_actor, jwt_secret, _metrics, oidc_config) =
+        setup_context(client).await;
+    let access_token = issue_access_token(
+        &token_pool,
+        "client_userinfo_query",
+        Some("user_123"),
+        "openid profile",
+    )
+    .await;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_pool))
+            .app_data(web::Data::new(oidc_config))
+            .app_data(web::Data::new(jwt_secret))
+            .service(web::scope("/oauth").route(
+                "/userinfo",
+                web::get().to(oauth2_actix::handlers::wellknown::userinfo),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get()
+            .uri(&format!(
+                "/oauth/userinfo?access_token={}",
+                access_token.access_token
+            ))
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 401);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body.get("error").and_then(|value| value.as_str()),
+        Some("invalid_token")
+    );
+}
+
+#[actix_web::test]
+async fn userinfo_rejects_revoked_access_tokens() {
+    let client = Client::new(
+        "client_userinfo_revoked".to_string(),
+        "secret_userinfo_revoked".to_string(),
+        vec!["https://unused.example/cb".to_string()],
+        vec!["authorization_code".to_string()],
+        "openid profile".to_string(),
+        "userinfo".to_string(),
+    );
+
+    let (token_pool, _client_actor, _auth_actor, jwt_secret, _metrics, oidc_config) =
+        setup_context(client).await;
+    let access_token = issue_access_token(
+        &token_pool,
+        "client_userinfo_revoked",
+        Some("user_123"),
+        "openid profile",
+    )
+    .await;
+
+    token_pool
+        .route(&access_token.access_token)
+        .send(oauth2_actix::actors::RevokeToken {
+            token: access_token.access_token.clone(),
+            span: tracing::Span::current(),
+        })
+        .await
+        .expect("send revoke")
+        .expect("revoke token");
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(token_pool))
+            .app_data(web::Data::new(oidc_config))
+            .app_data(web::Data::new(jwt_secret))
+            .service(web::scope("/oauth").route(
+                "/userinfo",
+                web::get().to(oauth2_actix::handlers::wellknown::userinfo),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get()
+            .uri("/oauth/userinfo")
+            .insert_header((
+                "Authorization",
+                format!("Bearer {}", access_token.access_token),
+            ))
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 401);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body.get("error").and_then(|value| value.as_str()),
+        Some("invalid_token")
+    );
+}
+
+#[actix_web::test]
+async fn well_known_metadata_advertises_standard_endpoint_auth_fields() {
+    let client = Client::new(
+        "client_meta_standard".to_string(),
+        "secret_meta_standard".to_string(),
+        vec!["https://good.example/cb".to_string()],
+        vec!["authorization_code".to_string()],
+        "openid profile".to_string(),
+        "meta".to_string(),
+    );
+
+    let (_token_pool, _client_actor, _auth_actor, jwt_secret, _metrics, oidc_config) =
+        setup_context(client).await;
+    let mut config = test_runtime_config(&jwt_secret);
+    config.jwt.public_introspection = true;
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(oidc_config))
+            .app_data(web::Data::new(config))
+            .service(web::scope("/.well-known").route(
+                "/openid-configuration",
+                web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get()
+            .uri("/.well-known/openid-configuration")
+            .to_request(),
+    )
+    .await;
+
+    assert!(resp.status().is_success());
+    let body: serde_json::Value = test::read_body_json(resp).await;
+
+    assert_eq!(
+        body.get("introspection_endpoint")
+            .and_then(|value| value.as_str()),
+        Some("http://localhost/oauth/introspect")
+    );
+    assert_eq!(
+        body.get("revocation_endpoint")
+            .and_then(|value| value.as_str()),
+        Some("http://localhost/oauth/revoke")
+    );
+
+    let introspection_methods = body
+        .get("introspection_endpoint_auth_methods_supported")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    assert!(introspection_methods.iter().any(|value| value == "none"));
+    assert!(introspection_methods
+        .iter()
+        .any(|value| value == "client_secret_basic"));
+
+    let revocation_methods = body
+        .get("revocation_endpoint_auth_methods_supported")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    assert!(revocation_methods
+        .iter()
+        .any(|value| value == "client_secret_post"));
+}
+
+#[actix_web::test]
+async fn events_ingest_requires_bearer_token_by_default() {
+    let mut config = test_runtime_config("test_jwt_secret");
+    config.events.public_ingest = false;
+    config.events.ingest_bearer_token = Some("expected-events-token".to_string());
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(
+                oauth2_actix::handlers::events::IdempotencyStore::new(
+                    std::time::Duration::from_secs(60),
+                ),
+            ))
+            .app_data(web::Data::new(config))
+            .service(web::scope("/events").route(
+                "/ingest",
+                web::post().to(oauth2_actix::handlers::events::ingest),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::post()
+            .uri("/events/ingest")
+            .set_json(sample_event_envelope())
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 401);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body.get("error").and_then(|value| value.as_str()),
+        Some("invalid_token")
+    );
+}
+
+#[actix_web::test]
+async fn events_public_ingest_can_be_enabled_explicitly() {
+    let mut config = test_runtime_config("test_jwt_secret");
+    config.events.public_ingest = true;
+
+    let plugins: Vec<Arc<dyn oauth2_events::EventPlugin>> =
+        vec![Arc::new(oauth2_events::InMemoryEventLogger::new(10))];
+    let event_actor = oauth2_events::event_actor::EventActor::new(
+        plugins,
+        oauth2_events::EventFilter::allow_all(),
+    )
+    .start();
+    let event_bus = oauth2_events::EventBusHandle::new(Arc::new(
+        oauth2_events::ActixEventBus::new(event_actor),
+    ));
+
+    let app = test::init_service(
+        App::new()
+            .app_data(web::Data::new(
+                oauth2_actix::handlers::events::IdempotencyStore::new(
+                    std::time::Duration::from_secs(60),
+                ),
+            ))
+            .app_data(web::Data::new(config))
+            .app_data(web::Data::new(event_bus))
+            .service(web::scope("/events").route(
+                "/ingest",
+                web::post().to(oauth2_actix::handlers::events::ingest),
+            )),
+    )
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::post()
+            .uri("/events/ingest")
+            .set_json(sample_event_envelope())
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 202);
+    let body: serde_json::Value = test::read_body_json(resp).await;
+    assert_eq!(
+        body.get("status").and_then(|value| value.as_str()),
+        Some("accepted")
+    );
 }

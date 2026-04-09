@@ -821,6 +821,7 @@ pub async fn run() -> std::io::Result<()> {
     tracing::info!("Metrics endpoint at http://{}/metrics", bind_addr);
 
     let server_config = config.server.clone();
+    let app_config = config.clone();
     let key_rotation_grace_hours = oauth2_actix::handlers::admin_keys::KeyRotationGraceHours(
         config.jwt.key_rotation_grace_hours,
     );
@@ -916,11 +917,12 @@ pub async fn run() -> std::io::Result<()> {
             .app_data(web::Data::new(oauth2_social_login::SocialLoginService::new()))
             // Server/public URL settings (used by well-known discovery and other URL builders)
             .app_data(web::Data::new(server_config.clone()))
+            .app_data(web::Data::new(app_config.clone()))
             .app_data(web::Data::new(oidc_config.clone()))
             .app_data(web::Data::new(keyset.clone()))
             .app_data(web::Data::new(key_rotation_grace_hours))
             // Stateless JWT validation flag (skips DB lookup during introspection)
-            .app_data(web::Data::new(config.jwt.stateless_validation));
+            .app_data(web::Data::new(app_config.jwt.stateless_validation));
 
         // Shared, best-effort in-memory idempotency cache for event ingest.
         app = app.app_data(web::Data::new(ingest_idempotency.clone()));
