@@ -37,7 +37,7 @@ jobs:
             echo "has_commits=true" >> "$GITHUB_OUTPUT"
 
             # Build a markdown-friendly commit summary (most recent 50)
-            summary=$(git log --since="${since_date}" --format="- [%h](https://github.com/${{ github.repository }}/commit/%H) %s (%an, %as)" origin/main | head -50)
+            summary=$(git log -50 --since="${since_date}" --format="- [%h](https://github.com/${{ github.repository }}/commit/%H) %s (%an, %as)" origin/main)
             {
               echo "commit_summary<<COMMIT_EOF"
               echo "${summary}"
