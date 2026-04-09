@@ -88,6 +88,9 @@ jobs:
               '',
               'This issue was automatically created by the **Weekly Documentation Reconciliation** workflow.',
               `See the [workflow run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
+              '',
+              '> [!TIP]',
+              '> Preferred model: **Claude Opus**',
             ].join('\n');
 
             // Ensure the 'documentation' label exists before applying it
@@ -124,6 +127,19 @@ jobs:
             });
 
             core.info(`Created issue #${issue.data.number}`);
+
+            // Assign Copilot coding agent to the issue
+            try {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.data.number,
+                assignees: ['copilot'],
+              });
+              core.info(`Assigned Copilot to issue #${issue.data.number}`);
+            } catch (assignErr) {
+              core.warning(`Could not assign Copilot to issue #${issue.data.number}: ${assignErr.message}. Ensure Copilot coding agent is enabled for this repository.`);
+            }
 
       - name: Job summary
         shell: bash
