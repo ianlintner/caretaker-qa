@@ -121,7 +121,6 @@ jobs:
               title: `docs: weekly documentation reconciliation (${today})`,
               body: body,
               labels: labels,
-              assignees: ['copilot'],
             });
 
             core.info(`Created issue #${issue.data.number}`);
@@ -135,7 +134,7 @@ jobs:
             echo
             if [ "${{ steps.check_commits.outputs.has_commits }}" = "true" ]; then
               echo "- **Commits found**: ${{ steps.check_commits.outputs.commit_count }}"
-              echo "- **Issue created**: ✅ Assigned to \`copilot\`"
+              echo "- **Issue created**: ✅"
             else
               echo "- No commits found in the past 7 days."
               echo "- **Issue created**: ❌ (skipped)"
