@@ -11,7 +11,6 @@ use oauth2_actix::actors::{CreateToken, TokenActorPool};
 use oauth2_actix::handlers::wellknown::OidcConfig;
 use oauth2_core::{Client, IntrospectionResponse, Token, User};
 use oauth2_observability::Metrics;
-use oauth2_ports::Storage;
 
 // ---------------------------------------------------------------------------
 // Helpers
