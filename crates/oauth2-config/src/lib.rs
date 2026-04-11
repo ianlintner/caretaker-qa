@@ -117,6 +117,10 @@ pub struct JwtConfig {
     /// Default is false so introspection is authenticated unless explicitly opened.
     #[serde(default)]
     pub public_introspection: bool,
+    /// Issue opaque (reference-style) access tokens instead of JWT access tokens.
+    /// Refresh tokens remain JWT-backed for rotation/replay checks.
+    #[serde(default)]
+    pub access_tokens_opaque: bool,
 }
 
 fn default_grace_hours() -> u64 {
@@ -516,6 +520,10 @@ impl Config {
                 public_introspection: std::env::var("OAUTH2_PUBLIC_INTROSPECTION")
                     .ok()
                     .or_else(|| std::env::var("OAUTH2_INTROSPECTION_PUBLIC").ok())
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(false),
+                access_tokens_opaque: std::env::var("OAUTH2_ACCESS_TOKENS_OPAQUE")
+                    .ok()
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(false),
             },

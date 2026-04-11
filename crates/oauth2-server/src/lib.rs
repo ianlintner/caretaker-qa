@@ -760,7 +760,8 @@ pub async fn run() -> std::io::Result<()> {
                         jwt_secret.clone(),
                         eb,
                     )
-                    .with_keyset(keyset.clone());
+                    .with_keyset(keyset.clone())
+                    .with_access_tokens_opaque(config.jwt.access_tokens_opaque);
                     attach_token_cache(actor, &cache_redis)
                 })
             } else {
@@ -769,7 +770,8 @@ pub async fn run() -> std::io::Result<()> {
                     ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
                     let actor =
                         oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
-                            .with_keyset(keyset.clone());
+                            .with_keyset(keyset.clone())
+                            .with_access_tokens_opaque(config.jwt.access_tokens_opaque);
                     attach_token_cache(actor, &cache_redis)
                 })
             };

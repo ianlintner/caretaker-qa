@@ -109,6 +109,10 @@ pub async fn introspect(
     stateless: web::Data<bool>,
     config: Option<web::Data<Config>>,
 ) -> Result<HttpResponse, OAuth2Error> {
+    let opaque_access_tokens = config
+        .as_ref()
+        .map(|cfg| cfg.jwt.access_tokens_opaque)
+        .unwrap_or(false);
     let public_introspection = config
         .as_ref()
         .map(|cfg| cfg.jwt.public_introspection)
@@ -127,11 +131,14 @@ pub async fn introspect(
         token_len = form.token.len(),
         token_prefix = %token_prefix,
         stateless = **stateless,
+        opaque_access_tokens,
         "Token introspection requested"
     );
 
+    let use_stateless_validation = **stateless && !opaque_access_tokens;
+
     // Fast path: validate token purely from JWT claims (no DB lookup).
-    let token_result = if **stateless {
+    let token_result = if use_stateless_validation {
         token_actor
             .route(&form.token)
             .send(ValidateTokenStateless {
@@ -171,9 +178,9 @@ pub async fn introspect(
 
             let active = token.is_valid();
             let user_id = token.user_id.clone();
-            let scope = token.scope;
-            let client_id = token.client_id;
-            let token_type = token.token_type;
+            let scope = token.scope.clone();
+            let client_id = token.client_id.clone();
+            let token_type = token.token_type.clone();
 
             let response = IntrospectionResponse {
                 active,
@@ -181,8 +188,14 @@ pub async fn introspect(
                 client_id: Some(client_id),
                 username: user_id.clone(),
                 token_type: Some(token_type),
-                exp: claims.as_ref().map(|c| c.exp),
-                iat: claims.as_ref().map(|c| c.iat),
+                exp: claims
+                    .as_ref()
+                    .map(|c| c.exp)
+                    .or(Some(token.expires_at.timestamp())),
+                iat: claims
+                    .as_ref()
+                    .map(|c| c.iat)
+                    .or(Some(token.created_at.timestamp())),
                 sub: claims.as_ref().map(|c| c.sub.clone()).or(user_id),
             };
 

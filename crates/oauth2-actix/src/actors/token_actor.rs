@@ -35,6 +35,7 @@ type RedisConn = ();
 pub struct TokenActor {
     db: DynStorage,
     jwt_secret: String,
+    access_tokens_opaque: bool,
     event_bus: Option<EventBusHandle>,
     keyset: Option<Arc<RwLock<KeySet>>>,
     /// In-process LRU cache for validated tokens, keyed by access_token string.
@@ -51,6 +52,7 @@ impl TokenActor {
         Self {
             db,
             jwt_secret,
+            access_tokens_opaque: false,
             event_bus: None,
             keyset: None,
             token_cache: LruCache::new(NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap()),
@@ -63,6 +65,7 @@ impl TokenActor {
         Self {
             db,
             jwt_secret,
+            access_tokens_opaque: false,
             event_bus: Some(event_bus),
             keyset: None,
             token_cache: LruCache::new(NonZeroUsize::new(TOKEN_CACHE_MAX_ENTRIES).unwrap()),
@@ -73,6 +76,12 @@ impl TokenActor {
 
     pub fn with_keyset(mut self, keyset: Arc<RwLock<KeySet>>) -> Self {
         self.keyset = Some(keyset);
+        self
+    }
+
+    /// Enable/disable opaque (reference-style) access token issuance.
+    pub fn with_access_tokens_opaque(mut self, enabled: bool) -> Self {
+        self.access_tokens_opaque = enabled;
         self
     }
 
@@ -124,6 +133,7 @@ impl Handler<CreateToken> for TokenActor {
         let jwt_secret = self.jwt_secret.clone();
         let event_bus = self.event_bus.clone();
         let keyset = self.keyset.clone();
+        let access_tokens_opaque = self.access_tokens_opaque;
 
         let parent_span = msg.span.clone();
         let actor_span = tracing::info_span!(
@@ -159,18 +169,29 @@ impl Handler<CreateToken> for TokenActor {
                 };
 
                 // Create access token
-                let access_claims = Claims::new(
-                    subject.clone(),
-                    msg.client_id.clone(),
-                    msg.scope.clone(),
-                    3600, // 1 hour
-                );
-                let access_token = if let Some(ref key) = signing_key {
-                    access_claims.encode_with_key(key)
+                let access_token = if access_tokens_opaque {
+                    // 256 bits of token material + human-friendly prefix.
+                    // UUID v4 is RNG-backed; combining two gives high entropy.
+                    format!(
+                        "at_{}{}",
+                        uuid::Uuid::new_v4().simple(),
+                        uuid::Uuid::new_v4().simple()
+                    )
                 } else {
-                    access_claims.encode(&jwt_secret)
-                }
-                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+                    let access_claims = Claims::new(
+                        subject.clone(),
+                        msg.client_id.clone(),
+                        msg.scope.clone(),
+                        3600, // 1 hour
+                    );
+
+                    if let Some(ref key) = signing_key {
+                        access_claims.encode_with_key(key)
+                    } else {
+                        access_claims.encode(&jwt_secret)
+                    }
+                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                };
 
                 // Create refresh token if requested
                 let refresh_token = if msg.include_refresh {
@@ -688,6 +709,12 @@ impl Handler<ValidateTokenStateless> for TokenActor {
 
     fn handle(&mut self, msg: ValidateTokenStateless, _: &mut Self::Context) -> Self::Result {
         let _enter = msg.span.enter();
+
+        if self.access_tokens_opaque {
+            return Err(OAuth2Error::invalid_grant(
+                "Stateless validation is unavailable for opaque access tokens",
+            ));
+        }
 
         let raw = Self::normalize_token_key(&msg.token);
 
