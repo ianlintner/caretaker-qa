@@ -104,6 +104,11 @@ COPY static ./static
 # Create directory for database
 RUN mkdir -p /app/data
 
+# Create a non-root user for security
+RUN addgroup --gid 1000 appuser \
+    && adduser --disabled-password --gecos '' --uid 1000 --gid 1000 appuser \
+    && chown -R appuser:appuser /app
+
 # Expose port
 EXPOSE 8080
 
@@ -112,6 +117,9 @@ ENV OAUTH2_SERVER_HOST=0.0.0.0
 ENV OAUTH2_SERVER_PORT=8080
 ENV OAUTH2_DATABASE_URL=sqlite:/app/data/oauth2.db
 ENV RUST_LOG=info
+
+# Run as non-root user
+USER appuser
 
 # Run the binary
 CMD ["/app/rust_oauth2_server"]

@@ -874,7 +874,7 @@ database {
 }
 
 jwt {
-    secret = "01234567890123456789012345678901"
+    secret = "test-jwt-secret-for-ci-only-do-not-use-in-production-32chars"
     key_rotation_grace_hours = 24
     stateless_validation = true
 }
@@ -933,7 +933,7 @@ cache {
         }
 
         jwt {
-            secret = "01234567890123456789012345678901"
+            secret = "test-jwt-secret-for-ci-only-do-not-use-in-production-32chars"
         }
 
         events {

@@ -56,6 +56,9 @@ spec:
                 - oauth2_user
             initialDelaySeconds: 5
             periodSeconds: 5
+          # nosemgrep: yaml.kubernetes.security.allow-privilege-escalation-no-securitycontext,yaml.kubernetes.security.run-as-non-root
+          # The official postgres image may start as root briefly to adjust ownership on the
+          # mounted data directory before dropping privileges to the postgres user.
           resources:
             requests:
               memory: "256Mi"
