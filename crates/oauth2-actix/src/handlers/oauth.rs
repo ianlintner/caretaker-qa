@@ -7,12 +7,13 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use subtle::ConstantTimeEq;
 use url::{form_urlencoded, Url};
+use uuid::Uuid;
 
 use oauth2_observability::Metrics;
 
 use crate::actors::{
     AuthActor, ClientActor, CreateAuthorizationCode, CreateToken, GetClient,
-    MarkAuthorizationCodeUsed, TokenActorPool, ValidateAuthorizationCode,
+    MarkAuthorizationCodeUsed, TokenActorPool, ValidateAuthorizationCode, ValidateRefreshToken,
 };
 use crate::handlers::wellknown::OidcConfig;
 use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
@@ -171,6 +172,7 @@ pub struct AuthorizeQuery {
     state: Option<String>,
     code_challenge: Option<String>,
     code_challenge_method: Option<String>,
+    nonce: Option<String>,
 }
 
 /// OAuth2 authorize endpoint
@@ -264,6 +266,7 @@ pub async fn authorize(
             scope,
             code_challenge: query.code_challenge.clone(),
             code_challenge_method: query.code_challenge_method.clone(),
+            nonce: query.nonce.clone(),
             span: tracing::Span::current(),
         })
         .await
@@ -301,7 +304,6 @@ pub struct TokenRequest {
     redirect_uri: Option<String>,
     client_id: String,
     client_secret: Option<String>,
-    #[allow(dead_code)] // OAuth2 refresh token grant, planned for future
     refresh_token: Option<String>,
     #[allow(dead_code)] // OAuth2 password grant, intentionally disabled by default
     username: Option<String>,
@@ -391,11 +393,12 @@ pub async fn token(
         "client_credentials" => {
             handle_client_credentials_grant(form, token_actor, client_actor, metrics).await
         }
-        // Password and refresh_token grants are intentionally disabled by default
-        // (OAuth 2.0 Security BCP).
-        "password" | "refresh_token" => {
-            Err(OAuth2Error::unsupported_grant_type("Grant type disabled"))
+        "refresh_token" => {
+            handle_refresh_token_grant(form, token_actor, client_actor, metrics).await
         }
+        // Password grant is intentionally disabled by default
+        // (OAuth 2.0 Security BCP).
+        "password" => Err(OAuth2Error::unsupported_grant_type("Grant type disabled")),
         _ => Err(OAuth2Error::unsupported_grant_type(&format!(
             "Grant type '{}' not supported",
             form.grant_type
@@ -472,14 +475,23 @@ async fn handle_authorization_code_grant(
         .await
         .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
 
-    // Create token
+    // Create token — only include a refresh token when the client is authorized
+    // to use the refresh_token grant and the `offline_access` scope was requested
+    // (or the client explicitly supports refresh_token without scope restriction).
+    let include_refresh = client.supports_grant_type("refresh_token");
+    let token_family = if include_refresh {
+        Some(Uuid::new_v4().to_string())
+    } else {
+        None
+    };
     let token = token_actor
         .route(&auth_code.client_id)
         .send(CreateToken {
             user_id: Some(auth_code.user_id.clone()),
             client_id: auth_code.client_id.clone(),
             scope: auth_code.scope.clone(),
-            include_refresh: false,
+            include_refresh,
+            token_family,
             span: tracing::Span::current(),
         })
         .await
@@ -491,13 +503,21 @@ async fn handle_authorization_code_grant(
 
     // Generate OIDC id_token when `openid` scope was requested
     if auth_code.scope.split_whitespace().any(|s| s == "openid") {
-        let id_claims = IdTokenClaims::new(
+        let mut id_claims = IdTokenClaims::new(
             &oidc_config.issuer,
             auth_code.user_id,
             auth_code.client_id,
             3600, // same lifetime as access token
             Some(&token.access_token),
         );
+        id_claims.nonce = auth_code.nonce.clone();
+        // Compute c_hash: left half of SHA-256 of the authorization code, base64url-encoded
+        // (OIDC Core §3.3.2.11)
+        {
+            use sha2::{Digest, Sha256};
+            let hash = Sha256::digest(auth_code.code.as_bytes());
+            id_claims.c_hash = Some(general_purpose::URL_SAFE_NO_PAD.encode(&hash[..16]));
+        }
 
         let id_token = if oidc_config.id_token_alg.eq_ignore_ascii_case("RS256") {
             let pem = oidc_config
@@ -561,6 +581,124 @@ async fn handle_client_credentials_grant(
             client_id: req.client_id,
             scope,
             include_refresh: false,
+            token_family: None,
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    metrics.oauth_token_issued_total.inc();
+
+    Ok(no_store_headers(
+        HttpResponse::Ok().json(TokenResponse::from(token)),
+    ))
+}
+
+/// RFC 6749 §6 — Refresh Token Grant
+///
+/// Exchanges a valid, non-revoked refresh token for a fresh access + refresh token pair.
+/// Supports optional scope down-scoping: the requested scope must be a subset of the
+/// original scope bound to the refresh token.
+async fn handle_refresh_token_grant(
+    req: TokenRequest,
+    token_actor: web::Data<TokenActorPool>,
+    client_actor: web::Data<Addr<ClientActor>>,
+    metrics: web::Data<Metrics>,
+) -> Result<HttpResponse, OAuth2Error> {
+    let refresh_token_str = req
+        .refresh_token
+        .ok_or_else(|| OAuth2Error::invalid_request("Missing refresh_token"))?;
+
+    // Authenticate the client.
+    let client = client_actor
+        .send(GetClient {
+            client_id: req.client_id.clone(),
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    let client_secret = req
+        .client_secret
+        .ok_or_else(|| OAuth2Error::invalid_client("Missing client_secret"))?;
+    if !client_secret_matches(&client, &client_secret) {
+        return Err(OAuth2Error::invalid_client("Invalid client_secret"));
+    }
+
+    // Verify the client is authorized to use the refresh_token grant type.
+    if !client.supports_grant_type("refresh_token") {
+        return Err(OAuth2Error::unauthorized_client(
+            "Client is not allowed to use refresh_token",
+        ));
+    }
+
+    // Look up the refresh token via the actor (DB round-trip).
+    let old_token = token_actor
+        .route(&req.client_id)
+        .send(ValidateRefreshToken {
+            refresh_token: refresh_token_str,
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    // The refresh token must belong to the authenticating client.
+    if old_token.client_id != req.client_id {
+        return Err(OAuth2Error::invalid_grant(
+            "Refresh token does not belong to this client",
+        ));
+    }
+
+    // Determine scope: if the request includes a scope, it must be a subset of the
+    // original token's scope. If omitted, inherit the original scope.
+    let scope = match req.scope {
+        Some(ref requested) => {
+            validate_scope_subset(requested, &old_token.scope)?;
+            requested.clone()
+        }
+        None => old_token.scope.clone(),
+    };
+
+    // Propagate the token family UUID so replay detection can revoke the entire chain.
+    // On first rotation the old token has no family yet — start a new one and persist
+    // it onto the old token record BEFORE revoking so that a later replay of the
+    // revoked token can still look up the family and revoke the new token.
+    let family = match old_token.token_family.clone() {
+        Some(f) => f,
+        None => {
+            let new_family = uuid::Uuid::new_v4().to_string();
+            // Best-effort: set the family on the old token so replay detection works.
+            let _ = token_actor
+                .route(&req.client_id)
+                .send(crate::actors::SetTokenFamily {
+                    access_token: old_token.access_token.clone(),
+                    family: new_family.clone(),
+                    span: tracing::Span::current(),
+                })
+                .await;
+            new_family
+        }
+    };
+
+    // Revoke the old token (access + refresh).
+    token_actor
+        .route(&req.client_id)
+        .send(crate::actors::RevokeToken {
+            token: old_token.access_token.clone(),
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    // Mint new access + refresh token pair.
+    let token = token_actor
+        .route(&req.client_id)
+        .send(CreateToken {
+            user_id: old_token.user_id.clone(),
+            client_id: req.client_id,
+            scope,
+            include_refresh: true,
+            token_family: Some(family),
             span: tracing::Span::current(),
         })
         .await

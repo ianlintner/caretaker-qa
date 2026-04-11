@@ -217,6 +217,7 @@ impl SqlxStorage {
                 created_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
                 revoked INTEGER NOT NULL DEFAULT 0,
+                token_family TEXT,
                 FOREIGN KEY (client_id) REFERENCES clients(client_id),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
@@ -241,6 +242,11 @@ impl SqlxStorage {
         sqlx::query(r#"CREATE INDEX IF NOT EXISTS idx_tokens_user_id ON tokens(user_id);"#)
             .execute(pool)
             .await?;
+        sqlx::query(
+            r#"CREATE INDEX IF NOT EXISTS idx_tokens_token_family ON tokens(token_family);"#,
+        )
+        .execute(pool)
+        .await?;
 
         // Authorization codes
         sqlx::query(
@@ -257,6 +263,7 @@ impl SqlxStorage {
                 used INTEGER NOT NULL DEFAULT 0,
                 code_challenge TEXT,
                 code_challenge_method TEXT,
+                nonce TEXT,
                 FOREIGN KEY (client_id) REFERENCES clients(client_id),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
@@ -436,8 +443,8 @@ impl Storage for SqlxStorage {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO tokens (id, access_token, refresh_token, token_type, expires_in, scope, client_id, user_id, created_at, expires_at, revoked)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO tokens (id, access_token, refresh_token, token_type, expires_in, scope, client_id, user_id, created_at, expires_at, revoked, token_family)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     "#,
                 )
                 .bind(&token.id)
@@ -451,14 +458,15 @@ impl Storage for SqlxStorage {
                 .bind(token.created_at)
                 .bind(token.expires_at)
                 .bind(token.revoked)
+                .bind(&token.token_family)
                 .execute(pool)
                 .await?;
             }
             DatabasePool::Postgres(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO tokens (id, access_token, refresh_token, token_type, expires_in, scope, client_id, user_id, created_at, expires_at, revoked)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    INSERT INTO tokens (id, access_token, refresh_token, token_type, expires_in, scope, client_id, user_id, created_at, expires_at, revoked, token_family)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     "#,
                 )
                 .bind(&token.id)
@@ -472,6 +480,7 @@ impl Storage for SqlxStorage {
                 .bind(token.created_at)
                 .bind(token.expires_at)
                 .bind(token.revoked)
+                .bind(&token.token_family)
                 .execute(pool)
                 .await?;
             }
@@ -494,6 +503,28 @@ impl Storage for SqlxStorage {
             DatabasePool::Postgres(pool) => {
                 sqlx::query_as::<_, Token>("SELECT * FROM tokens WHERE access_token = $1")
                     .bind(access_token)
+                    .fetch_optional(pool)
+                    .await?
+            }
+        };
+
+        Ok(token)
+    }
+
+    async fn get_token_by_refresh_token(
+        &self,
+        refresh_token: &str,
+    ) -> Result<Option<Token>, OAuth2Error> {
+        let token = match self.read_pool() {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query_as::<_, Token>("SELECT * FROM tokens WHERE refresh_token = ?")
+                    .bind(refresh_token)
+                    .fetch_optional(pool)
+                    .await?
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query_as::<_, Token>("SELECT * FROM tokens WHERE refresh_token = $1")
+                    .bind(refresh_token)
                     .fetch_optional(pool)
                     .await?
             }
@@ -527,6 +558,48 @@ impl Storage for SqlxStorage {
         Ok(())
     }
 
+    async fn set_token_family(&self, access_token: &str, family: &str) -> Result<(), OAuth2Error> {
+        match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query("UPDATE tokens SET token_family = ? WHERE access_token = ?")
+                    .bind(family)
+                    .bind(access_token)
+                    .execute(pool)
+                    .await?;
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query("UPDATE tokens SET token_family = $1 WHERE access_token = $2")
+                    .bind(family)
+                    .bind(access_token)
+                    .execute(pool)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn revoke_token_family(&self, family: &str) -> Result<u64, OAuth2Error> {
+        let rows = match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query("UPDATE tokens SET revoked = 1 WHERE token_family = ?")
+                    .bind(family)
+                    .execute(pool)
+                    .await?
+                    .rows_affected()
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query("UPDATE tokens SET revoked = true WHERE token_family = $1")
+                    .bind(family)
+                    .execute(pool)
+                    .await?
+                    .rows_affected()
+            }
+        };
+
+        Ok(rows)
+    }
+
     async fn save_authorization_code(
         &self,
         auth_code: &AuthorizationCode,
@@ -535,8 +608,8 @@ impl Storage for SqlxStorage {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method, nonce)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     "#,
                 )
                 .bind(&auth_code.id)
@@ -550,14 +623,15 @@ impl Storage for SqlxStorage {
                 .bind(auth_code.used)
                 .bind(&auth_code.code_challenge)
                 .bind(&auth_code.code_challenge_method)
+                .bind(&auth_code.nonce)
                 .execute(pool)
                 .await?;
             }
             DatabasePool::Postgres(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method, nonce)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                     "#,
                 )
                 .bind(&auth_code.id)
@@ -571,6 +645,7 @@ impl Storage for SqlxStorage {
                 .bind(auth_code.used)
                 .bind(&auth_code.code_challenge)
                 .bind(&auth_code.code_challenge_method)
+                .bind(&auth_code.nonce)
                 .execute(pool)
                 .await?;
             }

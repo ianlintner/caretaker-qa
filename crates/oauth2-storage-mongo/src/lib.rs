@@ -194,11 +194,32 @@ impl Storage for MongoStorage {
             .map_err(Self::mongo_err_to_oauth)
     }
 
+    async fn get_token_by_refresh_token(
+        &self,
+        refresh_token: &str,
+    ) -> Result<Option<Token>, OAuth2Error> {
+        self.tokens
+            .find_one(doc! { "refresh_token": refresh_token })
+            .await
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
     async fn revoke_token(&self, token: &str) -> Result<(), OAuth2Error> {
         self.tokens
             .update_many(
                 doc! { "$or": [ {"access_token": token }, {"refresh_token": token } ] },
                 doc! { "$set": { "revoked": true } },
+            )
+            .await
+            .map(|_| ())
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn set_token_family(&self, access_token: &str, family: &str) -> Result<(), OAuth2Error> {
+        self.tokens
+            .update_one(
+                doc! { "access_token": access_token },
+                doc! { "$set": { "token_family": family } },
             )
             .await
             .map(|_| ())
@@ -291,6 +312,7 @@ mod tests {
             None,
             "read".to_string(),
             3600,
+            None,
         );
 
         let doc = bson::to_document(&token).expect("token should serialize to bson document");
@@ -309,6 +331,7 @@ mod tests {
             None,
             "read".to_string(),
             3600,
+            None,
         );
 
         let doc = bson::to_document(&token).expect("token should serialize to bson document");
