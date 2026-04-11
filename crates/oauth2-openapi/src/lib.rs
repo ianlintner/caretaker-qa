@@ -1,7 +1,6 @@
 // Path stubs are intentionally never called; they exist only to anchor
 // `#[utoipa::path]` metadata for the OpenAPI spec generator.
 #![allow(dead_code)]
-
 use utoipa::OpenApi;
 
 /// OpenAPI document generator.
