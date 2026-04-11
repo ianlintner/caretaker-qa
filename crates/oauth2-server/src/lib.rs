@@ -1020,6 +1020,10 @@ pub async fn run() -> std::io::Result<()> {
                         web::post().to(oauth2_actix::handlers::oauth::token),
                     )
                     .route(
+                        "/logout",
+                        web::get().to(oauth2_actix::handlers::oidc_logout::logout),
+                    )
+                    .route(
                         "/device_authorization",
                         web::post().to(oauth2_actix::handlers::device::device_authorization),
                     )

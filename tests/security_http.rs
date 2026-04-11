@@ -2184,6 +2184,11 @@ async fn well_known_metadata_advertises_standard_endpoint_auth_fields() {
             .and_then(|value| value.as_str()),
         Some("http://localhost/oauth/revoke")
     );
+    assert_eq!(
+        body.get("end_session_endpoint")
+            .and_then(|value| value.as_str()),
+        Some("http://localhost/oauth/logout")
+    );
 
     let introspection_methods = body
         .get("introspection_endpoint_auth_methods_supported")
@@ -2203,6 +2208,105 @@ async fn well_known_metadata_advertises_standard_endpoint_auth_fields() {
     assert!(revocation_methods
         .iter()
         .any(|value| value == "client_secret_post"));
+}
+
+#[actix_web::test]
+async fn oidc_logout_redirects_to_registered_post_logout_redirect_uri_with_state() {
+    let storage = oauth2_storage_factory::create_storage("sqlite::memory:")
+        .await
+        .expect("create storage");
+    storage.init().await.expect("init storage");
+
+    let client = Client::new(
+        "logout_client".to_string(),
+        "logout_secret".to_string(),
+        vec!["https://app.example.com/logged-out".to_string()],
+        vec!["authorization_code".to_string()],
+        "openid profile".to_string(),
+        "logout client".to_string(),
+    );
+    storage.save_client(&client).await.expect("save client");
+
+    let dyn_storage: DynStorage = storage;
+
+    let app = test::init_service(
+        App::new()
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                Key::generate(),
+            ))
+            .route("/test/login", web::get().to(test_set_session))
+            .app_data(web::Data::new(dyn_storage))
+            .service(web::scope("/oauth").route(
+                "/logout",
+                web::get().to(oauth2_actix::handlers::oidc_logout::logout),
+            )),
+    )
+    .await;
+
+    let login_resp = test::call_service(
+        &app,
+        test::TestRequest::get().uri("/test/login").to_request(),
+    )
+    .await;
+    let session_cookie = extract_session_cookie(&login_resp);
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get()
+            .uri("/oauth/logout?post_logout_redirect_uri=https%3A%2F%2Fapp.example.com%2Flogged-out&state=xyz")
+            .insert_header(("Cookie", session_cookie.as_str()))
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 302);
+    let location = resp
+        .headers()
+        .get(actix_web::http::header::LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("");
+    assert_eq!(location, "https://app.example.com/logged-out?state=xyz");
+}
+
+#[actix_web::test]
+async fn oidc_logout_rejects_unregistered_post_logout_redirect_uri() {
+    let storage = oauth2_storage_factory::create_storage("sqlite::memory:")
+        .await
+        .expect("create storage");
+    storage.init().await.expect("init storage");
+
+    let client = Client::new(
+        "logout_client_reject".to_string(),
+        "logout_secret_reject".to_string(),
+        vec!["https://app.example.com/logged-out".to_string()],
+        vec!["authorization_code".to_string()],
+        "openid profile".to_string(),
+        "logout client reject".to_string(),
+    );
+    storage.save_client(&client).await.expect("save client");
+
+    let dyn_storage: DynStorage = storage;
+
+    let app = test::init_service(App::new().app_data(web::Data::new(dyn_storage)).service(
+        web::scope("/oauth").route(
+            "/logout",
+            web::get().to(oauth2_actix::handlers::oidc_logout::logout),
+        ),
+    ))
+    .await;
+
+    let resp = test::call_service(
+        &app,
+        test::TestRequest::get()
+            .uri("/oauth/logout?post_logout_redirect_uri=https%3A%2F%2Fevil.example%2Fafter-logout")
+            .to_request(),
+    )
+    .await;
+
+    assert_eq!(resp.status(), 400);
+    let body: OAuth2Error = test::read_body_json(resp).await;
+    assert_eq!(body.error, "invalid_request");
 }
 
 #[actix_web::test]

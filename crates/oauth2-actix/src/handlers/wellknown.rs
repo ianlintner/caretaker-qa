@@ -56,6 +56,7 @@ pub async fn openid_configuration(
         "issuer": base,
         "authorization_endpoint": format!("{}/oauth/authorize", base),
         "token_endpoint": format!("{}/oauth/token", base),
+        "end_session_endpoint": format!("{}/oauth/logout", base),
         "introspection_endpoint": format!("{}/oauth/introspect", base),
         "introspection_endpoint_auth_methods_supported": introspection_auth_methods,
         "revocation_endpoint": format!("{}/oauth/revoke", base),
