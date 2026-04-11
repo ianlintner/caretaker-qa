@@ -112,6 +112,7 @@ pub struct CreateToken {
     pub client_id: String,
     pub scope: String,
     pub include_refresh: bool,
+    pub token_family: Option<String>,
     pub span: tracing::Span,
 }
 
@@ -197,6 +198,7 @@ impl Handler<CreateToken> for TokenActor {
                     msg.user_id.clone(),
                     msg.scope.clone(),
                     3600,
+                    msg.token_family,
                 );
 
                 db.save_token(&token).await?;
@@ -524,6 +526,150 @@ impl Handler<RevokeToken> for TokenActor {
 }
 
 // ---------------------------------------------------------------------------
+// Refresh-token lookup (database round-trip, no cache)
+// ---------------------------------------------------------------------------
+
+/// Assign (or update) the token-family UUID on an existing token row.
+/// Used during refresh rotation when a legacy token has no family yet so that
+/// replay detection can revoke the entire grant lineage.
+#[derive(Message)]
+#[rtype(result = "Result<(), OAuth2Error>")]
+pub struct SetTokenFamily {
+    pub access_token: String,
+    pub family: String,
+    pub span: tracing::Span,
+}
+
+impl Handler<SetTokenFamily> for TokenActor {
+    type Result = ResponseFuture<Result<(), OAuth2Error>>;
+
+    fn handle(&mut self, msg: SetTokenFamily, _: &mut Self::Context) -> Self::Result {
+        let db = self.db.clone();
+        let parent_span = msg.span.clone();
+        let actor_span = tracing::info_span!(
+            parent: &parent_span,
+            "actor.token.set_family",
+            trace_id = tracing::field::Empty,
+            span_id = tracing::field::Empty,
+            token_family = %msg.family,
+        );
+        annotate_span_with_trace_ids(&actor_span);
+
+        Box::pin(
+            async move { db.set_token_family(&msg.access_token, &msg.family).await }
+                .instrument(actor_span),
+        )
+    }
+}
+
+/// Look up a token by its refresh_token string.
+/// Returns the full `Token` row if found and not revoked/expired, or an error.
+#[derive(Message)]
+#[rtype(result = "Result<Token, OAuth2Error>")]
+pub struct ValidateRefreshToken {
+    pub refresh_token: String,
+    pub span: tracing::Span,
+}
+
+impl Handler<ValidateRefreshToken> for TokenActor {
+    type Result = ResponseFuture<Result<Token, OAuth2Error>>;
+
+    fn handle(&mut self, msg: ValidateRefreshToken, _: &mut Self::Context) -> Self::Result {
+        let db = self.db.clone();
+        let jwt_secret = self.jwt_secret.clone();
+        let keyset = self.keyset.clone();
+
+        let parent_span = msg.span.clone();
+        let token_prefix = msg.refresh_token.chars().take(12).collect::<String>();
+        let actor_span = tracing::info_span!(
+            parent: &parent_span,
+            "actor.token.validate_refresh",
+            trace_id = tracing::field::Empty,
+            span_id = tracing::field::Empty,
+            token_prefix = %token_prefix,
+            token_len = msg.refresh_token.len()
+        );
+        annotate_span_with_trace_ids(&actor_span);
+
+        let refresh_token = msg.refresh_token;
+
+        Box::pin(
+            async move {
+                let token = db
+                    .get_token_by_refresh_token(&refresh_token)
+                    .await?
+                    .ok_or_else(|| {
+                        OAuth2Error::invalid_grant("Refresh token not found or revoked")
+                    })?;
+
+                // Replay detection (OAuth 2.0 Security BCP §4.13.2):
+                // A revoked refresh token being presented again is a replay attack.
+                // Revoke the entire token family to invalidate the authorization grant.
+                if token.revoked {
+                    if let Some(ref family) = token.token_family {
+                        let _ = db.revoke_token_family(family).await;
+                    }
+                    return Err(OAuth2Error::invalid_grant(
+                        "Refresh token has been revoked (replay detected)",
+                    ));
+                }
+
+                // Validate expiry using the refresh token JWT's own `exp` claim
+                // (minted for 30 days) rather than the access-token row's
+                // `expires_at` (which reflects the 1-hour access-token lifetime).
+                // Build a Validation that sets the expected audience (= the client_id
+                // from the DB record) so jsonwebtoken v10 accepts the aud claim.
+                let refresh_expired = {
+                    use jsonwebtoken::{DecodingKey, Validation};
+                    let mut val = Validation::default();
+                    val.set_audience(&[token.client_id.as_str()]);
+
+                    let decoded = if let Some(ref ks_lock) = keyset {
+                        let ks = ks_lock.read().await;
+                        // Resolve the decoding key from the keyset, reusing the
+                        // audience-aware Validation built above.
+                        let header = jsonwebtoken::decode_header(&refresh_token);
+                        let result = match header {
+                            Ok(h) if h.kid.is_some() => {
+                                let kid = h.kid.unwrap();
+                                ks.find(&kid).and_then(|key| {
+                                    let dk = match key.algorithm {
+                                        KeyAlgorithm::HS256 => {
+                                            DecodingKey::from_secret(&key.key_material)
+                                        }
+                                        KeyAlgorithm::RS256 => {
+                                            DecodingKey::from_rsa_pem(&key.key_material).ok()?
+                                        }
+                                    };
+                                    if key.algorithm == KeyAlgorithm::RS256 {
+                                        val.algorithms = vec![jsonwebtoken::Algorithm::RS256];
+                                    }
+                                    jsonwebtoken::decode::<Claims>(&refresh_token, &dk, &val).ok()
+                                })
+                            }
+                            _ => None,
+                        };
+                        result.is_some()
+                    } else {
+                        let dk = DecodingKey::from_secret(jwt_secret.as_ref());
+                        jsonwebtoken::decode::<Claims>(&refresh_token, &dk, &val).is_ok()
+                    };
+
+                    !decoded
+                };
+
+                if refresh_expired {
+                    return Err(OAuth2Error::invalid_grant("Refresh token is expired"));
+                }
+
+                Ok(token)
+            }
+            .instrument(actor_span),
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Stateless JWT-only validation (no database lookup)
 // ---------------------------------------------------------------------------
 
@@ -585,6 +731,7 @@ impl Handler<ValidateTokenStateless> for TokenActor {
             created_at,
             expires_at,
             revoked: false,
+            token_family: None,
         })
     }
 }
