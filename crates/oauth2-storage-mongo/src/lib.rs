@@ -5,7 +5,7 @@ use mongodb::{
     Client as MongoClient, Collection, Database, IndexModel,
 };
 
-use oauth2_core::{AuthorizationCode, Client, OAuth2Error, Token, User};
+use oauth2_core::{AuthorizationCode, Client, DeviceAuthorization, OAuth2Error, Token, User};
 use oauth2_ports::Storage;
 
 /// MongoDB-backed storage implementation.
@@ -19,6 +19,7 @@ pub struct MongoStorage {
     users: Collection<User>,
     tokens: Collection<Token>,
     authorization_codes: Collection<AuthorizationCode>,
+    device_authorizations: Collection<DeviceAuthorization>,
 }
 
 impl MongoStorage {
@@ -44,6 +45,7 @@ impl MongoStorage {
         let users = db.collection::<User>("users");
         let tokens = db.collection::<Token>("tokens");
         let authorization_codes = db.collection::<AuthorizationCode>("authorization_codes");
+        let device_authorizations = db.collection::<DeviceAuthorization>("device_authorizations");
 
         Ok(Self {
             db,
@@ -51,6 +53,7 @@ impl MongoStorage {
             users,
             tokens,
             authorization_codes,
+            device_authorizations,
         })
     }
 
@@ -116,6 +119,33 @@ impl MongoStorage {
                     .options(IndexOptions::builder().unique(true).build())
                     .build(),
             )
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+
+        // device_authorizations.device_code unique
+        self.device_authorizations
+            .create_index(
+                IndexModel::builder()
+                    .keys(doc! { "device_code": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build(),
+            )
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+
+        // device_authorizations.user_code unique
+        self.device_authorizations
+            .create_index(
+                IndexModel::builder()
+                    .keys(doc! { "user_code": 1 })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build(),
+            )
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+
+        self.device_authorizations
+            .create_index(IndexModel::builder().keys(doc! { "client_id": 1 }).build())
             .await
             .map_err(Self::mongo_err_to_oauth)?;
 
@@ -250,6 +280,74 @@ impl Storage for MongoStorage {
     async fn mark_authorization_code_used(&self, code: &str) -> Result<(), OAuth2Error> {
         self.authorization_codes
             .update_one(doc! { "code": code }, doc! { "$set": { "used": true } })
+            .await
+            .map(|_| ())
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn save_device_authorization(
+        &self,
+        device_auth: &DeviceAuthorization,
+    ) -> Result<(), OAuth2Error> {
+        self.device_authorizations
+            .insert_one(device_auth)
+            .await
+            .map(|_| ())
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn get_device_authorization_by_device_code(
+        &self,
+        device_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        self.device_authorizations
+            .find_one(doc! { "device_code": device_code })
+            .await
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn get_device_authorization_by_user_code(
+        &self,
+        user_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        self.device_authorizations
+            .find_one(doc! { "user_code": user_code })
+            .await
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn approve_device_authorization(
+        &self,
+        user_code: &str,
+        user_id: &str,
+    ) -> Result<(), OAuth2Error> {
+        self.device_authorizations
+            .update_one(
+                doc! { "user_code": user_code },
+                doc! { "$set": { "approved": true, "denied": false, "user_id": user_id } },
+            )
+            .await
+            .map(|_| ())
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn deny_device_authorization(&self, user_code: &str) -> Result<(), OAuth2Error> {
+        self.device_authorizations
+            .update_one(
+                doc! { "user_code": user_code },
+                doc! { "$set": { "approved": false, "denied": true } },
+            )
+            .await
+            .map(|_| ())
+            .map_err(Self::mongo_err_to_oauth)
+    }
+
+    async fn mark_device_authorization_used(&self, device_code: &str) -> Result<(), OAuth2Error> {
+        self.device_authorizations
+            .update_one(
+                doc! { "device_code": device_code },
+                doc! { "$set": { "used": true } },
+            )
             .await
             .map(|_| ())
             .map_err(Self::mongo_err_to_oauth)

@@ -1018,6 +1018,18 @@ pub async fn run() -> std::io::Result<()> {
                         web::post().to(oauth2_actix::handlers::oauth::token),
                     )
                     .route(
+                        "/device_authorization",
+                        web::post().to(oauth2_actix::handlers::device::device_authorization),
+                    )
+                    .route(
+                        "/device/verify",
+                        web::get().to(oauth2_actix::handlers::device::verify_page),
+                    )
+                    .route(
+                        "/device/verify",
+                        web::post().to(oauth2_actix::handlers::device::verify_submit),
+                    )
+                    .route(
                         "/introspect",
                         web::post().to(oauth2_actix::handlers::token::introspect),
                     )

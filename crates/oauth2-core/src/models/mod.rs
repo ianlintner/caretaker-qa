@@ -1,5 +1,6 @@
 pub mod authorization;
 pub mod client;
+pub mod device;
 pub mod error;
 pub mod key_set;
 pub mod scope;
@@ -8,6 +9,7 @@ pub mod user;
 
 pub use authorization::*;
 pub use client::*;
+pub use device::*;
 pub use error::*;
 pub use scope::*;
 pub use token::*;

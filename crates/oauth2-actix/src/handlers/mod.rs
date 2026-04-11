@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod admin_keys;
 pub mod client;
+pub mod device;
 pub mod events;
 pub mod login;
 pub mod oauth;

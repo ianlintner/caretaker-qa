@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use oauth2_core::{AuthorizationCode, Client, OAuth2Error, Token, User};
+use oauth2_core::{AuthorizationCode, Client, DeviceAuthorization, OAuth2Error, Token, User};
 use oauth2_ports::Storage;
 use sqlx::pool::PoolOptions;
 use sqlx::{Pool, Postgres, Sqlite};
@@ -284,6 +284,46 @@ impl SqlxStorage {
         .await?;
         sqlx::query(
             r#"CREATE INDEX IF NOT EXISTS idx_authorization_codes_user_id ON authorization_codes(user_id);"#,
+        )
+        .execute(pool)
+        .await?;
+
+        // Device authorizations (OAuth2 Device Flow, RFC 8628)
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS device_authorizations (
+                id TEXT PRIMARY KEY,
+                device_code TEXT NOT NULL UNIQUE,
+                user_code TEXT NOT NULL UNIQUE,
+                client_id TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                interval_seconds INTEGER NOT NULL,
+                approved INTEGER NOT NULL DEFAULT 0,
+                denied INTEGER NOT NULL DEFAULT 0,
+                used INTEGER NOT NULL DEFAULT 0,
+                user_id TEXT,
+                FOREIGN KEY (client_id) REFERENCES clients(client_id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            );
+            "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query(
+            r#"CREATE INDEX IF NOT EXISTS idx_device_authorizations_device_code ON device_authorizations(device_code);"#,
+        )
+        .execute(pool)
+        .await?;
+        sqlx::query(
+            r#"CREATE INDEX IF NOT EXISTS idx_device_authorizations_user_code ON device_authorizations(user_code);"#,
+        )
+        .execute(pool)
+        .await?;
+        sqlx::query(
+            r#"CREATE INDEX IF NOT EXISTS idx_device_authorizations_client_id ON device_authorizations(client_id);"#,
         )
         .execute(pool)
         .await?;
@@ -691,6 +731,183 @@ impl Storage for SqlxStorage {
             DatabasePool::Postgres(pool) => {
                 sqlx::query("UPDATE authorization_codes SET used = true WHERE code = $1")
                     .bind(code)
+                    .execute(pool)
+                    .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn save_device_authorization(
+        &self,
+        device_auth: &DeviceAuthorization,
+    ) -> Result<(), OAuth2Error> {
+        match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query(
+                    r#"
+                    INSERT INTO device_authorizations (id, device_code, user_code, client_id, scope, created_at, expires_at, interval_seconds, approved, denied, used, user_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    "#,
+                )
+                .bind(&device_auth.id)
+                .bind(&device_auth.device_code)
+                .bind(&device_auth.user_code)
+                .bind(&device_auth.client_id)
+                .bind(&device_auth.scope)
+                .bind(device_auth.created_at)
+                .bind(device_auth.expires_at)
+                .bind(device_auth.interval_seconds)
+                .bind(device_auth.approved)
+                .bind(device_auth.denied)
+                .bind(device_auth.used)
+                .bind(&device_auth.user_id)
+                .execute(pool)
+                .await?;
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query(
+                    r#"
+                    INSERT INTO device_authorizations (id, device_code, user_code, client_id, scope, created_at, expires_at, interval_seconds, approved, denied, used, user_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                    "#,
+                )
+                .bind(&device_auth.id)
+                .bind(&device_auth.device_code)
+                .bind(&device_auth.user_code)
+                .bind(&device_auth.client_id)
+                .bind(&device_auth.scope)
+                .bind(device_auth.created_at)
+                .bind(device_auth.expires_at)
+                .bind(device_auth.interval_seconds)
+                .bind(device_auth.approved)
+                .bind(device_auth.denied)
+                .bind(device_auth.used)
+                .bind(&device_auth.user_id)
+                .execute(pool)
+                .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn get_device_authorization_by_device_code(
+        &self,
+        device_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        let record = match self.read_pool() {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query_as::<_, DeviceAuthorization>(
+                    "SELECT * FROM device_authorizations WHERE device_code = ?",
+                )
+                .bind(device_code)
+                .fetch_optional(pool)
+                .await?
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query_as::<_, DeviceAuthorization>(
+                    "SELECT * FROM device_authorizations WHERE device_code = $1",
+                )
+                .bind(device_code)
+                .fetch_optional(pool)
+                .await?
+            }
+        };
+
+        Ok(record)
+    }
+
+    async fn get_device_authorization_by_user_code(
+        &self,
+        user_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        let record = match self.read_pool() {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query_as::<_, DeviceAuthorization>(
+                    "SELECT * FROM device_authorizations WHERE user_code = ?",
+                )
+                .bind(user_code)
+                .fetch_optional(pool)
+                .await?
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query_as::<_, DeviceAuthorization>(
+                    "SELECT * FROM device_authorizations WHERE user_code = $1",
+                )
+                .bind(user_code)
+                .fetch_optional(pool)
+                .await?
+            }
+        };
+
+        Ok(record)
+    }
+
+    async fn approve_device_authorization(
+        &self,
+        user_code: &str,
+        user_id: &str,
+    ) -> Result<(), OAuth2Error> {
+        match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query(
+                    "UPDATE device_authorizations SET approved = 1, denied = 0, user_id = ? WHERE user_code = ?",
+                )
+                .bind(user_id)
+                .bind(user_code)
+                .execute(pool)
+                .await?;
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query(
+                    "UPDATE device_authorizations SET approved = true, denied = false, user_id = $1 WHERE user_code = $2",
+                )
+                .bind(user_id)
+                .bind(user_code)
+                .execute(pool)
+                .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn deny_device_authorization(&self, user_code: &str) -> Result<(), OAuth2Error> {
+        match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query(
+                    "UPDATE device_authorizations SET denied = 1, approved = 0 WHERE user_code = ?",
+                )
+                .bind(user_code)
+                .execute(pool)
+                .await?;
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query(
+                    "UPDATE device_authorizations SET denied = true, approved = false WHERE user_code = $1",
+                )
+                .bind(user_code)
+                .execute(pool)
+                .await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn mark_device_authorization_used(&self, device_code: &str) -> Result<(), OAuth2Error> {
+        match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query("UPDATE device_authorizations SET used = 1 WHERE device_code = ?")
+                    .bind(device_code)
+                    .execute(pool)
+                    .await?;
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query("UPDATE device_authorizations SET used = true WHERE device_code = $1")
+                    .bind(device_code)
                     .execute(pool)
                     .await?;
             }

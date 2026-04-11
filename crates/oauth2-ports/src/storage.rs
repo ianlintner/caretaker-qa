@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use oauth2_core::{AuthorizationCode, Client, OAuth2Error, Token, User};
+use oauth2_core::{AuthorizationCode, Client, DeviceAuthorization, OAuth2Error, Token, User};
 
 /// Trait implemented by all persistence backends.
 ///
@@ -62,6 +62,51 @@ pub trait Storage: Send + Sync {
         code: &str,
     ) -> Result<Option<AuthorizationCode>, OAuth2Error>;
     async fn mark_authorization_code_used(&self, code: &str) -> Result<(), OAuth2Error>;
+
+    // OAuth2 Device Authorization Grant (RFC 8628) operations.
+    // Default implementations are no-ops so older backends stay source-compatible.
+    async fn save_device_authorization(
+        &self,
+        device_auth: &DeviceAuthorization,
+    ) -> Result<(), OAuth2Error> {
+        let _ = device_auth;
+        Ok(())
+    }
+
+    async fn get_device_authorization_by_device_code(
+        &self,
+        device_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        let _ = device_code;
+        Ok(None)
+    }
+
+    async fn get_device_authorization_by_user_code(
+        &self,
+        user_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        let _ = user_code;
+        Ok(None)
+    }
+
+    async fn approve_device_authorization(
+        &self,
+        user_code: &str,
+        user_id: &str,
+    ) -> Result<(), OAuth2Error> {
+        let (_, _) = (user_code, user_id);
+        Ok(())
+    }
+
+    async fn deny_device_authorization(&self, user_code: &str) -> Result<(), OAuth2Error> {
+        let _ = user_code;
+        Ok(())
+    }
+
+    async fn mark_device_authorization_used(&self, device_code: &str) -> Result<(), OAuth2Error> {
+        let _ = device_code;
+        Ok(())
+    }
 
     // Listing / counting operations for admin dashboard.
     // Default implementations return empty / zero so that backends can opt in

@@ -66,11 +66,17 @@ pub async fn openid_configuration(
         "token_introspection_endpoint": format!("{}/oauth/introspect", base),
         "token_revocation_endpoint": format!("{}/oauth/revoke", base),
         "userinfo_endpoint": format!("{}/oauth/userinfo", base),
+        "device_authorization_endpoint": format!("{}/oauth/device_authorization", base),
         "jwks_uri": format!("{}/.well-known/jwks.json", base),
         "registration_endpoint": format!("{}/admin/clients/register", base),
         "scopes_supported": ["openid", "profile", "email", "read", "write", "admin"],
         "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code", "client_credentials", "refresh_token"],
+        "grant_types_supported": [
+            "authorization_code",
+            "client_credentials",
+            "refresh_token",
+            "urn:ietf:params:oauth:grant-type:device_code"
+        ],
         "subject_types_supported": ["public"],
         "id_token_signing_alg_values_supported": id_token_algs,
         "token_endpoint_auth_methods_supported": [

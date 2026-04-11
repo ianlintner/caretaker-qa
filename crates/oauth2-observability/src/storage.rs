@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use tracing::{field, Instrument};
 
-use oauth2_core::{AuthorizationCode, Client, OAuth2Error, Token, User};
+use oauth2_core::{AuthorizationCode, Client, DeviceAuthorization, OAuth2Error, Token, User};
 use oauth2_ports::{DynStorage, Storage};
 
 use crate::telemetry::annotate_span_with_trace_ids;
@@ -268,6 +268,127 @@ impl Storage for ObservedStorage {
         );
         annotate_span_with_trace_ids(&span);
         async move { self.inner.mark_authorization_code_used(code).await }
+            .instrument(span)
+            .await
+    }
+
+    async fn save_device_authorization(
+        &self,
+        device_auth: &DeviceAuthorization,
+    ) -> Result<(), OAuth2Error> {
+        let span = tracing::info_span!(
+            "db",
+            trace_id = field::Empty,
+            span_id = field::Empty,
+            db_system = %self.db_system,
+            db_operation = "save_device_authorization",
+            client_id = %device_auth.client_id,
+            user_code = %device_auth.user_code
+        );
+        annotate_span_with_trace_ids(&span);
+        async move { self.inner.save_device_authorization(device_auth).await }
+            .instrument(span)
+            .await
+    }
+
+    async fn get_device_authorization_by_device_code(
+        &self,
+        device_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        let code_prefix = device_code.chars().take(12).collect::<String>();
+        let span = tracing::info_span!(
+            "db",
+            trace_id = field::Empty,
+            span_id = field::Empty,
+            db_system = %self.db_system,
+            db_operation = "get_device_authorization_by_device_code",
+            code_prefix = %code_prefix,
+            code_len = device_code.len()
+        );
+        annotate_span_with_trace_ids(&span);
+        async move {
+            self.inner
+                .get_device_authorization_by_device_code(device_code)
+                .await
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn get_device_authorization_by_user_code(
+        &self,
+        user_code: &str,
+    ) -> Result<Option<DeviceAuthorization>, OAuth2Error> {
+        let span = tracing::info_span!(
+            "db",
+            trace_id = field::Empty,
+            span_id = field::Empty,
+            db_system = %self.db_system,
+            db_operation = "get_device_authorization_by_user_code",
+            user_code = %user_code
+        );
+        annotate_span_with_trace_ids(&span);
+        async move {
+            self.inner
+                .get_device_authorization_by_user_code(user_code)
+                .await
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn approve_device_authorization(
+        &self,
+        user_code: &str,
+        user_id: &str,
+    ) -> Result<(), OAuth2Error> {
+        let span = tracing::info_span!(
+            "db",
+            trace_id = field::Empty,
+            span_id = field::Empty,
+            db_system = %self.db_system,
+            db_operation = "approve_device_authorization",
+            user_code = %user_code,
+            user_id = %user_id
+        );
+        annotate_span_with_trace_ids(&span);
+        async move {
+            self.inner
+                .approve_device_authorization(user_code, user_id)
+                .await
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn deny_device_authorization(&self, user_code: &str) -> Result<(), OAuth2Error> {
+        let span = tracing::info_span!(
+            "db",
+            trace_id = field::Empty,
+            span_id = field::Empty,
+            db_system = %self.db_system,
+            db_operation = "deny_device_authorization",
+            user_code = %user_code
+        );
+        annotate_span_with_trace_ids(&span);
+        async move { self.inner.deny_device_authorization(user_code).await }
+            .instrument(span)
+            .await
+    }
+
+    async fn mark_device_authorization_used(&self, device_code: &str) -> Result<(), OAuth2Error> {
+        let code_prefix = device_code.chars().take(12).collect::<String>();
+        let span = tracing::info_span!(
+            "db",
+            trace_id = field::Empty,
+            span_id = field::Empty,
+            db_system = %self.db_system,
+            db_operation = "mark_device_authorization_used",
+            code_prefix = %code_prefix,
+            code_len = device_code.len()
+        );
+        annotate_span_with_trace_ids(&span);
+        async move { self.inner.mark_device_authorization_used(device_code).await }
             .instrument(span)
             .await
     }

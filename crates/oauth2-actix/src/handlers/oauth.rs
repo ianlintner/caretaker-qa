@@ -17,6 +17,9 @@ use crate::actors::{
 };
 use crate::handlers::wellknown::OidcConfig;
 use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
+use oauth2_ports::DynStorage;
+
+const DEVICE_CODE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
 
 /// Parse RFC6749 client authentication via HTTP Basic.
 ///
@@ -311,16 +314,19 @@ pub struct TokenRequest {
     password: Option<String>,
     scope: Option<String>,
     code_verifier: Option<String>,
+    device_code: Option<String>,
 }
 
 /// OAuth2 token endpoint
 /// Exchanges authorization code for access token
+#[allow(clippy::too_many_arguments)]
 pub async fn token(
     req: HttpRequest,
     body: web::Bytes,
     token_actor: web::Data<TokenActorPool>,
     client_actor: web::Data<Addr<ClientActor>>,
     auth_actor: web::Data<Addr<AuthActor>>,
+    storage: Option<web::Data<DynStorage>>,
     metrics: web::Data<Metrics>,
     oidc_config: web::Data<OidcConfig>,
 ) -> Result<HttpResponse, OAuth2Error> {
@@ -376,6 +382,7 @@ pub async fn token(
         password: form_map.get("password").cloned(),
         scope: form_map.get("scope").cloned(),
         code_verifier: form_map.get("code_verifier").cloned(),
+        device_code: form_map.get("device_code").cloned(),
     };
 
     match form.grant_type.as_str() {
@@ -396,6 +403,23 @@ pub async fn token(
         "refresh_token" => {
             handle_refresh_token_grant(form, token_actor, client_actor, metrics).await
         }
+        DEVICE_CODE_GRANT_TYPE | "device_code" => {
+            let storage = storage.ok_or_else(|| {
+                OAuth2Error::new(
+                    "server_error",
+                    Some("Storage backend not configured for device_code grant"),
+                )
+            })?;
+            handle_device_code_grant(
+                form,
+                token_actor,
+                client_actor,
+                storage,
+                metrics,
+                oidc_config,
+            )
+            .await
+        }
         // Password grant is intentionally disabled by default
         // (OAuth 2.0 Security BCP).
         "password" => Err(OAuth2Error::unsupported_grant_type("Grant type disabled")),
@@ -404,6 +428,127 @@ pub async fn token(
             form.grant_type
         ))),
     }
+}
+
+async fn handle_device_code_grant(
+    req: TokenRequest,
+    token_actor: web::Data<TokenActorPool>,
+    client_actor: web::Data<Addr<ClientActor>>,
+    storage: web::Data<DynStorage>,
+    metrics: web::Data<Metrics>,
+    oidc_config: web::Data<OidcConfig>,
+) -> Result<HttpResponse, OAuth2Error> {
+    let device_code = req
+        .device_code
+        .ok_or_else(|| OAuth2Error::invalid_request("Missing device_code"))?;
+
+    let client = client_actor
+        .send(GetClient {
+            client_id: req.client_id.clone(),
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    let client_secret = req
+        .client_secret
+        .ok_or_else(|| OAuth2Error::invalid_client("Missing client_secret"))?;
+    if !client_secret_matches(&client, &client_secret) {
+        return Err(OAuth2Error::invalid_client("Invalid client_secret"));
+    }
+
+    if !client.supports_grant_type(DEVICE_CODE_GRANT_TYPE)
+        && !client.supports_grant_type("device_code")
+    {
+        return Err(OAuth2Error::unauthorized_client(
+            "Client is not allowed to use device_code grant",
+        ));
+    }
+
+    let device_auth = storage
+        .get_device_authorization_by_device_code(&device_code)
+        .await?
+        .ok_or_else(|| OAuth2Error::invalid_grant("Invalid device_code"))?;
+
+    if device_auth.client_id != req.client_id {
+        return Err(OAuth2Error::invalid_grant(
+            "device_code does not belong to this client",
+        ));
+    }
+    if device_auth.used {
+        return Err(OAuth2Error::invalid_grant("device_code already used"));
+    }
+    if device_auth.is_expired() {
+        return Err(OAuth2Error::new(
+            "expired_token",
+            Some("device_code expired"),
+        ));
+    }
+    if device_auth.denied {
+        return Err(OAuth2Error::access_denied(
+            "End-user denied device authorization",
+        ));
+    }
+    if !device_auth.approved {
+        return Err(OAuth2Error::new(
+            "authorization_pending",
+            Some("End-user authorization is pending"),
+        ));
+    }
+
+    let user_id = device_auth
+        .user_id
+        .clone()
+        .ok_or_else(|| OAuth2Error::invalid_grant("Approved device authorization missing user"))?;
+
+    let include_refresh = client.supports_grant_type("refresh_token");
+    let token = token_actor
+        .route(&req.client_id)
+        .send(CreateToken {
+            user_id: Some(user_id.clone()),
+            client_id: req.client_id.clone(),
+            scope: device_auth.scope.clone(),
+            include_refresh,
+            token_family: None,
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    storage.mark_device_authorization_used(&device_code).await?;
+
+    metrics.oauth_token_issued_total.inc();
+
+    let mut response = TokenResponse::from(token.clone());
+    if device_auth.scope.split_whitespace().any(|s| s == "openid") {
+        let id_claims = IdTokenClaims::new(
+            &oidc_config.issuer,
+            user_id,
+            req.client_id,
+            3600,
+            Some(&token.access_token),
+        );
+
+        let id_token = if oidc_config.id_token_alg.eq_ignore_ascii_case("RS256") {
+            let pem = oidc_config
+                .id_token_private_key_pem
+                .as_deref()
+                .ok_or_else(|| {
+                    OAuth2Error::new("server_error", Some("RS256 configured but key missing"))
+                })?;
+            id_claims
+                .encode_rs256(pem, oidc_config.id_token_kid.as_deref())
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+        } else {
+            id_claims
+                .encode(&oidc_config.jwt_secret)
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+        };
+
+        response = response.with_id_token(id_token);
+    }
+
+    Ok(no_store_headers(HttpResponse::Ok().json(response)))
 }
 
 async fn handle_authorization_code_grant(

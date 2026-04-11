@@ -44,8 +44,13 @@ fn validate_redirect_uri(uri: &str) -> Result<(), OAuth2Error> {
 
 fn validate_grant_types(grant_types: &[String]) -> Result<(), OAuth2Error> {
     // Keep registration honest: only allow grant types that the server actually supports.
-    // (prevents clients from registering for 'implicit' / 'refresh_token' etc.)
-    const SUPPORTED: [&str; 2] = ["authorization_code", "client_credentials"];
+    // (prevents clients from registering for unsupported grants like implicit).
+    const SUPPORTED: [&str; 4] = [
+        "authorization_code",
+        "client_credentials",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:device_code",
+    ];
 
     if grant_types.is_empty() {
         return Err(OAuth2Error::invalid_request(
