@@ -1024,6 +1024,10 @@ pub async fn run() -> std::io::Result<()> {
                         web::get().to(oauth2_actix::handlers::oauth::authorize),
                     )
                     .route(
+                        "/par",
+                        web::post().to(oauth2_actix::handlers::oauth::par),
+                    )
+                    .route(
                         "/token",
                         web::post().to(oauth2_actix::handlers::oauth::token),
                     )

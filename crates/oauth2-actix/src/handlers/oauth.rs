@@ -12,8 +12,9 @@ use uuid::Uuid;
 use oauth2_observability::Metrics;
 
 use crate::actors::{
-    AuthActor, ClientActor, CreateAuthorizationCode, CreateToken, GetClient,
-    MarkAuthorizationCodeUsed, TokenActorPool, ValidateAuthorizationCode, ValidateRefreshToken,
+    AuthActor, ClientActor, CreateAuthorizationCode, CreateToken, GetClient, GetPARRequest,
+    MarkAuthorizationCodeUsed, StorePARRequest, TokenActorPool, ValidateAuthorizationCode,
+    ValidateRefreshToken,
 };
 use crate::handlers::wellknown::OidcConfig;
 use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
@@ -219,10 +220,10 @@ fn parse_form_no_dupes(body: &web::Bytes) -> Result<HashMap<String, String>, OAu
 
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeQuery {
-    #[allow(dead_code)] // OAuth2 spec field, will be validated in future
     response_type: String,
     client_id: String,
-    redirect_uri: String,
+    /// Required unless `request_uri` (PAR, RFC 9126) supplies it.
+    redirect_uri: Option<String>,
     scope: Option<String>,
     state: Option<String>,
     code_challenge: Option<String>,
@@ -237,10 +238,48 @@ pub struct AuthorizeQuery {
     /// OIDC Core §3.1.2.1: maximum authentication age in seconds.
     /// If `auth_time` + `max_age` < now, the user must re-authenticate.
     max_age: Option<u64>,
+    /// OAuth 2.0 Form Post Response Mode: "query" (default) or "form_post".
+    response_mode: Option<String>,
+    /// RFC 8707: resource server URI for the requested access token audience.
+    resource: Option<String>,
+    /// RFC 9126: reference to a pushed authorization request (PAR).
+    request_uri: Option<String>,
+}
+
+/// RFC 9198 §4.2 / OAuth 2.0 Form Post Response Mode helper: HTML-escape attribute values.
+fn html_escape_attr(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('"', "&quot;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+/// RFC 9198 §4.2: Returns an HTML auto-submit form POSTing `params` to `redirect_uri`.
+fn form_post_response(redirect_uri: &str, params: &[(&str, &str)]) -> HttpResponse {
+    let inputs: String = params
+        .iter()
+        .map(|(k, v)| {
+            format!(
+                r#"<input type="hidden" name="{}" value="{}"/>"#,
+                html_escape_attr(k),
+                html_escape_attr(v)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let esc_action = html_escape_attr(redirect_uri);
+    let body = format!(
+        "<!DOCTYPE html>\n<html><body onload=\"document.forms[0].submit()\">\n<form method=\"post\" action=\"{esc_action}\">\n{inputs}\n</form></body></html>"
+    );
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(body)
 }
 
 /// OAuth2 authorize endpoint
-/// Initiates the authorization code flow
+/// Initiates the authorization code flow, with PAR (RFC 9126),
+/// resource indicators (RFC 8707), and form_post response mode support.
+#[allow(clippy::too_many_arguments)]
 pub async fn authorize(
     req: HttpRequest,
     query: web::Query<AuthorizeQuery>,
@@ -252,6 +291,50 @@ pub async fn authorize(
 ) -> Result<HttpResponse, OAuth2Error> {
     // OAuch: reject duplicate parameters (prevents ambiguous parsing).
     ensure_no_duplicate_query_params(&req)?;
+
+    // --- PAR resolution (RFC 9126 §4) ---
+    // If request_uri is present, fetch the stored request and merge its params.
+    let (eff_redirect_uri, eff_scope, eff_code_challenge, eff_code_challenge_method,
+         eff_nonce, eff_resource, eff_state) =
+        if let Some(ref request_uri) = query.request_uri {
+            let entry = auth_actor
+                .send(GetPARRequest {
+                    request_uri: request_uri.clone(),
+                })
+                .await
+                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+                .ok_or_else(|| {
+                    OAuth2Error::invalid_request("Unknown or expired request_uri")
+                })?;
+            if entry.client_id != query.client_id {
+                return Err(OAuth2Error::invalid_client("request_uri client_id mismatch"));
+            }
+            let get = |k: &str| -> Option<String> { entry.params.get(k).cloned() };
+            (
+                get("redirect_uri").or_else(|| query.redirect_uri.clone()),
+                get("scope").or_else(|| query.scope.clone()),
+                get("code_challenge").or_else(|| query.code_challenge.clone()),
+                get("code_challenge_method")
+                    .or_else(|| query.code_challenge_method.clone()),
+                get("nonce").or_else(|| query.nonce.clone()),
+                get("resource").or_else(|| query.resource.clone()),
+                get("state").or_else(|| query.state.clone()),
+            )
+        } else {
+            (
+                query.redirect_uri.clone(),
+                query.scope.clone(),
+                query.code_challenge.clone(),
+                query.code_challenge_method.clone(),
+                query.nonce.clone(),
+                query.resource.clone(),
+                query.state.clone(),
+            )
+        };
+
+    // redirect_uri is required (supplied directly or via PAR).
+    let redirect_uri = eff_redirect_uri
+        .ok_or_else(|| OAuth2Error::invalid_request("Missing redirect_uri"))?;
 
     // Only Authorization Code flow is supported.
     if query.response_type != "code" {
@@ -273,18 +356,22 @@ pub async fn authorize(
         ));
     }
 
-    if !client.validate_redirect_uri(&query.redirect_uri) {
+    if !client.validate_redirect_uri(&redirect_uri) {
         return Err(OAuth2Error::invalid_request("Invalid redirect_uri"));
     }
 
+    // Validate response_mode.
+    let response_mode = query.response_mode.as_deref().unwrap_or("query");
+    if response_mode != "query" && response_mode != "form_post" {
+        return Err(OAuth2Error::invalid_request(
+            "Unsupported response_mode; supported values: query, form_post",
+        ));
+    }
+
     // Require PKCE (S256 only). This follows OAuth 2.0 Security BCP guidance.
-    let code_challenge = query
-        .code_challenge
-        .as_deref()
+    let code_challenge = eff_code_challenge
         .ok_or_else(|| OAuth2Error::invalid_request("Missing code_challenge"))?;
-    let code_challenge_method = query
-        .code_challenge_method
-        .as_deref()
+    let code_challenge_method = eff_code_challenge_method
         .ok_or_else(|| OAuth2Error::invalid_request("Missing code_challenge_method"))?;
     if code_challenge_method != "S256" {
         return Err(OAuth2Error::invalid_request(
@@ -323,8 +410,26 @@ pub async fn authorize(
         match user_id {
             Some(_) => { /* session exists; continue below */ }
             None => {
-                // OIDC Core §3.1.2.6: return login_required via redirect.
-                let mut url = Url::parse(&query.redirect_uri)
+                // OIDC Core §3.1.2.6: return login_required error via the redirect channel.
+                if response_mode == "form_post" {
+                    let iss = oidc_config.issuer.as_str();
+                    let mut params: Vec<(&str, &str)> = vec![
+                        ("error", "login_required"),
+                        (
+                            "error_description",
+                            "User is not authenticated and prompt=none was requested",
+                        ),
+                        ("iss", iss),
+                    ];
+                    if let Some(ref s) = eff_state {
+                        params.push(("state", s.as_str()));
+                    }
+                    return Ok(auth_response_security_headers(form_post_response(
+                        &redirect_uri,
+                        &params,
+                    )));
+                }
+                let mut url = Url::parse(&redirect_uri)
                     .map_err(|_| OAuth2Error::invalid_request("Invalid redirect_uri"))?;
                 {
                     let mut qp = url.query_pairs_mut();
@@ -333,7 +438,7 @@ pub async fn authorize(
                         "error_description",
                         "User is not authenticated and prompt=none was requested",
                     );
-                    if let Some(state) = &query.state {
+                    if let Some(ref state) = eff_state {
                         qp.append_pair("state", state);
                     }
                     qp.append_pair("iss", &oidc_config.issuer);
@@ -393,7 +498,7 @@ pub async fn authorize(
         }
     };
 
-    let scope = query.scope.clone().unwrap_or_else(|| "read".to_string());
+    let scope = eff_scope.unwrap_or_else(|| "read".to_string());
 
     // Enforce that requested scopes are within the client's allowed scope set.
     validate_scope_subset(&scope, &client.scope)?;
@@ -402,11 +507,12 @@ pub async fn authorize(
         .send(CreateAuthorizationCode {
             client_id: query.client_id.clone(),
             user_id,
-            redirect_uri: query.redirect_uri.clone(),
+            redirect_uri: redirect_uri.clone(),
             scope,
-            code_challenge: query.code_challenge.clone(),
-            code_challenge_method: query.code_challenge_method.clone(),
-            nonce: query.nonce.clone(),
+            code_challenge: Some(code_challenge),
+            code_challenge_method: Some(code_challenge_method),
+            nonce: eff_nonce,
+            resource: eff_resource,
             span: tracing::Span::current(),
         })
         .await
@@ -414,8 +520,21 @@ pub async fn authorize(
 
     metrics.oauth_authorization_codes_issued.inc();
 
-    // Redirect back to client with code (and optional state) while safely preserving existing query.
-    let mut url = Url::parse(&query.redirect_uri)
+    // Deliver authorization response according to response_mode.
+    if response_mode == "form_post" {
+        let code_str = auth_code.code.as_str();
+        let iss_str = oidc_config.issuer.as_str();
+        let mut params: Vec<(&str, &str)> = vec![("code", code_str), ("iss", iss_str)];
+        if let Some(ref s) = eff_state {
+            params.push(("state", s.as_str()));
+        }
+        return Ok(auth_response_security_headers(no_store_headers(
+            form_post_response(&redirect_uri, &params),
+        )));
+    }
+
+    // Default: redirect with query parameters.
+    let mut url = Url::parse(&redirect_uri)
         .map_err(|_| OAuth2Error::invalid_request("Invalid redirect_uri"))?;
     if url.fragment().is_some() {
         return Err(OAuth2Error::invalid_request(
@@ -425,7 +544,7 @@ pub async fn authorize(
     {
         let mut qp = url.query_pairs_mut();
         qp.append_pair("code", &auth_code.code);
-        if let Some(state) = &query.state {
+        if let Some(ref state) = eff_state {
             qp.append_pair("state", state);
         }
         // RFC 9207: include the issuer identifier to prevent mix-up attacks.
@@ -459,6 +578,8 @@ pub struct TokenRequest {
     client_assertion_type: Option<String>,
     /// RFC 7521 §4.2: the assertion itself (a JWT).
     client_assertion: Option<String>,
+    /// RFC 8707: resource server URI for the requested access token audience.
+    resource: Option<String>,
 }
 
 /// JWT Bearer assertion type per RFC 7523 §2.2.
@@ -647,6 +768,7 @@ pub async fn token(
         device_code: form_map.get("device_code").cloned(),
         client_assertion_type,
         client_assertion,
+        resource: form_map.get("resource").cloned(),
     };
 
     match form.grant_type.as_str() {
@@ -778,6 +900,7 @@ async fn handle_device_code_grant(
             scope: device_auth.scope.clone(),
             include_refresh,
             token_family: None,
+            resource: None,
             span: tracing::Span::current(),
         })
         .await
@@ -914,6 +1037,7 @@ async fn handle_authorization_code_grant(
             scope: auth_code.scope.clone(),
             include_refresh,
             token_family,
+            resource: auth_code.resource.clone(),
             span: tracing::Span::current(),
         })
         .await
@@ -1008,6 +1132,7 @@ async fn handle_client_credentials_grant(
             scope,
             include_refresh: false,
             token_family: None,
+            resource: req.resource,
             span: tracing::Span::current(),
         })
         .await
@@ -1127,6 +1252,7 @@ async fn handle_refresh_token_grant(
             scope,
             include_refresh: true,
             token_family: Some(family),
+            resource: None,
             span: tracing::Span::current(),
         })
         .await
@@ -1137,4 +1263,118 @@ async fn handle_refresh_token_grant(
     Ok(no_store_headers(
         HttpResponse::Ok().json(TokenResponse::from(token)),
     ))
+}
+
+/// RFC 9126: Pushed Authorization Requests (PAR) endpoint.
+///
+/// Clients POST their authorization request parameters to this endpoint and receive
+/// a `request_uri` (valid for 60 s) to pass to the `/oauth/authorize` endpoint.
+/// This prevents the authorization parameters from being exposed in the browser URL.
+pub async fn par(
+    req: HttpRequest,
+    body: web::Bytes,
+    auth_actor: web::Data<Addr<AuthActor>>,
+    client_actor: web::Data<Addr<ClientActor>>,
+) -> Result<HttpResponse, OAuth2Error> {
+    // Parse the application/x-www-form-urlencoded body.
+    let raw = String::from_utf8(body.to_vec())
+        .map_err(|_| OAuth2Error::invalid_request("Invalid PAR request body encoding"))?;
+
+    // Reject duplicate parameters (RFC 6749 §3.1: parameters must not appear more than once).
+    let mut params: HashMap<String, String> = HashMap::new();
+    for (k, v) in form_urlencoded::parse(raw.as_bytes()) {
+        if params.insert(k.to_string(), v.to_string()).is_some() {
+            return Err(OAuth2Error::invalid_request(
+                "Duplicate parameter in PAR request",
+            ));
+        }
+    }
+
+    // Required params must be present.
+    let client_id = params
+        .get("client_id")
+        .cloned()
+        .ok_or_else(|| OAuth2Error::invalid_request("Missing client_id in PAR request"))?;
+
+    if !params.contains_key("response_type") {
+        return Err(OAuth2Error::invalid_request(
+            "Missing response_type in PAR request",
+        ));
+    }
+
+    // Authenticate the client before storing any params.
+    let client = client_actor
+        .send(GetClient {
+            client_id: client_id.clone(),
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    // Authenticate confidential clients; public clients are identified by client_id only.
+    if !client.is_public() {
+        let token_endpoint_url = {
+            let host = req
+                .headers()
+                .get(actix_web::http::header::HOST)
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("localhost");
+            format!("https://{host}/oauth/par")
+        };
+        let secret_from_body = params.get("client_secret").cloned();
+        let basic_creds = parse_client_basic_auth(&req).unwrap_or(None);
+        let basic_secret = basic_creds.as_ref().map(|(_, s)| s.as_str()).unwrap_or("");
+
+        let presented_secret = if !basic_secret.is_empty() {
+            Some(basic_secret.to_string())
+        } else if let Some(ref s) = secret_from_body {
+            if s.is_empty() { None } else { Some(s.clone()) }
+        } else {
+            None
+        };
+
+        match presented_secret {
+            Some(secret) => {
+                if !bool::from(subtle::ConstantTimeEq::ct_eq(
+                    client.client_secret.as_bytes(),
+                    secret.as_bytes(),
+                ))
+                {
+                    return Err(OAuth2Error::invalid_client("Invalid client_secret in PAR"));
+                }
+            }
+            None => {
+                let assertion_type = params.get("client_assertion_type").cloned();
+                let assertion = params.get("client_assertion").cloned();
+                if let (Some(atype), Some(aval)) = (assertion_type, assertion) {
+                    if atype == JWT_BEARER_ASSERTION_TYPE {
+                        validate_jwt_client_assertion(&client, &aval, &token_endpoint_url)?;
+                    } else {
+                        return Err(OAuth2Error::invalid_client(
+                            "Unsupported client_assertion_type",
+                        ));
+                    }
+                } else {
+                    return Err(OAuth2Error::invalid_client(
+                        "Missing client authentication in PAR request",
+                    ));
+                }
+            }
+        }
+    }
+
+    // Store the PAR params and get back a request_uri.
+    let request_uri = auth_actor
+        .send(StorePARRequest {
+            client_id,
+            params,
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    // RFC 9126 §2.2: respond 201 Created with request_uri and expires_in.
+    Ok(HttpResponse::Created().json(serde_json::json!({
+        "request_uri": request_uri,
+        "expires_in": 60
+    })))
 }

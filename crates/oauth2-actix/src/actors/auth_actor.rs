@@ -1,15 +1,31 @@
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+
 use actix::prelude::*;
 use oauth2_events::{AuthEvent, EventBusHandle, EventEnvelope, EventSeverity, EventType};
 use oauth2_observability::annotate_span_with_trace_ids;
 use oauth2_ports::DynStorage;
 use rand::Rng;
 use tracing::Instrument;
+use uuid::Uuid;
 
 use oauth2_core::{AuthorizationCode, OAuth2Error};
+
+/// PAR (RFC 9126) request store entry.
+#[derive(Debug, Clone)]
+pub struct PAREntry {
+    pub client_id: String,
+    pub params: std::collections::HashMap<String, String>,
+    pub created_at: Instant,
+}
 
 pub struct AuthActor {
     db: DynStorage,
     event_bus: Option<EventBusHandle>,
+    /// RFC 9126: in-memory store of pushed authorization requests.
+    /// Key = `request_uri` (urn:ietf:params:oauth:request-uri:{uuid}).
+    par_store: Arc<Mutex<HashMap<String, PAREntry>>>,
 }
 
 impl AuthActor {
@@ -17,6 +33,7 @@ impl AuthActor {
         Self {
             db,
             event_bus: None,
+            par_store: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -24,8 +41,12 @@ impl AuthActor {
         Self {
             db,
             event_bus: Some(event_bus),
+            par_store: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+
+    /// PAR TTL: pushed requests expire after 60 seconds (RFC 9126 §2.2).
+    const PAR_TTL_SECS: u64 = 60;
 }
 
 impl Actor for AuthActor {
@@ -42,7 +63,24 @@ pub struct CreateAuthorizationCode {
     pub code_challenge: Option<String>,
     pub code_challenge_method: Option<String>,
     pub nonce: Option<String>,
+    /// RFC 8707: resource indicator URI (optional).
+    pub resource: Option<String>,
     pub span: tracing::Span,
+}
+
+/// RFC 9126: store a pushed authorization request.
+#[derive(Message)]
+#[rtype(result = "Result<String, OAuth2Error>")]
+pub struct StorePARRequest {
+    pub client_id: String,
+    pub params: std::collections::HashMap<String, String>,
+}
+
+/// RFC 9126: retrieve a pushed authorization request by request_uri.
+#[derive(Message)]
+#[rtype(result = "Option<PAREntry>")]
+pub struct GetPARRequest {
+    pub request_uri: String,
 }
 
 impl Handler<CreateAuthorizationCode> for AuthActor {
@@ -75,6 +113,7 @@ impl Handler<CreateAuthorizationCode> for AuthActor {
                     msg.code_challenge,
                     msg.code_challenge_method,
                     msg.nonce,
+                    msg.resource,
                 );
 
                 db.save_authorization_code(&auth_code).await?;
@@ -241,6 +280,39 @@ impl Handler<MarkAuthorizationCodeUsed> for AuthActor {
             }
             .instrument(actor_span),
         )
+    }
+}
+
+impl Handler<StorePARRequest> for AuthActor {
+    type Result = Result<String, OAuth2Error>;
+
+    fn handle(&mut self, msg: StorePARRequest, _: &mut Self::Context) -> Self::Result {
+        let request_uri = format!(
+            "urn:ietf:params:oauth:request-uri:{}",
+            Uuid::new_v4()
+        );
+        let entry = PAREntry {
+            client_id: msg.client_id,
+            params: msg.params,
+            created_at: Instant::now(),
+        };
+        let mut store = self.par_store.lock().unwrap();
+        // Evict expired entries on each store operation.
+        let ttl = Self::PAR_TTL_SECS;
+        store.retain(|_, v| v.created_at.elapsed().as_secs() < ttl);
+        store.insert(request_uri.clone(), entry);
+        Ok(request_uri)
+    }
+}
+
+impl Handler<GetPARRequest> for AuthActor {
+    type Result = Option<PAREntry>;
+
+    fn handle(&mut self, msg: GetPARRequest, _: &mut Self::Context) -> Self::Result {
+        let mut store = self.par_store.lock().unwrap();
+        let ttl = Self::PAR_TTL_SECS;
+        store.retain(|_, v| v.created_at.elapsed().as_secs() < ttl);
+        store.remove(&msg.request_uri)
     }
 }
 

@@ -3741,6 +3741,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlx",
+ "url",
  "utoipa",
  "uuid",
 ]

@@ -131,7 +131,38 @@ impl Client {
     }
 
     pub fn validate_redirect_uri(&self, redirect_uri: &str) -> bool {
-        self.get_redirect_uris().contains(&redirect_uri.to_string())
+        let registered = self.get_redirect_uris();
+        // Fast path: exact match.
+        if registered.contains(&redirect_uri.to_string()) {
+            return true;
+        }
+        // RFC 8252 §7.3: loopback redirect URIs — any port on 127.0.0.1/[::1]/localhost
+        // is permitted when the client has registered a loopback URI.
+        if let Ok(requested) = redirect_uri.parse::<url::Url>() {
+            let host_is_loopback = matches!(
+                requested.host_str(),
+                Some("localhost") | Some("127.0.0.1") | Some("::1")
+            );
+            if host_is_loopback
+                && matches!(requested.scheme(), "http" | "https")
+            {
+                for reg in &registered {
+                    if let Ok(reg_url) = reg.parse::<url::Url>() {
+                        let reg_loopback = matches!(
+                            reg_url.host_str(),
+                            Some("localhost") | Some("127.0.0.1") | Some("::1")
+                        );
+                        if reg_loopback
+                            && reg_url.scheme() == requested.scheme()
+                            && reg_url.path() == requested.path()
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        false
     }
 }
 

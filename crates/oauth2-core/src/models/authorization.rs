@@ -22,9 +22,14 @@ pub struct AuthorizationCode {
     pub code_challenge_method: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
+    /// RFC 8707: resource indicator — the requested resource server URI.
+    /// When present, limits the audience of the issued access token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resource: Option<String>,
 }
 
 impl AuthorizationCode {
+    #[allow(clippy::too_many_arguments)]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         code: String,
@@ -35,6 +40,7 @@ impl AuthorizationCode {
         code_challenge: Option<String>,
         code_challenge_method: Option<String>,
         nonce: Option<String>,
+        resource: Option<String>,
     ) -> Self {
         let now = Utc::now();
         let expires_at = now + Duration::minutes(10);
@@ -52,6 +58,7 @@ impl AuthorizationCode {
             code_challenge,
             code_challenge_method,
             nonce,
+            resource,
         }
     }
 

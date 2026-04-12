@@ -68,6 +68,7 @@ async fn issue_user_token(
             scope: scope.to_string(),
             include_refresh: false,
             token_family: None,
+            resource: None,
             span: tracing::Span::current(),
         })
         .await
@@ -88,6 +89,7 @@ async fn issue_client_token(
             scope: scope.to_string(),
             include_refresh: false,
             token_family: None,
+            resource: None,
             span: tracing::Span::current(),
         })
         .await

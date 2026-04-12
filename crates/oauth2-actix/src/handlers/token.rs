@@ -1,6 +1,7 @@
 use actix::Addr;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use jsonwebtoken::{encode, Algorithm, EncodingKey, Header as JwtHeader};
 
 use crate::actors::{
     ClientActor, GetClient, LookupToken, RevokeToken, TokenActorPool, ValidateToken,
@@ -101,6 +102,17 @@ pub struct IntrospectRequest {
     token_type_hint: Option<String>,
     client_id: Option<String>,
     client_secret: Option<String>,
+}
+
+/// JWT payload for RFC 9701 token introspection JWT responses.
+/// The `token_introspection` claim carries the normalised introspection object.
+#[derive(Serialize)]
+struct IntrospectionJwtClaims<'a> {
+    iss: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    aud: Option<String>,
+    iat: i64,
+    token_introspection: &'a IntrospectionResponse,
 }
 
 /// Token introspection endpoint
@@ -220,7 +232,62 @@ pub async fn introspect(
                     .or_else(|| oidc_config.as_ref().map(|c| c.issuer.clone())),
             };
 
-            Ok(no_store_headers(HttpResponse::Ok().json(response)))
+            // RFC 9701: if the caller explicitly accepts token-introspection+jwt,
+            // wrap the response in a signed JWT instead of returning plain JSON.
+            let accept = req
+                .headers()
+                .get(actix_web::http::header::ACCEPT)
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("");
+
+            if accept.contains("application/token-introspection+jwt") {
+                let iss = oidc_config
+                    .as_ref()
+                    .map(|c| c.issuer.as_str())
+                    .unwrap_or("");
+                let iat = chrono::Utc::now().timestamp();
+                let aud = caller.as_ref().map(|c| c.client_id.clone());
+                let jwt_claims = IntrospectionJwtClaims {
+                    iss,
+                    aud,
+                    iat,
+                    token_introspection: &response,
+                };
+
+                let (alg, encoding_key) = match oidc_config.as_ref() {
+                    Some(cfg) if cfg.id_token_alg.eq_ignore_ascii_case("RS256") => {
+                        if let Some(ref pem) = cfg.id_token_private_key_pem {
+                            match EncodingKey::from_rsa_pem(pem.as_bytes()) {
+                                Ok(key) => (Algorithm::RS256, key),
+                                Err(_) => (
+                                    Algorithm::HS256,
+                                    EncodingKey::from_secret(jwt_secret.as_bytes()),
+                                ),
+                            }
+                        } else {
+                            (Algorithm::HS256, EncodingKey::from_secret(jwt_secret.as_bytes()))
+                        }
+                    }
+                    _ => (Algorithm::HS256, EncodingKey::from_secret(jwt_secret.as_bytes())),
+                };
+
+                let mut jwt_header = JwtHeader::new(alg);
+                jwt_header.typ = Some("token-introspection+jwt".to_string());
+                if let Some(ref cfg) = oidc_config {
+                    jwt_header.kid = cfg.id_token_kid.clone();
+                }
+
+                match encode(&jwt_header, &jwt_claims, &encoding_key) {
+                    Ok(jwt) => Ok(no_store_headers(
+                        HttpResponse::Ok()
+                            .content_type("application/token-introspection+jwt")
+                            .body(jwt),
+                    )),
+                    Err(e) => Err(OAuth2Error::new("server_error", Some(&e.to_string()))),
+                }
+            } else {
+                Ok(no_store_headers(HttpResponse::Ok().json(response)))
+            }
         }
         Err(err) => {
             tracing::warn!(

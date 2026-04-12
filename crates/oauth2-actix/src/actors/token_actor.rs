@@ -131,6 +131,9 @@ pub struct CreateToken {
     pub scope: String,
     pub include_refresh: bool,
     pub token_family: Option<String>,
+    /// RFC 8707: resource indicator URI. When set, overrides the JWT `aud` claim
+    /// from `client_id` to the specified resource server URI.
+    pub resource: Option<String>,
     pub span: tracing::Span,
 }
 
@@ -188,13 +191,20 @@ impl Handler<CreateToken> for TokenActor {
                         uuid::Uuid::new_v4().simple()
                     )
                 } else {
-                    let access_claims = Claims::new(
+                    // RFC 8707: when a resource indicator is present, use it as `aud`.
+                    let aud = msg
+                        .resource
+                        .clone()
+                        .unwrap_or_else(|| msg.client_id.clone());
+                    let mut access_claims = Claims::new(
                         subject.clone(),
-                        msg.client_id.clone(),
+                        aud.clone(),
                         msg.scope.clone(),
                         3600, // 1 hour
                         &issuer,
                     );
+                    // Always preserve client_id claim even when aud is overridden.
+                    access_claims.client_id = Some(msg.client_id.clone());
 
                     if let Some(ref key) = signing_key {
                         access_claims.encode_with_key(key)

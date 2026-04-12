@@ -26,6 +26,7 @@ rand = "0.8"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+url = "2"
 
 # Optional: DB and web framework integrations used only for derives / error mapping
 sqlx = { version = "0.8", default-features = false, optional = true }
