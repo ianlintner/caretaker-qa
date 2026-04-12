@@ -166,7 +166,8 @@ impl SqlxStorage {
                 scope TEXT NOT NULL,
                 name TEXT NOT NULL,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                token_endpoint_auth_method TEXT NOT NULL DEFAULT 'client_secret_basic'
             );
             "#,
         )
@@ -357,8 +358,8 @@ impl Storage for SqlxStorage {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at, token_endpoint_auth_method)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     "#,
                 )
                 .bind(&client.id)
@@ -370,14 +371,15 @@ impl Storage for SqlxStorage {
                 .bind(&client.name)
                 .bind(client.created_at)
                 .bind(client.updated_at)
+                .bind(&client.token_endpoint_auth_method)
                 .execute(pool)
                 .await?;
             }
             DatabasePool::Postgres(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at, token_endpoint_auth_method)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                     "#,
                 )
                 .bind(&client.id)
@@ -389,6 +391,7 @@ impl Storage for SqlxStorage {
                 .bind(&client.name)
                 .bind(client.created_at)
                 .bind(client.updated_at)
+                .bind(&client.token_endpoint_auth_method)
                 .execute(pool)
                 .await?;
             }
@@ -472,6 +475,29 @@ impl Storage for SqlxStorage {
                     .bind(username)
                     .fetch_optional(pool)
                     .await?
+            }
+        };
+
+        Ok(user)
+    }
+
+    async fn get_user_by_id(&self, user_id: &str) -> Result<Option<User>, OAuth2Error> {
+        let user = match self.read_pool() {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query_as::<_, User>(
+                    "SELECT id, username, password_hash, email, enabled, role, created_at, updated_at FROM users WHERE id = ?",
+                )
+                .bind(user_id)
+                .fetch_optional(pool)
+                .await?
+            }
+            DatabasePool::Postgres(pool) => {
+                sqlx::query_as::<_, User>(
+                    "SELECT id, username, password_hash, email, enabled, role, created_at, updated_at FROM users WHERE id = $1",
+                )
+                .bind(user_id)
+                .fetch_optional(pool)
+                .await?
             }
         };
 
@@ -635,6 +661,27 @@ impl Storage for SqlxStorage {
                     .await?
                     .rows_affected()
             }
+        };
+
+        Ok(rows)
+    }
+
+    async fn revoke_tokens_by_user_id(&self, user_id: &str) -> Result<u64, OAuth2Error> {
+        let rows = match &self.pool {
+            DatabasePool::Sqlite(pool) => {
+                sqlx::query("UPDATE tokens SET revoked = 1 WHERE user_id = ? AND revoked = 0")
+                    .bind(user_id)
+                    .execute(pool)
+                    .await?
+                    .rows_affected()
+            }
+            DatabasePool::Postgres(pool) => sqlx::query(
+                "UPDATE tokens SET revoked = true WHERE user_id = $1 AND revoked = false",
+            )
+            .bind(user_id)
+            .execute(pool)
+            .await?
+            .rows_affected(),
         };
 
         Ok(rows)

@@ -666,12 +666,16 @@ pub async fn run() -> std::io::Result<()> {
     }
 
     // Build OIDC configuration for discovery + id_token generation.
+    // Normalize: strip trailing slashes so `iss` is consistent everywhere
+    // (authorization response, JWT claims, discovery metadata).
     let issuer = config
         .server
         .public_url
         .clone()
         .or_else(|| config.server.public_base_url.clone())
-        .unwrap_or_else(|| format!("http://{}:{}", config.server.host, config.server.port));
+        .unwrap_or_else(|| format!("http://{}:{}", config.server.host, config.server.port))
+        .trim_end_matches('/')
+        .to_string();
 
     // Optional: RS256 id_token signing (recommended for OIDC clients like oauth2-proxy).
     // We accept the PEM either as a literal with newlines, or with \n escapes.
@@ -758,6 +762,7 @@ pub async fn run() -> std::io::Result<()> {
                     let actor = oauth2_actix::actors::TokenActor::with_events(
                         storage.clone(),
                         jwt_secret.clone(),
+                        issuer.clone(),
                         eb,
                     )
                     .with_keyset(keyset.clone())
@@ -768,10 +773,13 @@ pub async fn run() -> std::io::Result<()> {
                 let cache_redis = cache_redis_manager.clone();
                 actix::Actor::create(|ctx| {
                     ctx.set_mailbox_capacity(ACTOR_MAILBOX_CAPACITY);
-                    let actor =
-                        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone())
-                            .with_keyset(keyset.clone())
-                            .with_access_tokens_opaque(config.jwt.access_tokens_opaque);
+                    let actor = oauth2_actix::actors::TokenActor::new(
+                        storage.clone(),
+                        jwt_secret.clone(),
+                        issuer.clone(),
+                    )
+                    .with_keyset(keyset.clone())
+                    .with_access_tokens_opaque(config.jwt.access_tokens_opaque);
                     attach_token_cache(actor, &cache_redis)
                 })
             };
@@ -1057,6 +1065,11 @@ pub async fn run() -> std::io::Result<()> {
                 web::scope("/.well-known")
                     .route(
                         "/openid-configuration",
+                        web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
+                    )
+                    // RFC 8414 §3: authorization server metadata MUST also be served at this path.
+                    .route(
+                        "/oauth-authorization-server",
                         web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
                     )
                     .route(

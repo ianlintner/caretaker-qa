@@ -4994,6 +4994,7 @@ dependencies = [
  "chrono",
  "cucumber",
  "futures",
+ "jsonwebtoken",
  "oauth2-actix",
  "oauth2-config",
  "oauth2-core",

@@ -176,6 +176,15 @@ pub struct AuthorizeQuery {
     code_challenge: Option<String>,
     code_challenge_method: Option<String>,
     nonce: Option<String>,
+    /// OIDC Core §3.1.2.1: optional hint about the login identifier the user may use.
+    /// Stored in session so the login form can pre-fill the username field.
+    login_hint: Option<String>,
+    /// OIDC Core §3.1.2.1: space-delimited list of prompt values.
+    /// Supported: `none` (no UI), `login` (force re-authentication).
+    prompt: Option<String>,
+    /// OIDC Core §3.1.2.1: maximum authentication age in seconds.
+    /// If `auth_time` + `max_age` < now, the user must re-authenticate.
+    max_age: Option<u64>,
 }
 
 /// OAuth2 authorize endpoint
@@ -187,6 +196,7 @@ pub async fn authorize(
     auth_actor: web::Data<Addr<AuthActor>>,
     client_actor: web::Data<Addr<ClientActor>>,
     metrics: web::Data<Metrics>,
+    oidc_config: web::Data<OidcConfig>,
 ) -> Result<HttpResponse, OAuth2Error> {
     // OAuch: reject duplicate parameters (prevents ambiguous parsing).
     ensure_no_duplicate_query_params(&req)?;
@@ -236,17 +246,92 @@ pub async fn authorize(
     }
 
     // --- User authentication gate ---
-    // Check if there is an authenticated session. If not, save the current
-    // authorize URL and redirect to the login page.
+    // OIDC Core §3.1.2.1: handle `prompt` parameter (space-delimited list).
+    let prompt_values: Vec<&str> = query
+        .prompt
+        .as_deref()
+        .unwrap_or("")
+        .split_whitespace()
+        .collect();
+
+    // OIDC Core §3.1.2.1: "none" MUST NOT be combined with other prompt values.
+    let has_none = prompt_values.contains(&"none");
+    let has_login = prompt_values.contains(&"login");
+    if has_none && prompt_values.len() > 1 {
+        return Err(OAuth2Error::invalid_request(
+            "prompt value 'none' must not be combined with other values",
+        ));
+    }
+
+    // Check if there is an authenticated session.
     let user_id: Option<String> = session.get("user_id").unwrap_or(None);
+
+    // prompt=none: the AS must NOT display any UI. If not authenticated, return error.
+    if has_none {
+        match user_id {
+            Some(_) => { /* session exists; continue below */ }
+            None => {
+                // OIDC Core §3.1.2.6: return login_required via redirect.
+                let mut url = Url::parse(&query.redirect_uri)
+                    .map_err(|_| OAuth2Error::invalid_request("Invalid redirect_uri"))?;
+                {
+                    let mut qp = url.query_pairs_mut();
+                    qp.append_pair("error", "login_required");
+                    qp.append_pair(
+                        "error_description",
+                        "User is not authenticated and prompt=none was requested",
+                    );
+                    if let Some(state) = &query.state {
+                        qp.append_pair("state", state);
+                    }
+                    qp.append_pair("iss", &oidc_config.issuer);
+                }
+                return Ok(auth_response_security_headers(
+                    HttpResponse::Found()
+                        .append_header(("Location", url.to_string()))
+                        .finish(),
+                ));
+            }
+        }
+    }
+
+    // prompt=login: force re-authentication even if already authenticated.
+    let force_login = has_login;
+
+    // max_age: if the user's auth_time is too old, force re-authentication.
+    let auth_expired = if let Some(max_age) = query.max_age {
+        let auth_time: Option<i64> = session.get("auth_time").unwrap_or(None);
+        match auth_time {
+            Some(at) => {
+                let now = chrono::Utc::now().timestamp();
+                now > at + max_age as i64
+            }
+            None => true, // No auth_time recorded → treat as expired.
+        }
+    } else {
+        false
+    };
+
     let user_id = match user_id {
-        Some(uid) => uid,
-        None => {
+        Some(uid) if !force_login && !auth_expired => uid,
+        _ => {
             // Persist the full authorize URL so we can replay after login.
             let return_to = format!("/oauth/authorize?{}", req.query_string());
             session
                 .insert("return_to", &return_to)
                 .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+
+            // OIDC Core §3.1.2.1: forward login_hint to the login form
+            // so the username field can be pre-filled for the user.
+            if let Some(ref hint) = query.login_hint {
+                let _ = session.insert("login_hint", hint);
+            }
+
+            // Clear session so the login form is shown.
+            if force_login || auth_expired {
+                session.remove("user_id");
+                session.remove("authenticated");
+            }
 
             return Ok(auth_response_security_headers(
                 HttpResponse::Found()
@@ -291,6 +376,8 @@ pub async fn authorize(
         if let Some(state) = &query.state {
             qp.append_pair("state", state);
         }
+        // RFC 9207: include the issuer identifier to prevent mix-up attacks.
+        qp.append_pair("iss", &oidc_config.issuer);
     }
 
     Ok(auth_response_security_headers(no_store_headers(
@@ -596,15 +683,30 @@ async fn handle_authorization_code_grant(
         ));
     }
 
-    match req.client_secret {
-        Some(secret) => {
-            if !client_secret_matches(&client, &secret) {
-                return Err(OAuth2Error::invalid_client("Invalid client_secret"));
-            }
+    // RFC 6749 §2.3 / RFC 7591: public clients (token_endpoint_auth_method=none)
+    // authenticate via PKCE only — no client secret is required or expected.
+    if client.is_public() {
+        // Public clients MUST NOT present a secret.
+        if req
+            .client_secret
+            .as_deref()
+            .map(|s| !s.is_empty())
+            .unwrap_or(false)
+        {
+            return Err(OAuth2Error::invalid_client(
+                "Public clients must not present a client_secret",
+            ));
         }
-        None => {
-            // Require client authentication for the token endpoint.
-            return Err(OAuth2Error::invalid_client("Missing client_secret"));
+    } else {
+        match req.client_secret {
+            Some(ref secret) => {
+                if !client_secret_matches(&client, secret) {
+                    return Err(OAuth2Error::invalid_client("Invalid client_secret"));
+                }
+            }
+            None => {
+                return Err(OAuth2Error::invalid_client("Missing client_secret"));
+            }
         }
     }
 
