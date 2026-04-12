@@ -55,8 +55,12 @@ async fn setup_context(
 
     let jwt_secret = "test_jwt_secret".to_string();
     let metrics = Metrics::new().expect("metrics");
-    let token_actor =
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone()).start();
+    let token_actor = oauth2_actix::actors::TokenActor::new(
+        storage.clone(),
+        jwt_secret.clone(),
+        "http://localhost".to_string(),
+    )
+    .start();
     let token_pool = TokenActorPool::new(vec![token_actor]);
     let client_actor = oauth2_actix::actors::ClientActor::new(storage.clone()).start();
     let auth_actor = oauth2_actix::actors::AuthActor::new(storage.clone()).start();
@@ -67,7 +71,14 @@ async fn setup_context(
         id_token_kid: None,
         id_token_private_key_pem: None,
     };
-    (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config)
+    (
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config,
+    )
 }
 
 async fn setup_two_clients(
@@ -103,8 +114,12 @@ async fn setup_two_clients(
 
     let jwt_secret = "test_jwt_secret".to_string();
     let metrics = Metrics::new().expect("metrics");
-    let token_actor =
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone()).start();
+    let token_actor = oauth2_actix::actors::TokenActor::new(
+        storage.clone(),
+        jwt_secret.clone(),
+        "http://localhost".to_string(),
+    )
+    .start();
     let token_pool = TokenActorPool::new(vec![token_actor]);
     let client_actor = oauth2_actix::actors::ClientActor::new(storage.clone()).start();
     let auth_actor = oauth2_actix::actors::AuthActor::new(storage.clone()).start();
@@ -115,7 +130,14 @@ async fn setup_two_clients(
         id_token_kid: None,
         id_token_private_key_pem: None,
     };
-    (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config)
+    (
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config,
+    )
 }
 
 async fn issue_access_token(
@@ -155,8 +177,7 @@ macro_rules! app {
                     web::scope("/oauth")
                         .route(
                             "/introspect",
-                            web::post()
-                                .to(oauth2_actix::handlers::token::introspect),
+                            web::post().to(oauth2_actix::handlers::token::introspect),
                         )
                         .route(
                             "/revoke",
@@ -186,7 +207,14 @@ async fn rfc7662_s2_2_introspect_active_token_returns_true() {
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let token = issue_access_token(&token_pool, "client_intros_act", None, "read").await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     let req = test::TestRequest::post()
         .uri("/oauth/introspect")
@@ -216,7 +244,14 @@ async fn rfc7662_s2_2_introspect_invalid_token_returns_false() {
     );
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     let req = test::TestRequest::post()
         .uri("/oauth/introspect")
@@ -247,7 +282,14 @@ async fn rfc7662_s2_1_introspect_requires_client_auth() {
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let token = issue_access_token(&token_pool, "client_intros_auth", None, "read").await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     // Submit token without any client credentials.
     let req = test::TestRequest::post()
@@ -277,7 +319,14 @@ async fn rfc7662_s2_2_introspect_response_includes_required_fields() {
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let token = issue_access_token(&token_pool, "client_intros_fld", None, "read").await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     let req = test::TestRequest::post()
         .uri("/oauth/introspect")
@@ -297,7 +346,10 @@ async fn rfc7662_s2_2_introspect_response_includes_required_fields() {
         Some("client_intros_fld"),
         "client_id must match the token owner"
     );
-    assert!(body.token_type.is_some(), "token_type field must be present");
+    assert!(
+        body.token_type.is_some(),
+        "token_type field must be present"
+    );
 }
 
 /// RFC 7662 §2.2: Introspection must return `active: false` for a token that
@@ -326,7 +378,14 @@ async fn rfc7662_s2_2_introspect_cross_client_returns_inactive() {
     // Issue a token for client_a.
     let token = issue_access_token(&token_pool, "client_intros_a", None, "read").await;
 
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     // client_b attempts to introspect client_a's token.
     let req = test::TestRequest::post()
@@ -359,9 +418,15 @@ async fn rfc7662_s2_1_introspect_accepts_basic_auth() {
     );
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
-    let token =
-        issue_access_token(&token_pool, "client_intros_basic", None, "read").await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let token = issue_access_token(&token_pool, "client_intros_basic", None, "read").await;
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     let req = test::TestRequest::post()
         .uri("/oauth/introspect")
@@ -395,7 +460,14 @@ async fn rfc7009_s2_2_revoke_valid_token_returns_200() {
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let token = issue_access_token(&token_pool, "client_revoke_ok", None, "read").await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     let req = test::TestRequest::post()
         .uri("/oauth/revoke")
@@ -423,7 +495,14 @@ async fn rfc7009_s2_2_revoke_unknown_token_returns_200() {
     );
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     let req = test::TestRequest::post()
         .uri("/oauth/revoke")
@@ -434,7 +513,11 @@ async fn rfc7009_s2_2_revoke_unknown_token_returns_200() {
         ])
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert_eq!(resp.status(), 200, "unknown token revocation must return 200");
+    assert_eq!(
+        resp.status(),
+        200,
+        "unknown token revocation must return 200"
+    );
 }
 
 /// RFC 7009 §2.1: Token revocation must require client authentication.
@@ -451,7 +534,14 @@ async fn rfc7009_s2_1_revoke_requires_client_auth() {
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let token = issue_access_token(&token_pool, "client_revoke_auth", None, "read").await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     let req = test::TestRequest::post()
         .uri("/oauth/revoke")
@@ -480,7 +570,14 @@ async fn rfc7009_s2_token_inactive_after_revoke() {
     let (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let token = issue_access_token(&token_pool, "client_revoke_check", None, "read").await;
-    let app = app!(token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config);
+    let app = app!(
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config
+    );
 
     // Confirm active before revocation.
     let req = test::TestRequest::post()
@@ -518,8 +615,5 @@ async fn rfc7009_s2_token_inactive_after_revoke() {
         .to_request();
     let resp = test::call_service(&app, req).await;
     let after: IntrospectionResponse = test::read_body_json(resp).await;
-    assert!(
-        !after.active,
-        "token must be inactive after revocation"
-    );
+    assert!(!after.active, "token must be inactive after revocation");
 }

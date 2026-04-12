@@ -11,7 +11,6 @@ use oauth2_actix::actors::TokenActorPool;
 use oauth2_actix::handlers::wellknown::OidcConfig;
 use oauth2_core::{Client, OAuth2Error, TokenResponse, User};
 use oauth2_observability::Metrics;
-use oauth2_ports::Storage;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -86,8 +85,12 @@ async fn setup_context(
 
     let jwt_secret = "test_jwt_secret".to_string();
     let metrics = Metrics::new().expect("metrics");
-    let token_actor =
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone()).start();
+    let token_actor = oauth2_actix::actors::TokenActor::new(
+        storage.clone(),
+        jwt_secret.clone(),
+        "http://localhost".to_string(),
+    )
+    .start();
     let token_pool = TokenActorPool::new(vec![token_actor]);
     let client_actor = oauth2_actix::actors::ClientActor::new(storage.clone()).start();
     let auth_actor = oauth2_actix::actors::AuthActor::new(storage.clone()).start();
@@ -108,43 +111,34 @@ async fn setup_context(
     )
 }
 
-/// Obtain an authorization code via the session-based authorize endpoint.
-async fn get_code_with_pkce(
-    app: &impl actix_web::dev::Service<
-        actix_http::Request,
-        Response = actix_web::dev::ServiceResponse<impl actix_web::body::MessageBody>,
-        Error = actix_web::Error,
-    >,
-    client_id: &str,
-    challenge: &str,
-    method: &str,
-) -> (String, String) {
-    // Authenticate
-    let login_resp = test::call_service(
-        app,
-        test::TestRequest::get().uri("/test/login").to_request(),
-    )
-    .await;
-    let session_cookie = extract_session_cookie(&login_resp);
-
-    let req = test::TestRequest::get()
-        .uri(&format!(
-            "/oauth/authorize?response_type=code&client_id={client_id}\
-             &redirect_uri=https%3A%2F%2Fgood.example%2Fcb\
-             &scope=read&code_challenge={challenge}&code_challenge_method={method}"
-        ))
-        .insert_header(("Cookie", session_cookie.as_str()))
-        .to_request();
-    let resp = test::call_service(app, req).await;
-    assert_eq!(resp.status(), 302, "authorize should succeed");
-    let loc = resp
-        .headers()
-        .get(actix_web::http::header::LOCATION)
-        .and_then(|h| h.to_str().ok())
-        .unwrap()
-        .to_string();
-    let code = extract_query_param(&loc, "code").expect("code in redirect");
-    (code, session_cookie)
+macro_rules! get_code_with_pkce {
+    ($app:expr, $client_id:expr, $challenge:expr, $method:expr) => {{
+        let login_resp = test::call_service(
+            &$app,
+            test::TestRequest::get().uri("/test/login").to_request(),
+        )
+        .await;
+        let session_cookie = extract_session_cookie(&login_resp);
+        let req = test::TestRequest::get()
+            .uri(&format!(
+                "/oauth/authorize?response_type=code&client_id={}\
+                 &redirect_uri=https%3A%2F%2Fgood.example%2Fcb\
+                 &scope=read&code_challenge={}&code_challenge_method={}",
+                $client_id, $challenge, $method
+            ))
+            .insert_header(("Cookie", session_cookie.as_str()))
+            .to_request();
+        let resp = test::call_service(&$app, req).await;
+        assert_eq!(resp.status(), 302, "authorize should succeed");
+        let loc = resp
+            .headers()
+            .get(actix_web::http::header::LOCATION)
+            .and_then(|h: &actix_web::http::header::HeaderValue| h.to_str().ok())
+            .unwrap()
+            .to_string();
+        let code = extract_query_param(&loc, "code").expect("code in redirect");
+        (code, session_cookie)
+    }};
 }
 
 macro_rules! app {
@@ -252,7 +246,7 @@ async fn rfc7636_s4_1_verifier_min_length_43() {
     let short_verifier = "AAAAAAA"; // 7 chars — too short
     let challenge = s256_challenge(good_verifier);
 
-    let (code, _) = get_code_with_pkce(&app, "client_verifier_min", &challenge, "S256").await;
+    let (code, _) = get_code_with_pkce!(app, "client_verifier_min", &challenge, "S256");
 
     let req = test::TestRequest::post()
         .uri("/oauth/token")
@@ -300,7 +294,7 @@ async fn rfc7636_s4_1_verifier_max_length_128() {
     let long_verifier = "A".repeat(129); // 129 chars — too long
     let challenge = s256_challenge(&good_verifier);
 
-    let (code, _) = get_code_with_pkce(&app, "client_verifier_max", &challenge, "S256").await;
+    let (code, _) = get_code_with_pkce!(app, "client_verifier_max", &challenge, "S256");
 
     let req = test::TestRequest::post()
         .uri("/oauth/token")
@@ -349,7 +343,7 @@ async fn rfc7636_s4_2_s256_challenge_method_is_accepted() {
 
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
-    let (code, _) = get_code_with_pkce(&app, "client_s256_ok", &challenge, "S256").await;
+    let (code, _) = get_code_with_pkce!(app, "client_s256_ok", &challenge, "S256");
 
     let req = test::TestRequest::post()
         .uri("/oauth/token")
@@ -485,7 +479,7 @@ async fn rfc7636_s4_3_valid_verifier_exchanges_code() {
 
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
-    let (code, _) = get_code_with_pkce(&app, "client_good_ver", &challenge, "S256").await;
+    let (code, _) = get_code_with_pkce!(app, "client_good_ver", &challenge, "S256");
 
     let req = test::TestRequest::post()
         .uri("/oauth/token")
@@ -530,7 +524,7 @@ async fn rfc7636_s4_3_wrong_verifier_is_rejected() {
     let good_verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let wrong_verifier = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"; // 43 chars, wrong
     let challenge = s256_challenge(good_verifier);
-    let (code, _) = get_code_with_pkce(&app, "client_bad_ver", &challenge, "S256").await;
+    let (code, _) = get_code_with_pkce!(app, "client_bad_ver", &challenge, "S256");
 
     let req = test::TestRequest::post()
         .uri("/oauth/token")
@@ -574,7 +568,7 @@ async fn rfc7636_s4_3_missing_verifier_rejects_pkce_code() {
 
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     let challenge = s256_challenge(verifier);
-    let (code, _) = get_code_with_pkce(&app, "client_no_ver", &challenge, "S256").await;
+    let (code, _) = get_code_with_pkce!(app, "client_no_ver", &challenge, "S256");
 
     let req = test::TestRequest::post()
         .uri("/oauth/token")
@@ -622,7 +616,7 @@ async fn rfc7636_s4_3_sending_verifier_as_challenge_rejected() {
 
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
     // Deliberately use the raw verifier as the challenge (not S256 of it).
-    let (code, _) = get_code_with_pkce(&app, "client_ver_as_chal", verifier, "S256").await;
+    let (code, _) = get_code_with_pkce!(app, "client_ver_as_chal", verifier, "S256");
 
     // Exchange with the correct verifier — but the stored challenge is unparseable
     // as a valid S256 hash of that verifier, so validation must fail.

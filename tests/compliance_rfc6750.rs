@@ -15,14 +15,7 @@ use oauth2_observability::Metrics;
 // Helpers
 // ---------------------------------------------------------------------------
 
-async fn setup_context(
-    client: Client,
-) -> (
-    TokenActorPool,
-    String,
-    Metrics,
-    OidcConfig,
-) {
+async fn setup_context(client: Client) -> (TokenActorPool, String, Metrics, OidcConfig) {
     let storage = oauth2_storage_factory::create_storage("sqlite::memory:")
         .await
         .expect("create storage");
@@ -44,8 +37,12 @@ async fn setup_context(
 
     let jwt_secret = "test_jwt_secret".to_string();
     let metrics = Metrics::new().expect("metrics");
-    let token_actor =
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone()).start();
+    let token_actor = oauth2_actix::actors::TokenActor::new(
+        storage.clone(),
+        jwt_secret.clone(),
+        "http://localhost".to_string(),
+    )
+    .start();
     let token_pool = TokenActorPool::new(vec![token_actor]);
     let oidc_config = OidcConfig {
         issuer: "http://localhost".to_string(),
@@ -104,13 +101,10 @@ macro_rules! app {
             App::new()
                 .app_data(web::Data::new($token_pool))
                 .app_data(web::Data::new($oidc_config))
-                .service(
-                    web::scope("/oauth")
-                        .route(
-                            "/userinfo",
-                            web::get().to(oauth2_actix::handlers::wellknown::userinfo),
-                        ),
-                ),
+                .service(web::scope("/oauth").route(
+                    "/userinfo",
+                    web::get().to(oauth2_actix::handlers::wellknown::userinfo),
+                )),
         )
         .await
     };
@@ -138,10 +132,7 @@ async fn rfc6750_s2_1_bearer_in_authorization_header_returns_200() {
 
     let req = test::TestRequest::get()
         .uri("/oauth/userinfo")
-        .insert_header((
-            "Authorization",
-            format!("Bearer {}", token.access_token),
-        ))
+        .insert_header(("Authorization", format!("Bearer {}", token.access_token)))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(
@@ -168,10 +159,7 @@ async fn rfc6750_s2_1_userinfo_response_contains_sub() {
 
     let req = test::TestRequest::get()
         .uri("/oauth/userinfo")
-        .insert_header((
-            "Authorization",
-            format!("Bearer {}", token.access_token),
-        ))
+        .insert_header(("Authorization", format!("Bearer {}", token.access_token)))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 200);
@@ -201,9 +189,7 @@ async fn rfc6750_s3_1_missing_token_returns_401() {
     let (token_pool, _jwt_secret, _metrics, oidc_config) = setup_context(client).await;
     let app = app!(token_pool, oidc_config);
 
-    let req = test::TestRequest::get()
-        .uri("/oauth/userinfo")
-        .to_request();
+    let req = test::TestRequest::get().uri("/oauth/userinfo").to_request();
     let resp = test::call_service(&app, req).await;
     assert_eq!(resp.status(), 401, "missing Bearer token must return 401");
     let www_auth = resp
@@ -299,10 +285,7 @@ async fn rfc6750_s2_client_credentials_token_cannot_access_userinfo() {
 
     let req = test::TestRequest::get()
         .uri("/oauth/userinfo")
-        .insert_header((
-            "Authorization",
-            format!("Bearer {}", token.access_token),
-        ))
+        .insert_header(("Authorization", format!("Bearer {}", token.access_token)))
         .to_request();
     let resp = test::call_service(&app, req).await;
     assert!(
