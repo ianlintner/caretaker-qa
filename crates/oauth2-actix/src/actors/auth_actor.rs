@@ -287,10 +287,7 @@ impl Handler<StorePARRequest> for AuthActor {
     type Result = Result<String, OAuth2Error>;
 
     fn handle(&mut self, msg: StorePARRequest, _: &mut Self::Context) -> Self::Result {
-        let request_uri = format!(
-            "urn:ietf:params:oauth:request-uri:{}",
-            Uuid::new_v4()
-        );
+        let request_uri = format!("urn:ietf:params:oauth:request-uri:{}", Uuid::new_v4());
         let entry = PAREntry {
             client_id: msg.client_id,
             params: msg.params,

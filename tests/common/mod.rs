@@ -138,6 +138,7 @@ pub async fn run_storage_contract(storage: &dyn Storage) -> Result<(), Box<dyn s
         None,
         None,
         None, // nonce
+        None, // resource
     );
 
     storage

@@ -66,9 +66,12 @@ async fn setup_context(
 
     let jwt_secret = "wave3_test_jwt_secret_at_least_32_chars".to_string();
     let metrics = Metrics::new().expect("metrics");
-    let token_actor =
-        oauth2_actix::actors::TokenActor::new(storage.clone(), jwt_secret.clone(), ISSUER.to_string())
-            .start();
+    let token_actor = oauth2_actix::actors::TokenActor::new(
+        storage.clone(),
+        jwt_secret.clone(),
+        ISSUER.to_string(),
+    )
+    .start();
     let token_pool = TokenActorPool::new(vec![token_actor]);
     let client_actor = oauth2_actix::actors::ClientActor::new(storage.clone()).start();
     let auth_actor = oauth2_actix::actors::AuthActor::new(storage).start();
@@ -79,7 +82,14 @@ async fn setup_context(
         id_token_kid: None,
         id_token_private_key_pem: None,
     };
-    (token_pool, client_actor, auth_actor, jwt_secret, metrics, oidc_config)
+    (
+        token_pool,
+        client_actor,
+        auth_actor,
+        jwt_secret,
+        metrics,
+        oidc_config,
+    )
 }
 
 // ===================================================================
@@ -127,7 +137,9 @@ async fn rfc9126_par_public_client_returns_request_uri() {
     assert_eq!(resp.status(), 201, "PAR must return 201 Created");
 
     let body: serde_json::Value = test::read_body_json(resp).await;
-    let request_uri = body["request_uri"].as_str().expect("request_uri must be a string");
+    let request_uri = body["request_uri"]
+        .as_str()
+        .expect("request_uri must be a string");
     assert!(
         request_uri.starts_with("urn:ietf:params:oauth:request-uri:"),
         "request_uri must use urn:ietf:params:oauth:request-uri: prefix, got: {request_uri}",
@@ -345,10 +357,10 @@ async fn rfc8707_resource_indicator_accepted_in_client_credentials() {
             .app_data(web::Data::new(auth_actor))
             .app_data(web::Data::new(metrics))
             .app_data(web::Data::new(oidc_config))
-            .service(
-                web::scope("/oauth")
-                    .route("/token", web::post().to(oauth2_actix::handlers::oauth::token)),
-            ),
+            .service(web::scope("/oauth").route(
+                "/token",
+                web::post().to(oauth2_actix::handlers::oauth::token),
+            )),
     )
     .await;
 
@@ -423,12 +435,10 @@ async fn rfc9701_jwt_accept_header_returns_jwt_introspection_response() {
             .app_data(web::Data::new(metrics))
             .app_data(web::Data::new(oidc_config))
             .app_data(web::Data::new(false)) // stateless_validation
-            .service(
-                web::scope("/oauth").route(
-                    "/introspect",
-                    web::post().to(oauth2_actix::handlers::token::introspect),
-                ),
-            ),
+            .service(web::scope("/oauth").route(
+                "/introspect",
+                web::post().to(oauth2_actix::handlers::token::introspect),
+            )),
     )
     .await;
 
@@ -505,12 +515,10 @@ async fn rfc9701_standard_accept_returns_json_introspection_response() {
             .app_data(web::Data::new(metrics))
             .app_data(web::Data::new(oidc_config))
             .app_data(web::Data::new(false)) // stateless_validation
-            .service(
-                web::scope("/oauth").route(
-                    "/introspect",
-                    web::post().to(oauth2_actix::handlers::token::introspect),
-                ),
-            ),
+            .service(web::scope("/oauth").route(
+                "/introspect",
+                web::post().to(oauth2_actix::handlers::token::introspect),
+            )),
     )
     .await;
 
@@ -526,7 +534,10 @@ async fn rfc9701_standard_accept_returns_json_introspection_response() {
     assert_eq!(resp.status(), 200);
 
     let body: IntrospectionResponse = test::read_body_json(resp).await;
-    assert!(body.active, "standard introspection must return active=true");
+    assert!(
+        body.active,
+        "standard introspection must return active=true"
+    );
 }
 
 /// RFC 9701 §4: The JWT payload must contain a `token_introspection` claim
@@ -570,12 +581,10 @@ async fn rfc9701_jwt_payload_contains_token_introspection_claim() {
             .app_data(web::Data::new(metrics))
             .app_data(web::Data::new(oidc_config))
             .app_data(web::Data::new(false)) // stateless_validation
-            .service(
-                web::scope("/oauth").route(
-                    "/introspect",
-                    web::post().to(oauth2_actix::handlers::token::introspect),
-                ),
-            ),
+            .service(web::scope("/oauth").route(
+                "/introspect",
+                web::post().to(oauth2_actix::handlers::token::introspect),
+            )),
     )
     .await;
 
@@ -598,6 +607,7 @@ async fn rfc9701_jwt_payload_contains_token_introspection_claim() {
     // Decode without validation to inspect claims (we just issued it with a test secret).
     let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::HS256);
     validation.validate_exp = false;
+    validation.validate_aud = false;
     validation.set_required_spec_claims::<String>(&[]);
 
     let decoded = jsonwebtoken::decode::<serde_json::Value>(

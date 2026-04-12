@@ -143,9 +143,7 @@ impl Client {
                 requested.host_str(),
                 Some("localhost") | Some("127.0.0.1") | Some("::1")
             );
-            if host_is_loopback
-                && matches!(requested.scheme(), "http" | "https")
-            {
+            if host_is_loopback && matches!(requested.scheme(), "http" | "https") {
                 for reg in &registered {
                     if let Ok(reg_url) = reg.parse::<url::Url>() {
                         let reg_loopback = matches!(

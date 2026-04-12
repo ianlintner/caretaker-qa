@@ -294,47 +294,52 @@ pub async fn authorize(
 
     // --- PAR resolution (RFC 9126 §4) ---
     // If request_uri is present, fetch the stored request and merge its params.
-    let (eff_redirect_uri, eff_scope, eff_code_challenge, eff_code_challenge_method,
-         eff_nonce, eff_resource, eff_state) =
-        if let Some(ref request_uri) = query.request_uri {
-            let entry = auth_actor
-                .send(GetPARRequest {
-                    request_uri: request_uri.clone(),
-                })
-                .await
-                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
-                .ok_or_else(|| {
-                    OAuth2Error::invalid_request("Unknown or expired request_uri")
-                })?;
-            if entry.client_id != query.client_id {
-                return Err(OAuth2Error::invalid_client("request_uri client_id mismatch"));
-            }
-            let get = |k: &str| -> Option<String> { entry.params.get(k).cloned() };
-            (
-                get("redirect_uri").or_else(|| query.redirect_uri.clone()),
-                get("scope").or_else(|| query.scope.clone()),
-                get("code_challenge").or_else(|| query.code_challenge.clone()),
-                get("code_challenge_method")
-                    .or_else(|| query.code_challenge_method.clone()),
-                get("nonce").or_else(|| query.nonce.clone()),
-                get("resource").or_else(|| query.resource.clone()),
-                get("state").or_else(|| query.state.clone()),
-            )
-        } else {
-            (
-                query.redirect_uri.clone(),
-                query.scope.clone(),
-                query.code_challenge.clone(),
-                query.code_challenge_method.clone(),
-                query.nonce.clone(),
-                query.resource.clone(),
-                query.state.clone(),
-            )
-        };
+    let (
+        eff_redirect_uri,
+        eff_scope,
+        eff_code_challenge,
+        eff_code_challenge_method,
+        eff_nonce,
+        eff_resource,
+        eff_state,
+    ) = if let Some(ref request_uri) = query.request_uri {
+        let entry = auth_actor
+            .send(GetPARRequest {
+                request_uri: request_uri.clone(),
+            })
+            .await
+            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+            .ok_or_else(|| OAuth2Error::invalid_request("Unknown or expired request_uri"))?;
+        if entry.client_id != query.client_id {
+            return Err(OAuth2Error::invalid_client(
+                "request_uri client_id mismatch",
+            ));
+        }
+        let get = |k: &str| -> Option<String> { entry.params.get(k).cloned() };
+        (
+            get("redirect_uri").or_else(|| query.redirect_uri.clone()),
+            get("scope").or_else(|| query.scope.clone()),
+            get("code_challenge").or_else(|| query.code_challenge.clone()),
+            get("code_challenge_method").or_else(|| query.code_challenge_method.clone()),
+            get("nonce").or_else(|| query.nonce.clone()),
+            get("resource").or_else(|| query.resource.clone()),
+            get("state").or_else(|| query.state.clone()),
+        )
+    } else {
+        (
+            query.redirect_uri.clone(),
+            query.scope.clone(),
+            query.code_challenge.clone(),
+            query.code_challenge_method.clone(),
+            query.nonce.clone(),
+            query.resource.clone(),
+            query.state.clone(),
+        )
+    };
 
     // redirect_uri is required (supplied directly or via PAR).
-    let redirect_uri = eff_redirect_uri
-        .ok_or_else(|| OAuth2Error::invalid_request("Missing redirect_uri"))?;
+    let redirect_uri =
+        eff_redirect_uri.ok_or_else(|| OAuth2Error::invalid_request("Missing redirect_uri"))?;
 
     // Only Authorization Code flow is supported.
     if query.response_type != "code" {
@@ -369,8 +374,8 @@ pub async fn authorize(
     }
 
     // Require PKCE (S256 only). This follows OAuth 2.0 Security BCP guidance.
-    let code_challenge = eff_code_challenge
-        .ok_or_else(|| OAuth2Error::invalid_request("Missing code_challenge"))?;
+    let code_challenge =
+        eff_code_challenge.ok_or_else(|| OAuth2Error::invalid_request("Missing code_challenge"))?;
     let code_challenge_method = eff_code_challenge_method
         .ok_or_else(|| OAuth2Error::invalid_request("Missing code_challenge_method"))?;
     if code_challenge_method != "S256" {
@@ -1328,7 +1333,11 @@ pub async fn par(
         let presented_secret = if !basic_secret.is_empty() {
             Some(basic_secret.to_string())
         } else if let Some(ref s) = secret_from_body {
-            if s.is_empty() { None } else { Some(s.clone()) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.clone())
+            }
         } else {
             None
         };
@@ -1338,8 +1347,7 @@ pub async fn par(
                 if !bool::from(subtle::ConstantTimeEq::ct_eq(
                     client.client_secret.as_bytes(),
                     secret.as_bytes(),
-                ))
-                {
+                )) {
                     return Err(OAuth2Error::invalid_client("Invalid client_secret in PAR"));
                 }
             }
@@ -1365,10 +1373,7 @@ pub async fn par(
 
     // Store the PAR params and get back a request_uri.
     let request_uri = auth_actor
-        .send(StorePARRequest {
-            client_id,
-            params,
-        })
+        .send(StorePARRequest { client_id, params })
         .await
         .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
 

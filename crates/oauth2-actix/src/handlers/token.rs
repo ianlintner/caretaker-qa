@@ -1,7 +1,7 @@
 use actix::Addr;
 use actix_web::{web, HttpRequest, HttpResponse, Result};
-use serde::{Deserialize, Serialize};
 use jsonwebtoken::{encode, Algorithm, EncodingKey, Header as JwtHeader};
+use serde::{Deserialize, Serialize};
 
 use crate::actors::{
     ClientActor, GetClient, LookupToken, RevokeToken, TokenActorPool, ValidateToken,
@@ -265,10 +265,16 @@ pub async fn introspect(
                                 ),
                             }
                         } else {
-                            (Algorithm::HS256, EncodingKey::from_secret(jwt_secret.as_bytes()))
+                            (
+                                Algorithm::HS256,
+                                EncodingKey::from_secret(jwt_secret.as_bytes()),
+                            )
                         }
                     }
-                    _ => (Algorithm::HS256, EncodingKey::from_secret(jwt_secret.as_bytes())),
+                    _ => (
+                        Algorithm::HS256,
+                        EncodingKey::from_secret(jwt_secret.as_bytes()),
+                    ),
                 };
 
                 let mut jwt_header = JwtHeader::new(alg);
