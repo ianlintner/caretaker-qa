@@ -424,9 +424,7 @@ fn process_jar(
             let keys = jwks
                 .get("keys")
                 .and_then(|v| v.as_array())
-                .ok_or_else(|| {
-                    OAuth2Error::invalid_request("Client JWKS missing 'keys' array")
-                })?;
+                .ok_or_else(|| OAuth2Error::invalid_request("Client JWKS missing 'keys' array"))?;
             let key_json = if let Some(kid) = &header.kid {
                 keys.iter()
                     .find(|k| k.get("kid").and_then(|v| v.as_str()) == Some(kid))
@@ -860,45 +858,44 @@ pub async fn authorize(
 
     // OIDC Hybrid §3.3: for `code id_token` flows, issue an id_token at the authorize
     // endpoint.  The id_token carries `c_hash` computed from the authorization code.
-    let id_token_opt: Option<String> = if is_hybrid
-        && auth_code
-            .scope
-            .split_whitespace()
-            .any(|s| s == "openid")
-    {
-        let mut id_claims = IdTokenClaims::new(
-            &oidc_config.issuer,
-            auth_code.user_id.clone(),
-            auth_code.client_id.clone(),
-            3600,
-            None,
-        );
-        id_claims.nonce = auth_code.nonce.clone();
-        // c_hash: OIDC Core §3.3.2.11 — base64url(left-half(SHA-256(ascii(code)))).
-        {
-            use sha2::{Digest, Sha256};
-            let hash = Sha256::digest(auth_code.code.as_bytes());
-            id_claims.c_hash = Some(general_purpose::URL_SAFE_NO_PAD.encode(&hash[..16]));
-        }
-        let encoded = if oidc_config.id_token_alg.eq_ignore_ascii_case("RS256") {
-            let pem = oidc_config.id_token_private_key_pem.as_deref().ok_or_else(|| {
-                OAuth2Error::new(
-                    "server_error",
-                    Some("RS256 configured but private key is missing"),
-                )
-            })?;
-            id_claims
-                .encode_rs256(pem, oidc_config.id_token_kid.as_deref())
-                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+    let id_token_opt: Option<String> =
+        if is_hybrid && auth_code.scope.split_whitespace().any(|s| s == "openid") {
+            let mut id_claims = IdTokenClaims::new(
+                &oidc_config.issuer,
+                auth_code.user_id.clone(),
+                auth_code.client_id.clone(),
+                3600,
+                None,
+            );
+            id_claims.nonce = auth_code.nonce.clone();
+            // c_hash: OIDC Core §3.3.2.11 — base64url(left-half(SHA-256(ascii(code)))).
+            {
+                use sha2::{Digest, Sha256};
+                let hash = Sha256::digest(auth_code.code.as_bytes());
+                id_claims.c_hash = Some(general_purpose::URL_SAFE_NO_PAD.encode(&hash[..16]));
+            }
+            let encoded = if oidc_config.id_token_alg.eq_ignore_ascii_case("RS256") {
+                let pem = oidc_config
+                    .id_token_private_key_pem
+                    .as_deref()
+                    .ok_or_else(|| {
+                        OAuth2Error::new(
+                            "server_error",
+                            Some("RS256 configured but private key is missing"),
+                        )
+                    })?;
+                id_claims
+                    .encode_rs256(pem, oidc_config.id_token_kid.as_deref())
+                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+            } else {
+                id_claims
+                    .encode(&oidc_config.jwt_secret)
+                    .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+            };
+            Some(encoded)
         } else {
-            id_claims
-                .encode(&oidc_config.jwt_secret)
-                .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?
+            None
         };
-        Some(encoded)
-    } else {
-        None
-    };
 
     // Deliver authorization response according to response_mode.
     if response_mode == "form_post" {
