@@ -24,6 +24,8 @@ ignore = [
     # Re-evaluate monthly — remove this ignore once rsa ≥ 0.10 ships a fix.
     { id = "RUSTSEC-2023-0071", reason = "no upstream fix; tracked for ES256/EdDSA migration" },
 ]
+# Unsound advisories: only fail for workspace crates (transitive unsound is noisy).
+unsound = "workspace"
 
 # ── Licenses ─────────────────────────────────────────────────────────────────
 
@@ -45,7 +47,12 @@ allow = [
     "CC0-1.0",
     "OpenSSL",
     "MPL-2.0",
+    "CDLA-Permissive-2.0",
 ]
+
+# Ignore license checks for unpublished workspace crates.
+[licenses.private]
+ignore = true
 
 # ring uses a non-standard license file; tell cargo-deny where it lives.
 [[licenses.clarify]]
@@ -64,8 +71,9 @@ license-files = [{ path = "LICENSE-UNICODE", hash = 0x3fb01745 }]
 [bans]
 # Warn on multiple versions of the same crate (version fragmentation).
 multiple-versions = "warn"
-# Wildcards in version requirements are sloppy — deny them.
-wildcards = "deny"
+# Wildcards in version requirements — warn only since workspace crates use
+# path deps with implicit wildcard versions.
+wildcards = "warn"
 # Allow specific duplicate crates that are hard to unify (transitive deps).
 skip = [
     # base64 — three ecosystem versions co-exist while migration is ongoing
