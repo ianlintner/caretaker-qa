@@ -156,7 +156,7 @@ jobs:
         run: cargo audit
 
       - name: Check Dependencies (cargo-deny)
-        uses: EmbarkStudios/cargo-deny-action@3f4a782664881cf5725d0ffd23969fcce89fd868 # v1
+        uses: EmbarkStudios/cargo-deny-action@175dc7fd4fb85ec8f46948fb98f44db001149081 # v2
         with:
           command: check
 
