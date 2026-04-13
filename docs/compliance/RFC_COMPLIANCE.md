@@ -178,6 +178,109 @@ Supplemental: [`tests/device_flow.rs`](https://github.com/ianlintner/rust-oauth2
 | RFC 8414   |       9       |      ✅       |
 | OIDC Core  |      11       |      ✅       |
 | RFC 8628   |       9       |      ⚠️       |
-| **Total**  |    **80**     |               |
+| RFC 9126   |       5       |      ✅       |
+| RFC 8707   |       1       |      ✅       |
+| RFC 9701   |       3       |      ✅       |
+| RFC 7591   |       6       |      ✅       |
+| RFC 7592   |       3       |      ✅       |
+| RFC 7523   |       4       |      ✅       |
+| Wave 4     |      11       |      ✅       |
+| **Total**  |   **113**     |               |
 
-_Last updated automatically. Run `cargo test --test compliance_\*` to verify.\_
+_Last updated automatically. Run `cargo test --test compliance_\*` to verify._
+
+---
+
+## RFC 9126 — Pushed Authorization Requests (PAR)
+
+Test file: [`tests/compliance_wave3.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_wave3.rs)
+
+| Section | Requirement | Test Function | Status |
+| ------- | ----------- | ------------- | ------ |
+| §2.2 | Public client with valid params receives `request_uri` and `expires_in: 60` | `rfc9126_par_public_client_returns_request_uri` | ✅ |
+| §2.1 | PAR request missing `response_type` is rejected | `rfc9126_par_missing_response_type_is_rejected` | ✅ |
+| §2.1 | PAR request with duplicate parameters is rejected | `rfc9126_par_duplicate_param_is_rejected` | ✅ |
+| §2.1 | Confidential client sending PAR without authentication is rejected | `rfc9126_par_confidential_client_no_secret_rejected` | ✅ |
+| §2.1 | Confidential client with valid Basic auth succeeds | `rfc9126_par_confidential_client_with_basic_auth_succeeds` | ✅ |
+
+---
+
+## RFC 8707 — Resource Indicators for OAuth 2.0
+
+Test file: [`tests/compliance_wave3.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_wave3.rs)
+
+| Section | Requirement | Test Function | Status |
+| ------- | ----------- | ------------- | ------ |
+| §2 | `resource` parameter in client_credentials request is accepted and echoed in token `aud` | `rfc8707_resource_indicator_accepted_in_client_credentials` | ✅ |
+
+---
+
+## RFC 9701 — JWT Response for OAuth Token Introspection
+
+Test file: [`tests/compliance_wave3.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_wave3.rs)
+
+| Section | Requirement | Test Function | Status |
+| ------- | ----------- | ------------- | ------ |
+| §4 | `Accept: application/token-introspection+jwt` triggers JWT response with matching `Content-Type` | `rfc9701_jwt_accept_header_returns_jwt_introspection_response` | ✅ |
+| §4 | Without the `Accept` header, introspection returns standard JSON | `rfc9701_standard_accept_returns_json_introspection_response` | ✅ |
+| §4 | JWT payload contains `token_introspection` claim with `active`, `scope`, `client_id` | `rfc9701_jwt_payload_contains_token_introspection_claim` | ✅ |
+
+---
+
+## RFC 7591 — OAuth 2.0 Dynamic Client Registration
+
+Test file: [`tests/phase2_rfc_compliance.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/phase2_rfc_compliance.rs)
+
+| Section | Requirement | Test Function | Status |
+| ------- | ----------- | ------------- | ------ |
+| §3.1 | Dynamic registration returns `client_id` and `registration_access_token` | `rfc7591_dynamic_registration_success` | ✅ |
+| §3.2 | Defaults for `grant_types` and `response_types` are applied when omitted | `rfc7591_defaults_grant_and_response_types` | ✅ |
+| §2 | Public client registered with `token_endpoint_auth_method: none` | `rfc7591_public_client_no_secret` | ✅ |
+| §3.1 | Registration with invalid `redirect_uris` is rejected | `rfc7591_rejects_invalid_redirect_uris` | ✅ |
+| §3.2 | `jwks` and `jwks_uri` are mutually exclusive | `rfc7591_jwks_and_jwks_uri_mutually_exclusive` | ✅ |
+| §3.2 | `private_key_jwt` registration requires `jwks` or `jwks_uri` | `rfc7591_private_key_jwt_requires_jwks` | ✅ |
+
+---
+
+## RFC 7592 — OAuth 2.0 Dynamic Client Registration Management
+
+Test file: [`tests/phase2_rfc_compliance.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/phase2_rfc_compliance.rs)
+
+| Section | Requirement | Test Function | Status |
+| ------- | ----------- | ------------- | ------ |
+| §2 | `GET /connect/register/{id}` returns client configuration | `rfc7592_read_client_configuration` | ✅ |
+| §2 | `PUT /connect/register/{id}` updates client metadata | `rfc7592_update_client_configuration` | ✅ |
+| §2 | `DELETE /connect/register/{id}` removes the client | `rfc7592_delete_client` | ✅ |
+
+---
+
+## RFC 7523 — JSON Web Token (JWT) Profile for Client Authentication
+
+Test file: [`tests/phase2_rfc_compliance.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/phase2_rfc_compliance.rs)
+
+| Section | Requirement | Test Function | Status |
+| ------- | ----------- | ------------- | ------ |
+| §2.2 | `client_secret_jwt` assertion with correct HMAC secret succeeds | `rfc7523_client_secret_jwt_authentication` | ✅ |
+| §2.2 | `client_secret_jwt` assertion with wrong secret fails | `rfc7523_client_secret_jwt_wrong_secret_fails` | ✅ |
+| §2.2 | `private_key_jwt` assertion with RSA key pair succeeds | `rfc7523_private_key_jwt_authentication` | ✅ |
+| §2 | OIDC registration metadata is preserved after registration | `oidc_metadata_preserved_in_registration` | ✅ |
+
+---
+
+## Wave 4 — DPoP, mTLS, Token Exchange, RAR, Step-Up, Protected Resource Metadata
+
+Test file: [`tests/compliance_wave4.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_wave4.rs)
+
+| Feature | RFC | Requirement | Test Function | Status |
+| ------- | --- | ----------- | ------------- | ------ |
+| DPoP | RFC 9449 | Discovery advertises `dpop_signing_alg_values_supported` including `ES256` | `wave4_rfc9449_dpop_signing_alg_values_supported_advertised` | ✅ |
+| mTLS | RFC 8705 | Discovery advertises `tls_client_certificate_bound_access_tokens: true` | `wave4_rfc8705_mtls_advertised_in_discovery` | ✅ |
+| Token Exchange | RFC 8693 | Discovery includes `urn:ietf:params:oauth:grant-type:token-exchange` in `grant_types_supported` | `wave4_rfc8693_token_exchange_grant_type_in_discovery` | ✅ |
+| RAR | RFC 9396 | Discovery advertises `authorization_details_types_supported` | `wave4_rfc9396_rar_advertised_in_discovery` | ✅ |
+| Step-Up Auth | RFC 9470 | Discovery advertises `acr_values_supported` | `wave4_rfc9470_acr_values_supported_advertised` | ✅ |
+| Protected Resource Metadata | RFC 9728 | `/.well-known/oauth-protected-resource` returns 200 | `wave4_rfc9728_protected_resource_metadata_returns_200` | ✅ |
+| Protected Resource Metadata | RFC 9728 | Response includes `resource` field | `wave4_rfc9728_protected_resource_metadata_has_resource_field` | ✅ |
+| Protected Resource Metadata | RFC 9728 | Response includes `authorization_servers` field | `wave4_rfc9728_protected_resource_metadata_has_authorization_servers` | ✅ |
+| Token Status List | Draft | `/.well-known/oauth-authorization-server/status` returns 200 | `wave4_token_status_list_returns_200` | ✅ |
+| Token Status List | Draft | Response is valid JSON | `wave4_token_status_list_returns_valid_json` | ✅ |
+| OIDC Claims Request | OIDC Core §5.5 | Discovery advertises `acr` and `auth_time` in `claims_supported` | `wave4_oidc_claims_request_acr_auth_time_in_claims_supported` | ✅ |
