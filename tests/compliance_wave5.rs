@@ -1,11 +1,11 @@
 //! Phase 5 OAuth2/OIDC compliance tests.
 //!
 //! Covers:
-//! - §5.1  JAR (RFC 9101): inline `request` JWT parameter — unsigned (public client)
-//!         and HS256 (confidential client).
-//! - §5.2  OIDC Hybrid Flow: `response_type=code id_token` with `c_hash` in the
-//!         id_token (OIDC Core §3.3).
-//! - §5.3  `response_mode=fragment` (OAuth 2.0 Multiple Response Type Encoding Practices).
+//! - §5.1 JAR (RFC 9101): inline `request` JWT parameter — unsigned (public client)
+//!   and HS256 (confidential client).
+//! - §5.2 OIDC Hybrid Flow: `response_type=code id_token` with `c_hash` in the
+//!   id_token (OIDC Core §3.3).
+//! - §5.3 `response_mode=fragment` (OAuth 2.0 Multiple Response Type Encoding Practices).
 //! - Discovery document: updated `response_types_supported`,
 //!   `response_modes_supported`, and `request_parameter_supported`.
 
