@@ -9,15 +9,11 @@
 # ── Advisories ───────────────────────────────────────────────────────────────
 
 [advisories]
-# Fail the build on any known vulnerability.
-vulnerability = "deny"
-# Treat unmaintained crates as warnings (not blockers) since many ecosystem
-# crates lag on official deprecation.
-unmaintained = "warn"
+# Unmaintained crates: only fail for direct workspace dependencies.
+# Transitive unmaintained crates are noisy and usually not actionable.
+unmaintained = "workspace"
 # Yanked crates are suspicious — deny them.
 yanked = "deny"
-# Advisories that are not yet actionable (no fix exists).
-notice = "warn"
 
 # Specific advisories to ignore (must have an expiry and justification).
 ignore = [
@@ -32,10 +28,7 @@ ignore = [
 # ── Licenses ─────────────────────────────────────────────────────────────────
 
 [licenses]
-# Deny any crate whose license is not in the allow list.
-unlicensed = "deny"
-# Copyleft licenses are denied by default (not in the allow list).
-default = "deny"
+# All licenses are denied unless explicitly listed in the allow list below.
 
 # Licenses that are acceptable for this project.
 allow = [
