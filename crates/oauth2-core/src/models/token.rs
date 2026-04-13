@@ -22,6 +22,17 @@ pub struct Claims {
     pub jti: String,   // JWT ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_id: Option<String>,
+    /// RFC 9449 (DPoP) / RFC 8705 (mTLS): confirmation claim binding token to a key.
+    /// For DPoP: `{"jkt": "<JWK SHA-256 thumbprint>"}`.
+    /// For mTLS: `{"x5t#S256": "<cert SHA-256 thumbprint>"}`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cnf: Option<serde_json::Value>,
+    /// RFC 9396 (RAR): structured authorization details carried in the access token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub authorization_details: Option<serde_json::Value>,
+    /// RFC 8693 (Token Exchange): actor claim for impersonation/delegation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub act: Option<serde_json::Value>,
 }
 
 /// OIDC ID Token claims (returned when `openid` scope is requested).
@@ -43,6 +54,12 @@ pub struct IdTokenClaims {
     pub email: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preferred_username: Option<String>,
+    /// RFC 9470 (Step-Up): Authentication Context Class Reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub acr: Option<String>,
+    /// OIDC Core §2: Time of last user authentication (seconds since epoch).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_time: Option<i64>,
 }
 
 impl IdTokenClaims {
@@ -75,6 +92,8 @@ impl IdTokenClaims {
             c_hash: None,
             email: None,
             preferred_username: None,
+            acr: None,
+            auth_time: None,
         }
     }
 
@@ -140,6 +159,9 @@ impl Claims {
             scope,
             jti: Uuid::new_v4().to_string(),
             client_id: Some(client_id),
+            cnf: None,
+            authorization_details: None,
+            act: None,
         }
     }
 

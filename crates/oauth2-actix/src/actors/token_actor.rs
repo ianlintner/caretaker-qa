@@ -134,6 +134,11 @@ pub struct CreateToken {
     /// RFC 8707: resource indicator URI. When set, overrides the JWT `aud` claim
     /// from `client_id` to the specified resource server URI.
     pub resource: Option<String>,
+    /// RFC 9449 / RFC 8705: confirmation claim (`cnf`) to bind the token to a key.
+    /// Set to `{"jkt": "<base64url thumbprint>"}` for DPoP or `{"x5t#S256": "..."}` for mTLS.
+    pub cnf: Option<serde_json::Value>,
+    /// RFC 9396: Rich Authorization Request details to embed in the JWT.
+    pub authorization_details: Option<serde_json::Value>,
     pub span: tracing::Span,
 }
 
@@ -205,6 +210,10 @@ impl Handler<CreateToken> for TokenActor {
                     );
                     // Always preserve client_id claim even when aud is overridden.
                     access_claims.client_id = Some(msg.client_id.clone());
+                    // RFC 9449 / RFC 8705: embed cnf (confirmation) claim if provided.
+                    access_claims.cnf = msg.cnf.clone();
+                    // RFC 9396: embed authorization_details if provided.
+                    access_claims.authorization_details = msg.authorization_details.clone();
 
                     if let Some(ref key) = signing_key {
                         access_claims.encode_with_key(key)

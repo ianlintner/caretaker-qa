@@ -275,6 +275,8 @@ impl SqlxStorage {
                 code_challenge_method TEXT,
                 nonce TEXT,
                 resource TEXT,
+                authorization_details TEXT,
+                claims_request TEXT,
                 FOREIGN KEY (client_id) REFERENCES clients(client_id),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
@@ -817,8 +819,8 @@ impl Storage for SqlxStorage {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method, nonce, resource)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method, nonce, resource, authorization_details, claims_request)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     "#,
                 )
                 .bind(&auth_code.id)
@@ -834,14 +836,16 @@ impl Storage for SqlxStorage {
                 .bind(&auth_code.code_challenge_method)
                 .bind(&auth_code.nonce)
                 .bind(&auth_code.resource)
+                .bind(&auth_code.authorization_details)
+                .bind(&auth_code.claims_request)
                 .execute(pool)
                 .await?;
             }
             DatabasePool::Postgres(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method, nonce, resource)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    INSERT INTO authorization_codes (id, code, client_id, user_id, redirect_uri, scope, created_at, expires_at, used, code_challenge, code_challenge_method, nonce, resource, authorization_details, claims_request)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                     "#,
                 )
                 .bind(&auth_code.id)
@@ -857,6 +861,8 @@ impl Storage for SqlxStorage {
                 .bind(&auth_code.code_challenge_method)
                 .bind(&auth_code.nonce)
                 .bind(&auth_code.resource)
+                .bind(&auth_code.authorization_details)
+                .bind(&auth_code.claims_request)
                 .execute(pool)
                 .await?;
             }

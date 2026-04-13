@@ -1079,6 +1079,16 @@ pub async fn run() -> std::io::Result<()> {
                     .route(
                         "/jwks.json",
                         web::get().to(oauth2_actix::handlers::wellknown::jwks),
+                    )
+                    // RFC 9728: Protected Resource Metadata
+                    .route(
+                        "/oauth-protected-resource",
+                        web::get().to(oauth2_actix::handlers::wellknown::protected_resource_metadata),
+                    )
+                    // Token Status List (draft-ietf-oauth-status-list)
+                    .route(
+                        "/oauth-authorization-server/status",
+                        web::get().to(oauth2_actix::handlers::wellknown::token_status_list),
                     ),
             )
             // RFC 7591 / RFC 7592: Dynamic Client Registration & Management

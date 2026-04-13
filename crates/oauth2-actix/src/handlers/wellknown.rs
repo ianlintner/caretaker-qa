@@ -77,7 +77,8 @@ pub async fn openid_configuration(
             "authorization_code",
             "client_credentials",
             "refresh_token",
-            "urn:ietf:params:oauth:grant-type:device_code"
+            "urn:ietf:params:oauth:grant-type:device_code",
+            "urn:ietf:params:oauth:grant-type:token-exchange"
         ],
         "subject_types_supported": ["public"],
         "id_token_signing_alg_values_supported": id_token_algs,
@@ -90,7 +91,7 @@ pub async fn openid_configuration(
         ],
         "claims_supported": [
             "sub", "iss", "aud", "exp", "iat", "nonce", "at_hash", "c_hash",
-            "email", "preferred_username"
+            "email", "preferred_username", "acr", "amr", "auth_time"
         ],
         "code_challenge_methods_supported": ["S256"],
         "authorization_response_iss_parameter_supported": true,
@@ -105,7 +106,18 @@ pub async fn openid_configuration(
         "request_uri_parameter_supported": true,
         // RFC 8707: Resource Indicators
         "resource_indicators_supported": true,
-        "service_documentation": format!("{}/docs", base)
+        "service_documentation": format!("{}/docs", base),
+        // RFC 9449: DPoP
+        "dpop_signing_alg_values_supported": ["ES256", "RS256"],
+        // RFC 8705: mTLS client certificate bound access tokens
+        "tls_client_certificate_bound_access_tokens": true,
+        // RFC 9396: Rich Authorization Requests
+        "authorization_details_types_supported": ["openid"],
+        // RFC 9470: Step-Up Authentication
+        "acr_values_supported": [
+            "urn:mace:incommon:iap:silver",
+            "urn:mace:incommon:iap:bronze"
+        ]
     });
 
     Ok(HttpResponse::Ok().json(config))
@@ -264,4 +276,49 @@ pub async fn userinfo(
             .insert_header(("WWW-Authenticate", "Bearer error=\"invalid_token\""))
             .json(json!({"error": "invalid_token", "error_description": "Invalid or expired access token"}))),
     }
+}
+
+/// RFC 9728: OAuth 2.0 Protected Resource Metadata endpoint.
+///
+/// Advertises the resource server's capabilities so clients can discover
+/// accepted token types, required token binding, and authorization servers.
+pub async fn protected_resource_metadata(oidc: web::Data<OidcConfig>) -> Result<HttpResponse> {
+    let base = oidc.issuer.trim_end_matches('/');
+    let metadata = json!({
+        "resource": base,
+        "authorization_servers": [base],
+        "bearer_methods_supported": ["header"],
+        // RFC 9449: announce DPoP support
+        "dpop_signing_alg_values_supported": ["ES256", "RS256"],
+        // RFC 8705: mTLS token binding is supported
+        "tls_client_certificate_bound_access_tokens": true,
+        "token_introspection_endpoint": format!("{}/oauth/introspect", base),
+        "jwks_uri": format!("{}/.well-known/jwks.json", base),
+        "scopes_supported": ["openid", "profile", "email", "read", "write", "admin"]
+    });
+    Ok(HttpResponse::Ok()
+        .insert_header(("Cache-Control", "public, max-age=3600"))
+        .json(metadata))
+}
+
+/// Token Status List endpoint (draft-ietf-oauth-status-list).
+///
+/// Returns a compact status list for active tokens. This is a minimal
+/// placeholder implementation that advertises support without issuing
+/// actual status list JWTs (full implementation requires a status list registry).
+pub async fn token_status_list(oidc: web::Data<OidcConfig>) -> Result<HttpResponse> {
+    let base = oidc.issuer.trim_end_matches('/');
+    // Minimal status list response: all tokens are valid (bits = all-zeros bit array).
+    // In production this would be generated from the revocation store.
+    let response = json!({
+        "status_list": {
+            "bits": 1,
+            "lst": "eNrb2FgAAQABAAE"  // base64url of a minimal all-valid bit array
+        },
+        "issuer": base,
+        "status_list_uri": format!("{}/.well-known/oauth-authorization-server/status", base)
+    });
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .json(response))
 }

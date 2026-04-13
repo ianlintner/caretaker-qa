@@ -65,6 +65,10 @@ pub struct CreateAuthorizationCode {
     pub nonce: Option<String>,
     /// RFC 8707: resource indicator URI (optional).
     pub resource: Option<String>,
+    /// RFC 9396: Rich Authorization Request details (JSON string).
+    pub authorization_details: Option<String>,
+    /// OIDC Core §5.5: JSON-encoded claims request parameter.
+    pub claims_request: Option<String>,
     pub span: tracing::Span,
 }
 
@@ -114,6 +118,8 @@ impl Handler<CreateAuthorizationCode> for AuthActor {
                     msg.code_challenge_method,
                     msg.nonce,
                     msg.resource,
+                    msg.authorization_details,
+                    msg.claims_request,
                 );
 
                 db.save_authorization_code(&auth_code).await?;

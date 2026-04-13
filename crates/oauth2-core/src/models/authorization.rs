@@ -26,6 +26,14 @@ pub struct AuthorizationCode {
     /// When present, limits the audience of the issued access token.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resource: Option<String>,
+    /// RFC 9396: Rich Authorization Request details (JSON string).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "sqlx", sqlx(default))]
+    pub authorization_details: Option<String>,
+    /// OIDC Core §5.5: JSON-encoded claims request parameter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "sqlx", sqlx(default))]
+    pub claims_request: Option<String>,
 }
 
 impl AuthorizationCode {
@@ -41,6 +49,8 @@ impl AuthorizationCode {
         code_challenge_method: Option<String>,
         nonce: Option<String>,
         resource: Option<String>,
+        authorization_details: Option<String>,
+        claims_request: Option<String>,
     ) -> Self {
         let now = Utc::now();
         let expires_at = now + Duration::minutes(10);
@@ -59,6 +69,8 @@ impl AuthorizationCode {
             code_challenge_method,
             nonce,
             resource,
+            authorization_details,
+            claims_request,
         }
     }
 

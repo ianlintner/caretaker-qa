@@ -21,6 +21,8 @@ use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
 use oauth2_ports::DynStorage;
 
 const DEVICE_CODE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:device_code";
+/// RFC 8693: Token Exchange grant type URI.
+const TOKEN_EXCHANGE_GRANT_TYPE: &str = "urn:ietf:params:oauth:grant-type:token-exchange";
 
 /// Parse RFC6749 client authentication via HTTP Basic.
 ///
@@ -218,6 +220,72 @@ fn parse_form_no_dupes(body: &web::Bytes) -> Result<HashMap<String, String>, OAu
     Ok(map)
 }
 
+/// RFC 9449 §4.2: Build a canonical JWK thumbprint JSON string for the given `kty`.
+/// Member keys are sorted alphabetically per RFC 7638.
+fn build_jwk_canonical(jwk: &serde_json::Value) -> Result<String, OAuth2Error> {
+    let kty = jwk
+        .get("kty")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| OAuth2Error::new("invalid_dpop_proof", Some("JWK missing kty")))?;
+    let obj = match kty {
+        "EC" => {
+            let crv = jwk.get("crv").ok_or_else(|| {
+                OAuth2Error::new("invalid_dpop_proof", Some("EC JWK missing crv"))
+            })?;
+            let x = jwk
+                .get("x")
+                .ok_or_else(|| OAuth2Error::new("invalid_dpop_proof", Some("EC JWK missing x")))?;
+            let y = jwk
+                .get("y")
+                .ok_or_else(|| OAuth2Error::new("invalid_dpop_proof", Some("EC JWK missing y")))?;
+            serde_json::json!({ "crv": crv, "kty": kty, "x": x, "y": y })
+        }
+        "RSA" => {
+            let e = jwk
+                .get("e")
+                .ok_or_else(|| OAuth2Error::new("invalid_dpop_proof", Some("RSA JWK missing e")))?;
+            let n = jwk
+                .get("n")
+                .ok_or_else(|| OAuth2Error::new("invalid_dpop_proof", Some("RSA JWK missing n")))?;
+            serde_json::json!({ "e": e, "kty": kty, "n": n })
+        }
+        "OKP" => {
+            let crv = jwk.get("crv").ok_or_else(|| {
+                OAuth2Error::new("invalid_dpop_proof", Some("OKP JWK missing crv"))
+            })?;
+            let x = jwk
+                .get("x")
+                .ok_or_else(|| OAuth2Error::new("invalid_dpop_proof", Some("OKP JWK missing x")))?;
+            serde_json::json!({ "crv": crv, "kty": kty, "x": x })
+        }
+        _ => {
+            return Err(OAuth2Error::new(
+                "invalid_dpop_proof",
+                Some("Unsupported JWK key type"),
+            ))
+        }
+    };
+    serde_json::to_string(&obj).map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))
+}
+
+/// RFC 9449 §4.2 / RFC 7638: Compute the JWK Thumbprint of the DPoP proof's public key.
+/// Returns a base64url-encoded SHA-256 hash of the canonical JWK member set.
+fn compute_dpop_jkt(dpop_proof: &str) -> Result<String, OAuth2Error> {
+    use sha2::{Digest, Sha256};
+    let header = jsonwebtoken::decode_header(dpop_proof)
+        .map_err(|_| OAuth2Error::invalid_request("DPoP proof JWT header is malformed"))?;
+    let jwk_obj = header
+        .jwk
+        .ok_or_else(|| OAuth2Error::new("invalid_dpop_proof", Some("DPoP proof missing 'jwk'")))?;
+    let jwk_str = serde_json::to_string(&jwk_obj)
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+    let jwk_val: serde_json::Value = serde_json::from_str(&jwk_str)
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+    let canonical = build_jwk_canonical(&jwk_val)?;
+    let hash = Sha256::digest(canonical.as_bytes());
+    Ok(general_purpose::URL_SAFE_NO_PAD.encode(hash))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeQuery {
     response_type: String,
@@ -244,6 +312,12 @@ pub struct AuthorizeQuery {
     resource: Option<String>,
     /// RFC 9126: reference to a pushed authorization request (PAR).
     request_uri: Option<String>,
+    /// RFC 9470 / OIDC Core §3.1.2.1: space-delimited ACR values required for this request.
+    acr_values: Option<String>,
+    /// OIDC Core §5.5: JSON-encoded claims request (e.g. `{"id_token":{"email":null}}`).
+    claims: Option<String>,
+    /// RFC 9396: Rich Authorization Request (JSON array string).
+    authorization_details: Option<String>,
 }
 
 /// RFC 9198 §4.2 / OAuth 2.0 Form Post Response Mode helper: HTML-escape attribute values.
@@ -302,6 +376,9 @@ pub async fn authorize(
         eff_nonce,
         eff_resource,
         eff_state,
+        eff_authorization_details,
+        eff_claims,
+        eff_acr_values,
     ) = if let Some(ref request_uri) = query.request_uri {
         let entry = auth_actor
             .send(GetPARRequest {
@@ -324,6 +401,9 @@ pub async fn authorize(
             get("nonce").or_else(|| query.nonce.clone()),
             get("resource").or_else(|| query.resource.clone()),
             get("state").or_else(|| query.state.clone()),
+            get("authorization_details").or_else(|| query.authorization_details.clone()),
+            get("claims").or_else(|| query.claims.clone()),
+            get("acr_values").or_else(|| query.acr_values.clone()),
         )
     } else {
         (
@@ -334,6 +414,9 @@ pub async fn authorize(
             query.nonce.clone(),
             query.resource.clone(),
             query.state.clone(),
+            query.authorization_details.clone(),
+            query.claims.clone(),
+            query.acr_values.clone(),
         )
     };
 
@@ -508,6 +591,39 @@ pub async fn authorize(
     // Enforce that requested scopes are within the client's allowed scope set.
     validate_scope_subset(&scope, &client.scope)?;
 
+    // RFC 9470 §4: Step-Up Authentication.
+    // If `acr_values` was requested, check whether the session satisfies the required ACR.
+    // If not, return `insufficient_user_authentication` via the redirect channel.
+    if let Some(ref acr_values) = eff_acr_values {
+        let session_acr: Option<String> = session.get("acr").unwrap_or(None);
+        let required: Vec<&str> = acr_values.split_whitespace().collect();
+        let satisfied = session_acr
+            .as_deref()
+            .map(|session_val| required.contains(&session_val))
+            .unwrap_or(false);
+        if !satisfied {
+            let mut url = Url::parse(&redirect_uri)
+                .map_err(|_| OAuth2Error::invalid_request("Invalid redirect_uri"))?;
+            {
+                let mut qp = url.query_pairs_mut();
+                qp.append_pair("error", "insufficient_user_authentication");
+                qp.append_pair(
+                    "error_description",
+                    "Authentication Context Class does not satisfy acr_values",
+                );
+                if let Some(ref s) = eff_state {
+                    qp.append_pair("state", s.as_str());
+                }
+                qp.append_pair("iss", &oidc_config.issuer);
+            }
+            return Ok(auth_response_security_headers(
+                HttpResponse::Found()
+                    .append_header(("Location", url.to_string()))
+                    .finish(),
+            ));
+        }
+    }
+
     let auth_code = auth_actor
         .send(CreateAuthorizationCode {
             client_id: query.client_id.clone(),
@@ -518,6 +634,8 @@ pub async fn authorize(
             code_challenge_method: Some(code_challenge_method),
             nonce: eff_nonce,
             resource: eff_resource,
+            authorization_details: eff_authorization_details,
+            claims_request: eff_claims,
             span: tracing::Span::current(),
         })
         .await
@@ -585,6 +703,17 @@ pub struct TokenRequest {
     client_assertion: Option<String>,
     /// RFC 8707: resource server URI for the requested access token audience.
     resource: Option<String>,
+    // RFC 8693 (Token Exchange) fields ---
+    /// `urn:ietf:params:oauth:token-type:access_token` or similar.
+    subject_token: Option<String>,
+    #[allow(dead_code)] // RFC 8693: token type URI, reserved for full validation
+    subject_token_type: Option<String>,
+    actor_token: Option<String>,
+    #[allow(dead_code)] // RFC 8693: actor token type URI, reserved for full validation
+    actor_token_type: Option<String>,
+    requested_token_type: Option<String>,
+    /// RFC 9396: Rich Authorization Request (JSON array string).
+    authorization_details: Option<String>,
 }
 
 /// JWT Bearer assertion type per RFC 7523 §2.2.
@@ -774,12 +903,61 @@ pub async fn token(
         client_assertion_type,
         client_assertion,
         resource: form_map.get("resource").cloned(),
+        subject_token: form_map.get("subject_token").cloned(),
+        subject_token_type: form_map.get("subject_token_type").cloned(),
+        actor_token: form_map.get("actor_token").cloned(),
+        actor_token_type: form_map.get("actor_token_type").cloned(),
+        requested_token_type: form_map.get("requested_token_type").cloned(),
+        authorization_details: form_map.get("authorization_details").cloned(),
+    };
+
+    // RFC 9449: DPoP — extract JWK Thumbprint from DPoP proof header if present.
+    let dpop_jkt: Option<String> = if let Some(dpop_header) = req.headers().get("DPoP") {
+        let dpop_str = dpop_header
+            .to_str()
+            .map_err(|_| OAuth2Error::invalid_request("DPoP header is not valid UTF-8"))?;
+        match compute_dpop_jkt(dpop_str) {
+            Ok(jkt) => Some(jkt),
+            Err(e) => return Err(OAuth2Error::new("invalid_dpop_proof", Some(&e.to_string()))),
+        }
+    } else {
+        None
+    };
+
+    // RFC 8705: mTLS certificate-bound tokens — trust the reverse proxy thumbprint header.
+    let mtls_thumbprint: Option<String> = req
+        .headers()
+        .get("X-Client-Cert-Thumbprint")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+
+    // Build the `cnf` claim if any binding material is present.
+    let cnf_claim: Option<serde_json::Value> = match (&dpop_jkt, &mtls_thumbprint) {
+        (Some(jkt), _) => Some(serde_json::json!({ "jkt": jkt })),
+        (None, Some(tb)) => Some(serde_json::json!({ "x5t#S256": tb })),
+        _ => None,
+    };
+
+    // Parse RAR authorization_details from form if present.
+    let rar_details: Option<serde_json::Value> = if let Some(ref ad) = form.authorization_details {
+        match serde_json::from_str(ad) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                return Err(OAuth2Error::invalid_request(
+                    "authorization_details is not valid JSON",
+                ))
+            }
+        }
+    } else {
+        None
     };
 
     match form.grant_type.as_str() {
         "authorization_code" => {
             handle_authorization_code_grant(
                 form,
+                cnf_claim,
+                rar_details,
                 token_actor,
                 client_actor,
                 auth_actor,
@@ -789,8 +967,16 @@ pub async fn token(
             .await
         }
         "client_credentials" => {
-            handle_client_credentials_grant(form, token_actor, client_actor, metrics, oidc_config)
-                .await
+            handle_client_credentials_grant(
+                form,
+                cnf_claim,
+                rar_details,
+                token_actor,
+                client_actor,
+                metrics,
+                oidc_config,
+            )
+            .await
         }
         "refresh_token" => {
             handle_refresh_token_grant(form, token_actor, client_actor, metrics, oidc_config).await
@@ -807,6 +993,17 @@ pub async fn token(
                 token_actor,
                 client_actor,
                 storage,
+                metrics,
+                oidc_config,
+            )
+            .await
+        }
+        TOKEN_EXCHANGE_GRANT_TYPE => {
+            handle_token_exchange_grant(
+                form,
+                cnf_claim,
+                token_actor,
+                client_actor,
                 metrics,
                 oidc_config,
             )
@@ -906,6 +1103,8 @@ async fn handle_device_code_grant(
             include_refresh,
             token_family: None,
             resource: None,
+            cnf: None,
+            authorization_details: None,
             span: tracing::Span::current(),
         })
         .await
@@ -947,8 +1146,11 @@ async fn handle_device_code_grant(
     Ok(no_store_headers(HttpResponse::Ok().json(response)))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_authorization_code_grant(
     req: TokenRequest,
+    cnf_claim: Option<serde_json::Value>,
+    rar_details: Option<serde_json::Value>,
     token_actor: web::Data<TokenActorPool>,
     client_actor: web::Data<Addr<ClientActor>>,
     auth_actor: web::Data<Addr<AuthActor>>,
@@ -1034,6 +1236,16 @@ async fn handle_authorization_code_grant(
     } else {
         None
     };
+
+    // RFC 9396: prefer `authorization_details` from the token request over what
+    // was stored in the auth code (token request wins if both are present).
+    let eff_auth_details = rar_details.or_else(|| {
+        auth_code
+            .authorization_details
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok())
+    });
+
     let token = token_actor
         .route(&auth_code.client_id)
         .send(CreateToken {
@@ -1043,6 +1255,8 @@ async fn handle_authorization_code_grant(
             include_refresh,
             token_family,
             resource: auth_code.resource.clone(),
+            cnf: cnf_claim,
+            authorization_details: eff_auth_details,
             span: tracing::Span::current(),
         })
         .await
@@ -1093,6 +1307,8 @@ async fn handle_authorization_code_grant(
 
 async fn handle_client_credentials_grant(
     req: TokenRequest,
+    cnf_claim: Option<serde_json::Value>,
+    rar_details: Option<serde_json::Value>,
     token_actor: web::Data<TokenActorPool>,
     client_actor: web::Data<Addr<ClientActor>>,
     metrics: web::Data<Metrics>,
@@ -1138,6 +1354,8 @@ async fn handle_client_credentials_grant(
             include_refresh: false,
             token_family: None,
             resource: req.resource,
+            cnf: cnf_claim,
+            authorization_details: rar_details,
             span: tracing::Span::current(),
         })
         .await
@@ -1148,6 +1366,118 @@ async fn handle_client_credentials_grant(
     Ok(no_store_headers(
         HttpResponse::Ok().json(TokenResponse::from(token)),
     ))
+}
+
+/// RFC 8693: Token Exchange Grant.
+///
+/// Exchanges an existing security token (subject_token) for a new access token,
+/// optionally narrowing scope, changing audience, or impersonating a different subject.
+/// Supports DPoP-binding via `cnf_claim`.
+async fn handle_token_exchange_grant(
+    req: TokenRequest,
+    cnf_claim: Option<serde_json::Value>,
+    token_actor: web::Data<TokenActorPool>,
+    client_actor: web::Data<Addr<ClientActor>>,
+    metrics: web::Data<Metrics>,
+    oidc_config: web::Data<OidcConfig>,
+) -> Result<HttpResponse, OAuth2Error> {
+    use crate::actors::LookupToken;
+
+    let subject_token = req
+        .subject_token
+        .clone()
+        .ok_or_else(|| OAuth2Error::invalid_request("Missing subject_token"))?;
+
+    // Authenticate the client making the exchange request.
+    let client = client_actor
+        .send(GetClient {
+            client_id: req.client_id.clone(),
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    if !client.supports_grant_type(TOKEN_EXCHANGE_GRANT_TYPE) {
+        return Err(OAuth2Error::unauthorized_client(
+            "Client not allowed to use token-exchange",
+        ));
+    }
+    if client.is_public() {
+        return Err(OAuth2Error::invalid_client(
+            "Public clients cannot use token-exchange",
+        ));
+    }
+    let token_endpoint_url = format!("{}/oauth/token", oidc_config.issuer.trim_end_matches('/'));
+    authenticate_confidential_client(&client, &req, &token_endpoint_url)?;
+
+    // Validate the subject_token: look it up in storage.
+    let subject_tok = token_actor
+        .route(&req.client_id)
+        .send(LookupToken {
+            token: subject_token,
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??
+        .ok_or_else(|| OAuth2Error::invalid_grant("subject_token not found or expired"))?;
+
+    if subject_tok.revoked {
+        return Err(OAuth2Error::invalid_grant("subject_token has been revoked"));
+    }
+
+    // Build `act` claim when an actor_token is provided (delegation / impersonation).
+    let act_claim: Option<serde_json::Value> = req
+        .actor_token
+        .as_ref()
+        .map(|_| serde_json::json!({ "sub": req.client_id }));
+
+    // Requested scope must be a subset of the subject token's scope; default to original.
+    let scope = match req.scope {
+        Some(ref requested) => {
+            validate_scope_subset(requested, &subject_tok.scope)?;
+            requested.clone()
+        }
+        None => subject_tok.scope.clone(),
+    };
+
+    let new_token = token_actor
+        .route(&req.client_id)
+        .send(CreateToken {
+            user_id: subject_tok.user_id.clone(),
+            client_id: req.client_id.clone(),
+            scope,
+            include_refresh: false,
+            token_family: None,
+            resource: req.resource.clone(),
+            cnf: cnf_claim,
+            authorization_details: None,
+            span: tracing::Span::current(),
+        })
+        .await
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
+
+    metrics.oauth_token_issued_total.inc();
+
+    let issued_type = req
+        .requested_token_type
+        .clone()
+        .unwrap_or_else(|| "urn:ietf:params:oauth:token-type:access_token".to_string());
+    let token_type_str = if act_claim.is_some() {
+        "DPoP"
+    } else {
+        "Bearer"
+    };
+    let mut resp = serde_json::json!({
+        "access_token": new_token.access_token,
+        "issued_token_type": issued_type,
+        "token_type": token_type_str,
+        "expires_in": new_token.expires_in,
+        "scope": new_token.scope,
+    });
+    if let Some(act) = act_claim {
+        resp["act"] = act;
+    }
+    Ok(no_store_headers(HttpResponse::Ok().json(resp)))
 }
 
 /// RFC 6749 §6 — Refresh Token Grant
@@ -1258,6 +1588,8 @@ async fn handle_refresh_token_grant(
             include_refresh: true,
             token_family: Some(family),
             resource: None,
+            cnf: None,
+            authorization_details: None,
             span: tracing::Span::current(),
         })
         .await
