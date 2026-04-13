@@ -9,8 +9,8 @@ Each row maps a specific RFC section to one or more test functions.
 
 ## RFC 6749 — The OAuth 2.0 Authorization Framework
 
-Test file: [`tests/compliance_rfc6749.rs`](../../tests/compliance_rfc6749.rs)  
-Supplemental: [`tests/security_http.rs`](../../tests/security_http.rs)
+Test file: [`tests/compliance_rfc6749.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_rfc6749.rs)  
+Supplemental: [`tests/security_http.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/security_http.rs)
 
 | Section | Requirement                                                         | Test Function                                                    | Status |
 | ------- | ------------------------------------------------------------------- | ---------------------------------------------------------------- | ------ |
@@ -39,7 +39,7 @@ Supplemental: [`tests/security_http.rs`](../../tests/security_http.rs)
 
 ## RFC 7636 — PKCE (Proof Key for Code Exchange)
 
-Test file: [`tests/compliance_rfc7636.rs`](../../tests/compliance_rfc7636.rs)
+Test file: [`tests/compliance_rfc7636.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_rfc7636.rs)
 
 | Section | Requirement                                              | Test Function                                         | Status |
 | ------- | -------------------------------------------------------- | ----------------------------------------------------- | ------ |
@@ -58,7 +58,7 @@ Test file: [`tests/compliance_rfc7636.rs`](../../tests/compliance_rfc7636.rs)
 
 ## RFC 7662 — OAuth 2.0 Token Introspection
 
-Test file: [`tests/compliance_rfc7662_7009.rs`](../../tests/compliance_rfc7662_7009.rs)
+Test file: [`tests/compliance_rfc7662_7009.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_rfc7662_7009.rs)
 
 | Section | Requirement                                 | Test Function                                         | Status |
 | ------- | ------------------------------------------- | ----------------------------------------------------- | ------ |
@@ -75,7 +75,7 @@ Test file: [`tests/compliance_rfc7662_7009.rs`](../../tests/compliance_rfc7662_7
 
 ## RFC 7009 — OAuth 2.0 Token Revocation
 
-Test file: [`tests/compliance_rfc7662_7009.rs`](../../tests/compliance_rfc7662_7009.rs)
+Test file: [`tests/compliance_rfc7662_7009.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_rfc7662_7009.rs)
 
 | Section | Requirement                                            | Test Function                                   | Status |
 | ------- | ------------------------------------------------------ | ----------------------------------------------- | ------ |
@@ -89,7 +89,7 @@ Test file: [`tests/compliance_rfc7662_7009.rs`](../../tests/compliance_rfc7662_7
 
 ## RFC 6750 — Bearer Token Usage
 
-Test file: [`tests/compliance_rfc6750.rs`](../../tests/compliance_rfc6750.rs)
+Test file: [`tests/compliance_rfc6750.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_rfc6750.rs)
 
 | Section | Requirement                                           | Test Function                                   | Status |
 | ------- | ----------------------------------------------------- | ----------------------------------------------- | ------ |
@@ -106,7 +106,7 @@ Test file: [`tests/compliance_rfc6750.rs`](../../tests/compliance_rfc6750.rs)
 
 ## RFC 8414 — OAuth 2.0 Authorization Server Metadata
 
-Test file: [`tests/compliance_rfc8414.rs`](../../tests/compliance_rfc8414.rs)
+Test file: [`tests/compliance_rfc8414.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_rfc8414.rs)
 
 | Section | Requirement                                                                                  | Test Function                                           | Status |
 | ------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------ |
@@ -124,7 +124,7 @@ Test file: [`tests/compliance_rfc8414.rs`](../../tests/compliance_rfc8414.rs)
 
 ## OpenID Connect Core 1.0
 
-Test file: [`tests/compliance_oidc_core.rs`](../../tests/compliance_oidc_core.rs)
+Test file: [`tests/compliance_oidc_core.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_oidc_core.rs)
 
 | Section  | Requirement                                                      | Test Function                                     | Status |
 | -------- | ---------------------------------------------------------------- | ------------------------------------------------- | ------ |
@@ -144,8 +144,8 @@ Test file: [`tests/compliance_oidc_core.rs`](../../tests/compliance_oidc_core.rs
 
 ## RFC 8628 — OAuth 2.0 Device Authorization Grant
 
-Test file: [`tests/compliance_rfc8628.rs`](../../tests/compliance_rfc8628.rs)  
-Supplemental: [`tests/device_flow.rs`](../../tests/device_flow.rs)
+Test file: [`tests/compliance_rfc8628.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/compliance_rfc8628.rs)  
+Supplemental: [`tests/device_flow.rs`](https://github.com/ianlintner/rust-oauth2-server/blob/main/tests/device_flow.rs)
 
 | Section | Requirement                                                                          | Test Function                                               | Status |
 | ------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------- | ------ |

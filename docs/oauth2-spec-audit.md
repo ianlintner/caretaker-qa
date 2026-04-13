@@ -449,14 +449,14 @@ Items ranked by: **Security Impact** × **Interoperability Gain** × **Standards
 
 ## 7. Progress Tracker
 
-| Item                | Status         | PR / Commit    | Notes                                                                                                         |
-| ------------------- | -------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
-| Spec audit document | ✅ Done        | Initial commit | This file                                                                                                     |
-| **Phase 1 items**   | ✅ Done        | main           | All 6 chunks complete                                                                                         |
-| **Phase 2 items**   | ✅ Done        | main           | Full RFC 7591/7592, private_key_jwt, client_secret_jwt                                                        |
-| **Phase 3 items**   | ✅ Done        | main           | PAR, JAR, Resource Indicators, form_post, Hybrid Flow, JWT Introspection                                      |
-| **Phase 4 items**   | ✅ Done        | main           | DPoP, mTLS, Token Exchange, RAR, Step-Up, Protected Resource Metadata, Token Status List, OIDC Claims Request |
-| **Phase 5 items**   | 🔲 Not started | —              | See §8 below                                                                                                  |
+| Item                | Status        | PR / Commit    | Notes                                                                                                         |
+| ------------------- | ------------- | -------------- | ------------------------------------------------------------------------------------------------------------- |
+| Spec audit document | ✅ Done       | Initial commit | This file                                                                                                     |
+| **Phase 1 items**   | ✅ Done       | main           | All 6 chunks complete                                                                                         |
+| **Phase 2 items**   | ✅ Done       | main           | Full RFC 7591/7592, private_key_jwt, client_secret_jwt                                                        |
+| **Phase 3 items**   | ✅ Done       | main           | PAR, JAR, Resource Indicators, form_post, Hybrid Flow, JWT Introspection                                      |
+| **Phase 4 items**   | ✅ Done       | main           | DPoP, mTLS, Token Exchange, RAR, Step-Up, Protected Resource Metadata, Token Status List, OIDC Claims Request |
+| **Phase 5 items**   | � In progress | main           | 5.1 JAR `request` inline, 5.2 Hybrid Flow `code id_token`, 5.3 `response_mode=fragment` ✅ Done               |
 
 ### Phase 1 Chunk Status
 
@@ -512,25 +512,24 @@ All items are independently mergeable.
   - Verify assertion JWT with HMAC-SHA256 keyed by `client.client_secret`
   - Discovery: add `client_secret_jwt` to `token_endpoint_auth_methods_supported`
 
-- [ ] **5.1** JAR inline `request` object — signed JWT carrying authorize params
+- [x] **5.1** JAR inline `request` object — signed JWT carrying authorize params
   - File: `crates/oauth2-actix/src/handlers/oauth.rs` → `AuthorizeQuery`
-  - If `request` param present: decode JWT, merge decoded claims over query params
-  - `request_uri` fetch (remote JAR) is out of scope for this chunk (SSRF risk)
-  - Discovery: add `request_parameter_supported: true`
+  - Supports `none` (unsigned, public clients), HS256 (`client_secret_*`), RS256 (`private_key_jwt`)
+  - `request_uri` fetch (remote JAR) is out of scope (SSRF risk)
+  - Discovery: `request_parameter_supported: true` ✅
 
 #### Chunk 5.B — Token & Response Format Completions (Medium priority)
 
-- [ ] **5.2** OIDC Hybrid Flow
+- [x] **5.2** OIDC Hybrid Flow
   - File: `crates/oauth2-actix/src/handlers/oauth.rs` → `authorize()`
-  - Support `response_type=code id_token` and `response_type=code token`
-  - Issue `id_token` / `token` directly in the authorization response fragment
-  - Add `c_hash` (for `code`) and `at_hash` (for `token`) binding claims per OIDC Core §3.3.2.11
-  - Discovery: add hybrid `response_types_supported` entries
+  - `response_type=code id_token` supported; `id_token` with `c_hash` issued in fragment
+  - `code token` not yet implemented (low priority)
+  - Discovery: `response_types_supported` includes `code id_token` ✅
 
-- [ ] **5.3** `response_mode=fragment`
+- [x] **5.3** `response_mode=fragment`
   - File: `crates/oauth2-actix/src/handlers/oauth.rs`
-  - Deliver authorization response parameters in the URI fragment instead of query string
-  - Required for implicit-compatible RPs and OIDC Hybrid flows
+  - Fragment delivery via percent-encoded URI fragment (`#code=...&iss=...`)
+  - Default for hybrid flows; opt-in for plain `code` via `response_mode=fragment` ✅
 
 - [ ] **5.4** JWT Introspection Response
   - File: `crates/oauth2-actix/src/handlers/token.rs` → `introspect()`
