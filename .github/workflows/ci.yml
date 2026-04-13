@@ -153,11 +153,9 @@ jobs:
           tool: cargo-audit
 
       - name: Security Audit (cargo-audit)
-        continue-on-error: true
         run: cargo audit
 
       - name: Check Dependencies (cargo-deny)
-        continue-on-error: true
         uses: EmbarkStudios/cargo-deny-action@v1
         with:
           command: check
