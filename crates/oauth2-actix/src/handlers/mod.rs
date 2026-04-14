@@ -7,5 +7,6 @@ pub mod login;
 pub mod oauth;
 pub mod oidc_logout;
 pub mod profile;
+pub mod session;
 pub mod token;
 pub mod wellknown;

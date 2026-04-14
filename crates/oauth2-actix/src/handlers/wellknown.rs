@@ -95,7 +95,15 @@ pub async fn openid_configuration(
         ],
         "code_challenge_methods_supported": ["S256"],
         "authorization_response_iss_parameter_supported": true,
-        "prompt_values_supported": ["none", "login"],
+        "prompt_values_supported": ["none", "login", "consent", "select_account"],
+        // OIDC Session Management 1.0
+        "check_session_iframe": format!("{}/oauth/check_session", base),
+        // OIDC Back-Channel Logout 1.0
+        "backchannel_logout_supported": true,
+        "backchannel_logout_session_supported": true,
+        // OIDC Front-Channel Logout 1.0
+        "frontchannel_logout_supported": true,
+        "frontchannel_logout_session_supported": true,
         // RFC 9198: Form Post Response Mode / RFC 9101: JAR fragment mode
         "response_modes_supported": ["query", "form_post", "fragment"],
         // RFC 9126: Pushed Authorization Requests

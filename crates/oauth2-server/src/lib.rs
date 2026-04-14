@@ -1064,6 +1064,11 @@ pub async fn run() -> std::io::Result<()> {
                     .route(
                         "/userinfo",
                         web::post().to(oauth2_actix::handlers::wellknown::userinfo),
+                    )
+                    // OIDC Session Management 1.0: check_session_iframe
+                    .route(
+                        "/check_session",
+                        web::get().to(oauth2_actix::handlers::session::check_session_iframe),
                     ),
             )
             // Well-known endpoints
