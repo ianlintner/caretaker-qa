@@ -125,44 +125,18 @@ async fn send_backchannel_logout_tokens(
         Err(_) => return,
     };
 
-    let http_client = match awc::Client::builder()
+    let http_client = match reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
-        .finish()
-        .try_into_http_client()
+        .build()
     {
-        Ok(c) => c,
-        Err(_) => {
-            // Fall back to basic client construction if try_into fails.
-            // Use a simple awc::Client directly.
-            send_backchannel_logout_tokens_awc(storage, issuer, sub, sid, jwt_secret).await;
-            return;
-        }
-    };
-
-    drop(http_client);
-    send_backchannel_logout_tokens_awc(storage, issuer, sub, sid, jwt_secret).await;
-}
-
-/// AWC-based back-channel logout sender.
-async fn send_backchannel_logout_tokens_awc(
-    storage: &DynStorage,
-    issuer: &str,
-    sub: Option<&str>,
-    sid: Option<&str>,
-    jwt_secret: &str,
-) {
-    let clients = match storage.list_all_clients().await {
         Ok(c) => c,
         Err(_) => return,
     };
-
-    let http_client = awc::Client::default();
 
     for client in &clients {
         if client.backchannel_logout_uri.is_empty() {
             continue;
         }
-        // Build the logout_token JWT.
         let eff_sid = if client.backchannel_logout_session_required {
             sid
         } else {
@@ -182,8 +156,9 @@ async fn send_backchannel_logout_tokens_awc(
         // POST the logout_token as application/x-www-form-urlencoded.
         let _ = http_client
             .post(&client.backchannel_logout_uri)
-            .insert_header(("Content-Type", "application/x-www-form-urlencoded"))
-            .send_body(format!("logout_token={}", token))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(format!("logout_token={}", token))
+            .send()
             .await;
     }
 }
