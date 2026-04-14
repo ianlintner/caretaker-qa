@@ -846,6 +846,8 @@ pub async fn run() -> std::io::Result<()> {
                 .max_age(3600);
             if origins.is_empty() {
                 cors_builder
+            } else if origins.iter().any(|o| o == "*") {
+                cors_builder.allow_any_origin().send_wildcard()
             } else {
                 for origin in &origins {
                     cors_builder = cors_builder.allowed_origin(origin);
