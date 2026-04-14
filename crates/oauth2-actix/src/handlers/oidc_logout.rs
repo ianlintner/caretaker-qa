@@ -282,7 +282,7 @@ pub async fn logout(
     session.purge();
 
     // --- Back-channel logout: best-effort delivery to all registered clients ---
-    send_backchannel_logout_tokens_awc(
+    send_backchannel_logout_tokens(
         storage.get_ref(),
         &oidc.issuer,
         sub.as_deref(),
