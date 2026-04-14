@@ -185,6 +185,24 @@ impl Handler<RegisterClient> for ClientActor {
                     client.jwks_uri = uri.clone();
                 }
 
+                // OIDC logout metadata
+                if let Some(ref uri) = msg.registration.backchannel_logout_uri {
+                    client.backchannel_logout_uri = uri.clone();
+                }
+                if let Some(val) = msg.registration.backchannel_logout_session_required {
+                    client.backchannel_logout_session_required = val;
+                }
+                if let Some(ref uri) = msg.registration.frontchannel_logout_uri {
+                    client.frontchannel_logout_uri = uri.clone();
+                }
+                if let Some(val) = msg.registration.frontchannel_logout_session_required {
+                    client.frontchannel_logout_session_required = val;
+                }
+                if let Some(ref uris) = msg.registration.post_logout_redirect_uris {
+                    client.post_logout_redirect_uris =
+                        serde_json::to_string(uris).unwrap_or_default();
+                }
+
                 // Generate a registration_access_token for RFC 7591 §3.2
                 client.registration_access_token = generate_secret_of_length(48);
 

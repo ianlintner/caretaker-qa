@@ -63,6 +63,21 @@ pub struct Client {
     /// RFC 7523 §2.2: URL referencing the client's JWKS.
     #[serde(default = "default_empty_string")]
     pub jwks_uri: String,
+    /// OIDC Back-Channel Logout §2.1: URL to receive logout tokens via HTTP POST.
+    #[serde(default = "default_empty_string")]
+    pub backchannel_logout_uri: String,
+    /// OIDC Back-Channel Logout §2.1: whether `sid` is required in logout tokens.
+    #[serde(default)]
+    pub backchannel_logout_session_required: bool,
+    /// OIDC Front-Channel Logout §2: URL rendered in an iframe during logout.
+    #[serde(default = "default_empty_string")]
+    pub frontchannel_logout_uri: String,
+    /// OIDC Front-Channel Logout §2: whether `sid` is included in the iframe URL.
+    #[serde(default)]
+    pub frontchannel_logout_session_required: bool,
+    /// OIDC RP-Initiated Logout §2: registered post-logout redirect URIs (JSON array).
+    #[serde(default = "default_empty_string")]
+    pub post_logout_redirect_uris: String,
 }
 
 impl Client {
@@ -96,6 +111,11 @@ impl Client {
             tos_uri: String::new(),
             jwks: String::new(),
             jwks_uri: String::new(),
+            backchannel_logout_uri: String::new(),
+            backchannel_logout_session_required: false,
+            frontchannel_logout_uri: String::new(),
+            frontchannel_logout_session_required: false,
+            post_logout_redirect_uris: String::new(),
         }
     }
 
@@ -124,6 +144,10 @@ impl Client {
 
     pub fn get_contacts(&self) -> Vec<String> {
         serde_json::from_str(&self.contacts).unwrap_or_default()
+    }
+
+    pub fn get_post_logout_redirect_uris(&self) -> Vec<String> {
+        serde_json::from_str(&self.post_logout_redirect_uris).unwrap_or_default()
     }
 
     pub fn supports_grant_type(&self, grant_type: &str) -> bool {
@@ -205,6 +229,21 @@ pub struct ClientRegistration {
     /// RFC 7523 §2.2: URL referencing the client's JWKS.
     #[serde(default)]
     pub jwks_uri: Option<String>,
+    /// OIDC Back-Channel Logout §2.1: URL to receive logout tokens.
+    #[serde(default)]
+    pub backchannel_logout_uri: Option<String>,
+    /// OIDC Back-Channel Logout §2.1: whether `sid` is required in the logout token.
+    #[serde(default)]
+    pub backchannel_logout_session_required: Option<bool>,
+    /// OIDC Front-Channel Logout §2: URL rendered in an iframe during logout.
+    #[serde(default)]
+    pub frontchannel_logout_uri: Option<String>,
+    /// OIDC Front-Channel Logout §2: whether `sid` is included in the iframe URL.
+    #[serde(default)]
+    pub frontchannel_logout_session_required: Option<bool>,
+    /// OIDC RP-Initiated Logout §2: registered post-logout redirect URIs.
+    #[serde(default)]
+    pub post_logout_redirect_uris: Option<Vec<String>>,
 }
 
 #[cfg_attr(feature = "openapi", derive(ToSchema))]
@@ -247,6 +286,16 @@ pub struct ClientRegistrationResponse {
     pub jwks: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jwks_uri: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backchannel_logout_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backchannel_logout_session_required: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frontchannel_logout_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frontchannel_logout_session_required: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub post_logout_redirect_uris: Option<Vec<String>>,
     pub client_id_issued_at: i64,
 }
 
@@ -301,6 +350,34 @@ impl ClientRegistrationResponse {
                 None
             } else {
                 Some(client.jwks_uri.clone())
+            },
+            backchannel_logout_uri: if client.backchannel_logout_uri.is_empty() {
+                None
+            } else {
+                Some(client.backchannel_logout_uri.clone())
+            },
+            backchannel_logout_session_required: if client.backchannel_logout_session_required {
+                Some(true)
+            } else {
+                None
+            },
+            frontchannel_logout_uri: if client.frontchannel_logout_uri.is_empty() {
+                None
+            } else {
+                Some(client.frontchannel_logout_uri.clone())
+            },
+            frontchannel_logout_session_required: if client.frontchannel_logout_session_required {
+                Some(true)
+            } else {
+                None
+            },
+            post_logout_redirect_uris: {
+                let uris = client.get_post_logout_redirect_uris();
+                if uris.is_empty() {
+                    None
+                } else {
+                    Some(uris)
+                }
             },
             client_id_issued_at: client.created_at.timestamp(),
         }

@@ -370,8 +370,8 @@ impl Storage for SqlxStorage {
             DatabasePool::Sqlite(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at, token_endpoint_auth_method, registration_access_token, response_types, contacts, logo_uri, client_uri, policy_uri, tos_uri, jwks, jwks_uri)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at, token_endpoint_auth_method, registration_access_token, response_types, contacts, logo_uri, client_uri, policy_uri, tos_uri, jwks, jwks_uri, backchannel_logout_uri, backchannel_logout_session_required, frontchannel_logout_uri, frontchannel_logout_session_required, post_logout_redirect_uris)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     "#,
                 )
                 .bind(&client.id)
@@ -393,14 +393,19 @@ impl Storage for SqlxStorage {
                 .bind(&client.tos_uri)
                 .bind(&client.jwks)
                 .bind(&client.jwks_uri)
+                .bind(&client.backchannel_logout_uri)
+                .bind(client.backchannel_logout_session_required)
+                .bind(&client.frontchannel_logout_uri)
+                .bind(client.frontchannel_logout_session_required)
+                .bind(&client.post_logout_redirect_uris)
                 .execute(pool)
                 .await?;
             }
             DatabasePool::Postgres(pool) => {
                 sqlx::query(
                     r#"
-                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at, token_endpoint_auth_method, registration_access_token, response_types, contacts, logo_uri, client_uri, policy_uri, tos_uri, jwks, jwks_uri)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+                    INSERT INTO clients (id, client_id, client_secret, redirect_uris, grant_types, scope, name, created_at, updated_at, token_endpoint_auth_method, registration_access_token, response_types, contacts, logo_uri, client_uri, policy_uri, tos_uri, jwks, jwks_uri, backchannel_logout_uri, backchannel_logout_session_required, frontchannel_logout_uri, frontchannel_logout_session_required, post_logout_redirect_uris)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
                     "#,
                 )
                 .bind(&client.id)
@@ -422,6 +427,11 @@ impl Storage for SqlxStorage {
                 .bind(&client.tos_uri)
                 .bind(&client.jwks)
                 .bind(&client.jwks_uri)
+                .bind(&client.backchannel_logout_uri)
+                .bind(client.backchannel_logout_session_required)
+                .bind(&client.frontchannel_logout_uri)
+                .bind(client.frontchannel_logout_session_required)
+                .bind(&client.post_logout_redirect_uris)
                 .execute(pool)
                 .await?;
             }
@@ -462,7 +472,12 @@ impl Storage for SqlxStorage {
                         response_types = ?, contacts = ?,
                         logo_uri = ?, client_uri = ?,
                         policy_uri = ?, tos_uri = ?,
-                        jwks = ?, jwks_uri = ?
+                        jwks = ?, jwks_uri = ?,
+                        backchannel_logout_uri = ?,
+                        backchannel_logout_session_required = ?,
+                        frontchannel_logout_uri = ?,
+                        frontchannel_logout_session_required = ?,
+                        post_logout_redirect_uris = ?
                     WHERE client_id = ?
                     "#,
                 )
@@ -482,6 +497,11 @@ impl Storage for SqlxStorage {
                 .bind(&client.tos_uri)
                 .bind(&client.jwks)
                 .bind(&client.jwks_uri)
+                .bind(&client.backchannel_logout_uri)
+                .bind(client.backchannel_logout_session_required)
+                .bind(&client.frontchannel_logout_uri)
+                .bind(client.frontchannel_logout_session_required)
+                .bind(&client.post_logout_redirect_uris)
                 .bind(&client.client_id)
                 .execute(pool)
                 .await?;
@@ -497,8 +517,13 @@ impl Storage for SqlxStorage {
                         response_types = $9, contacts = $10,
                         logo_uri = $11, client_uri = $12,
                         policy_uri = $13, tos_uri = $14,
-                        jwks = $15, jwks_uri = $16
-                    WHERE client_id = $17
+                        jwks = $15, jwks_uri = $16,
+                        backchannel_logout_uri = $17,
+                        backchannel_logout_session_required = $18,
+                        frontchannel_logout_uri = $19,
+                        frontchannel_logout_session_required = $20,
+                        post_logout_redirect_uris = $21
+                    WHERE client_id = $22
                     "#,
                 )
                 .bind(&client.client_secret)
@@ -517,6 +542,11 @@ impl Storage for SqlxStorage {
                 .bind(&client.tos_uri)
                 .bind(&client.jwks)
                 .bind(&client.jwks_uri)
+                .bind(&client.backchannel_logout_uri)
+                .bind(client.backchannel_logout_session_required)
+                .bind(&client.frontchannel_logout_uri)
+                .bind(client.frontchannel_logout_session_required)
+                .bind(&client.post_logout_redirect_uris)
                 .bind(&client.client_id)
                 .execute(pool)
                 .await?;

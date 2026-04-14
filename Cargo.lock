@@ -3705,6 +3705,7 @@ dependencies = [
  "percent-encoding",
  "rand 0.9.4",
  "redis",
+ "reqwest",
  "rsa",
  "serde",
  "serde_json",

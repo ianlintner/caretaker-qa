@@ -14,6 +14,8 @@ pub struct LogoutQuery {
     pub id_token_hint: Option<String>,
     pub post_logout_redirect_uri: Option<String>,
     pub state: Option<String>,
+    /// Session ID from the OP session — used for back-channel/front-channel logout.
+    pub sid: Option<String>,
 }
 
 fn validate_post_logout_redirect_uri_shape(uri: &str) -> Result<Url, OAuth2Error> {
@@ -38,12 +40,20 @@ fn validate_post_logout_redirect_uri_shape(uri: &str) -> Result<Url, OAuth2Error
     Ok(parsed)
 }
 
+/// Check whether `candidate` is a registered `post_logout_redirect_uri` for any client.
+/// Also falls back to checking `redirect_uris` for backwards compatibility.
 async fn is_registered_post_logout_redirect(
     storage: &DynStorage,
     candidate: &str,
 ) -> Result<bool, OAuth2Error> {
     let clients = storage.list_all_clients().await?;
     Ok(clients.iter().any(|client| {
+        // Prefer dedicated post_logout_redirect_uris field.
+        let plru = client.get_post_logout_redirect_uris();
+        if plru.iter().any(|uri| uri == candidate) {
+            return true;
+        }
+        // Fallback: accept redirect_uris for backwards compatibility.
         client
             .get_redirect_uris()
             .iter()
@@ -63,26 +73,202 @@ fn extract_audiences(claims: &serde_json::Value) -> Vec<String> {
     }
 }
 
+/// Build an OIDC Back-Channel Logout Token (JWT) per
+/// https://openid.net/specs/openid-connect-backchannel-1_0.html#LogoutToken
+fn build_logout_token(
+    issuer: &str,
+    audience: &str,
+    sub: Option<&str>,
+    sid: Option<&str>,
+    jwt_secret: &str,
+) -> Result<String, OAuth2Error> {
+    use jsonwebtoken::{encode, EncodingKey, Header};
+    use std::collections::HashMap;
+    let now = chrono::Utc::now().timestamp();
+    let jti = uuid::Uuid::new_v4().to_string();
+
+    let mut claims: HashMap<String, serde_json::Value> = HashMap::new();
+    claims.insert("iss".into(), json!(issuer));
+    claims.insert("aud".into(), json!(audience));
+    claims.insert("iat".into(), json!(now));
+    claims.insert("jti".into(), json!(jti));
+    // Back-Channel Logout §2.4: events claim with the logout event URI.
+    claims.insert(
+        "events".into(),
+        json!({
+            "http://schemas.openid.net/event/backchannel-logout": {}
+        }),
+    );
+    if let Some(sub) = sub {
+        claims.insert("sub".into(), json!(sub));
+    }
+    if let Some(sid) = sid {
+        claims.insert("sid".into(), json!(sid));
+    }
+
+    let header = Header::default(); // HS256
+    let key = EncodingKey::from_secret(jwt_secret.as_bytes());
+    encode(&header, &claims, &key).map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))
+}
+
+/// Send back-channel logout tokens to all clients that have
+/// `backchannel_logout_uri` configured.
+async fn send_backchannel_logout_tokens(
+    storage: &DynStorage,
+    issuer: &str,
+    sub: Option<&str>,
+    sid: Option<&str>,
+    jwt_secret: &str,
+) {
+    let clients = match storage.list_all_clients().await {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    let http_client = match awc::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .finish()
+        .try_into_http_client()
+    {
+        Ok(c) => c,
+        Err(_) => {
+            // Fall back to basic client construction if try_into fails.
+            // Use a simple awc::Client directly.
+            send_backchannel_logout_tokens_awc(storage, issuer, sub, sid, jwt_secret).await;
+            return;
+        }
+    };
+
+    drop(http_client);
+    send_backchannel_logout_tokens_awc(storage, issuer, sub, sid, jwt_secret).await;
+}
+
+/// AWC-based back-channel logout sender.
+async fn send_backchannel_logout_tokens_awc(
+    storage: &DynStorage,
+    issuer: &str,
+    sub: Option<&str>,
+    sid: Option<&str>,
+    jwt_secret: &str,
+) {
+    let clients = match storage.list_all_clients().await {
+        Ok(c) => c,
+        Err(_) => return,
+    };
+
+    let http_client = awc::Client::default();
+
+    for client in &clients {
+        if client.backchannel_logout_uri.is_empty() {
+            continue;
+        }
+        // Build the logout_token JWT.
+        let eff_sid = if client.backchannel_logout_session_required {
+            sid
+        } else {
+            None
+        };
+        let token = match build_logout_token(
+            issuer,
+            &client.client_id,
+            sub,
+            eff_sid,
+            jwt_secret,
+        ) {
+            Ok(t) => t,
+            Err(_) => continue,
+        };
+
+        // POST the logout_token as application/x-www-form-urlencoded.
+        let _ = http_client
+            .post(&client.backchannel_logout_uri)
+            .insert_header(("Content-Type", "application/x-www-form-urlencoded"))
+            .send_body(format!("logout_token={}", token))
+            .await;
+    }
+}
+
+/// Build an HTML page containing iframes for front-channel logout.
+fn build_frontchannel_logout_page(
+    storage_clients: &[oauth2_core::Client],
+    issuer: &str,
+    sid: Option<&str>,
+    post_logout_redirect: Option<&str>,
+    state: Option<&str>,
+) -> String {
+    let mut iframes = String::new();
+    for client in storage_clients {
+        if client.frontchannel_logout_uri.is_empty() {
+            continue;
+        }
+        let mut uri =
+            match Url::parse(&client.frontchannel_logout_uri) {
+                Ok(u) => u,
+                Err(_) => continue,
+            };
+        // OIDC Front-Channel Logout §3: iss and sid parameters.
+        uri.query_pairs_mut().append_pair("iss", issuer);
+        if client.frontchannel_logout_session_required {
+            if let Some(sid) = sid {
+                uri.query_pairs_mut().append_pair("sid", sid);
+            }
+        }
+        iframes.push_str(&format!(
+            r#"<iframe src="{}" style="display:none;" sandbox="allow-scripts allow-same-origin"></iframe>"#,
+            uri
+        ));
+        iframes.push('\n');
+    }
+
+    let redirect_script = if let Some(redirect_uri) = post_logout_redirect {
+        let mut url = redirect_uri.to_string();
+        if let Some(s) = state {
+            let sep = if url.contains('?') { '&' } else { '?' };
+            url = format!("{}{}state={}", url, sep, s);
+        }
+        format!(
+            r#"<script>setTimeout(function(){{ window.location.href = "{}"; }}, 2000);</script>"#,
+            url
+        )
+    } else {
+        String::new()
+    };
+
+    format!(
+        r#"<!DOCTYPE html>
+<html>
+<head><title>Logging out...</title></head>
+<body>
+<p>Logging out...</p>
+{}
+{}
+</body>
+</html>"#,
+        iframes, redirect_script
+    )
+}
+
 /// OIDC RP-Initiated Logout endpoint.
 ///
-/// Current behavior:
-/// - Always terminates the local user session.
-/// - If `id_token_hint` is present, validate it with signature verification,
-///   verify `aud` matches a registered client, and revoke tokens for the `sub` user.
-/// - Optionally redirects to a registered `post_logout_redirect_uri`.
-/// - Preserves `state` by appending it as a query parameter to the redirect URI.
+/// Implements:
+/// - OIDC RP-Initiated Logout 1.0
+/// - OIDC Back-Channel Logout 1.0 (sends logout_token to registered URIs)
+/// - OIDC Front-Channel Logout 1.0 (renders iframes for registered URIs)
 pub async fn logout(
     query: web::Query<LogoutQuery>,
     session: Session,
     storage: web::Data<DynStorage>,
     oidc: web::Data<OidcConfig>,
 ) -> Result<HttpResponse, OAuth2Error> {
+    let mut sub: Option<String> = None;
+    let sid: Option<String> = query.sid.clone().or_else(|| {
+        // Derive session ID from session if available.
+        session.get::<String>("session_id").unwrap_or(None)
+    });
+
     // If id_token_hint is provided, validate and extract claims.
     if let Some(ref id_token_hint) = query.id_token_hint {
-        // Validate the id_token_hint with signature verification.
         let mut validation = jsonwebtoken::Validation::default();
-        // ID tokens use the issuer as audience in some flows, and client_id
-        // in others; we verify aud against registered clients below instead.
         validation.validate_aud = false;
         validation.set_issuer(&[&oidc.issuer]);
 
@@ -91,7 +277,6 @@ pub async fn logout(
             jsonwebtoken::decode::<serde_json::Value>(id_token_hint, &decoding_key, &validation);
 
         if let Ok(token_data) = token_result {
-            // Verify aud matches a registered client (handles string or array).
             let audiences = extract_audiences(&serde_json::Value::Object(
                 token_data.claims.as_object().cloned().unwrap_or_default(),
             ));
@@ -111,17 +296,46 @@ pub async fn logout(
                 }
             }
 
-            // Use sub to revoke all tokens for the user via targeted storage operation.
-            if let Some(sub) = token_data.claims.get("sub").and_then(|v| v.as_str()) {
-                let _ = storage.revoke_tokens_by_user_id(sub).await;
+            if let Some(s) = token_data.claims.get("sub").and_then(|v| v.as_str()) {
+                sub = Some(s.to_string());
+                let _ = storage.revoke_tokens_by_user_id(s).await;
             }
         }
-        // If validation fails, we still purge the session (best-effort).
     }
 
     // Invalidate local session.
     session.purge();
 
+    // --- Back-channel logout: best-effort delivery to all registered clients ---
+    send_backchannel_logout_tokens_awc(
+        storage.get_ref(),
+        &oidc.issuer,
+        sub.as_deref(),
+        sid.as_deref(),
+        &oidc.jwt_secret,
+    )
+    .await;
+
+    // --- Front-channel logout: if any client has frontchannel_logout_uri, render iframes ---
+    let clients = storage.list_all_clients().await.unwrap_or_default();
+    let has_frontchannel = clients
+        .iter()
+        .any(|c| !c.frontchannel_logout_uri.is_empty());
+
+    if has_frontchannel {
+        let html = build_frontchannel_logout_page(
+            &clients,
+            &oidc.issuer,
+            sid.as_deref(),
+            query.post_logout_redirect_uri.as_deref(),
+            query.state.as_deref(),
+        );
+        return Ok(HttpResponse::Ok()
+            .content_type("text/html; charset=utf-8")
+            .body(html));
+    }
+
+    // --- Standard redirect flow (no front-channel) ---
     if let Some(post_logout_redirect_uri) = query.post_logout_redirect_uri.as_deref() {
         let mut parsed = validate_post_logout_redirect_uri_shape(post_logout_redirect_uri)?;
 

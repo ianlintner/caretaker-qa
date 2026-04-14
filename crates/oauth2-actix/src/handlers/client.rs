@@ -324,6 +324,19 @@ pub async fn update_client_configuration(
         .map(|v| serde_json::to_string(v).unwrap_or_default())
         .unwrap_or_default();
     client.jwks_uri = body.jwks_uri.clone().unwrap_or_default();
+    client.backchannel_logout_uri = body.backchannel_logout_uri.clone().unwrap_or_default();
+    client.backchannel_logout_session_required = body
+        .backchannel_logout_session_required
+        .unwrap_or(false);
+    client.frontchannel_logout_uri = body.frontchannel_logout_uri.clone().unwrap_or_default();
+    client.frontchannel_logout_session_required = body
+        .frontchannel_logout_session_required
+        .unwrap_or(false);
+    client.post_logout_redirect_uris = body
+        .post_logout_redirect_uris
+        .as_ref()
+        .map(|v| serde_json::to_string(v).unwrap_or_default())
+        .unwrap_or_default();
     client.updated_at = chrono::Utc::now();
 
     let updated = client_actor
