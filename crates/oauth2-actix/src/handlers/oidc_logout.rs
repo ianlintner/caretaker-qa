@@ -108,7 +108,8 @@ fn build_logout_token(
 
     let header = Header::default(); // HS256
     let key = EncodingKey::from_secret(jwt_secret.as_bytes());
-    encode(&header, &claims, &key).map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))
+    encode(&header, &claims, &key)
+        .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))
 }
 
 /// Send back-channel logout tokens to all clients that have
@@ -142,13 +143,7 @@ async fn send_backchannel_logout_tokens(
         } else {
             None
         };
-        let token = match build_logout_token(
-            issuer,
-            &client.client_id,
-            sub,
-            eff_sid,
-            jwt_secret,
-        ) {
+        let token = match build_logout_token(issuer, &client.client_id, sub, eff_sid, jwt_secret) {
             Ok(t) => t,
             Err(_) => continue,
         };
@@ -176,11 +171,10 @@ fn build_frontchannel_logout_page(
         if client.frontchannel_logout_uri.is_empty() {
             continue;
         }
-        let mut uri =
-            match Url::parse(&client.frontchannel_logout_uri) {
-                Ok(u) => u,
-                Err(_) => continue,
-            };
+        let mut uri = match Url::parse(&client.frontchannel_logout_uri) {
+            Ok(u) => u,
+            Err(_) => continue,
+        };
         // OIDC Front-Channel Logout §3: iss and sid parameters.
         uri.query_pairs_mut().append_pair("iss", issuer);
         if client.frontchannel_logout_session_required {

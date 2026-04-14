@@ -176,7 +176,12 @@ impl SqlxStorage {
                 policy_uri TEXT NOT NULL DEFAULT '',
                 tos_uri TEXT NOT NULL DEFAULT '',
                 jwks TEXT NOT NULL DEFAULT '',
-                jwks_uri TEXT NOT NULL DEFAULT ''
+                jwks_uri TEXT NOT NULL DEFAULT '',
+                backchannel_logout_uri TEXT NOT NULL DEFAULT '',
+                backchannel_logout_session_required INTEGER NOT NULL DEFAULT 0,
+                frontchannel_logout_uri TEXT NOT NULL DEFAULT '',
+                frontchannel_logout_session_required INTEGER NOT NULL DEFAULT 0,
+                post_logout_redirect_uris TEXT NOT NULL DEFAULT '[]'
             );
             "#,
         )

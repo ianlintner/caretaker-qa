@@ -184,8 +184,7 @@ macro_rules! logout_app {
                         )
                         .route(
                             "/check_session",
-                            web::get()
-                                .to(oauth2_actix::handlers::session::check_session_iframe),
+                            web::get().to(oauth2_actix::handlers::session::check_session_iframe),
                         ),
                 )
                 .service(web::scope("/.well-known").route(
@@ -205,14 +204,12 @@ macro_rules! logout_app {
 #[actix_web::test]
 async fn wave6_discovery_includes_session_management_fields() {
     let oidc = oidc_config();
-    let app = test::init_service(
-        App::new()
-            .app_data(web::Data::new(oidc))
-            .service(web::scope("/.well-known").route(
-                "/openid-configuration",
-                web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
-            )),
-    )
+    let app = test::init_service(App::new().app_data(web::Data::new(oidc)).service(
+        web::scope("/.well-known").route(
+            "/openid-configuration",
+            web::get().to(oauth2_actix::handlers::wellknown::openid_configuration),
+        ),
+    ))
     .await;
 
     let req = test::TestRequest::get()
@@ -238,13 +235,8 @@ async fn wave6_discovery_includes_session_management_fields() {
     assert_eq!(body["frontchannel_logout_session_supported"], true);
 
     // prompt values
-    let prompt_values = body["prompt_values_supported"]
-        .as_array()
-        .expect("array");
-    let prompts: Vec<&str> = prompt_values
-        .iter()
-        .map(|v| v.as_str().unwrap())
-        .collect();
+    let prompt_values = body["prompt_values_supported"].as_array().expect("array");
+    let prompts: Vec<&str> = prompt_values.iter().map(|v| v.as_str().unwrap()).collect();
     assert!(prompts.contains(&"consent"), "missing prompt=consent");
     assert!(
         prompts.contains(&"select_account"),
@@ -261,14 +253,12 @@ async fn wave6_discovery_includes_session_management_fields() {
 #[actix_web::test]
 async fn wave6_check_session_iframe_returns_html() {
     let oidc = oidc_config();
-    let app = test::init_service(
-        App::new()
-            .app_data(web::Data::new(oidc))
-            .service(web::scope("/oauth").route(
-                "/check_session",
-                web::get().to(oauth2_actix::handlers::session::check_session_iframe),
-            )),
-    )
+    let app = test::init_service(App::new().app_data(web::Data::new(oidc)).service(
+        web::scope("/oauth").route(
+            "/check_session",
+            web::get().to(oauth2_actix::handlers::session::check_session_iframe),
+        ),
+    ))
     .await;
 
     let req = test::TestRequest::get()
@@ -342,7 +332,10 @@ async fn wave6_logout_renders_frontchannel_iframes() {
         body.contains("https://example.com/frontchannel-logout"),
         "iframe must point to the client's frontchannel_logout_uri"
     );
-    assert!(body.contains("iss="), "iframe URI must include iss parameter");
+    assert!(
+        body.contains("iss="),
+        "iframe URI must include iss parameter"
+    );
 }
 
 /// OIDC RP-Initiated Logout: post_logout_redirect_uri must be checked against
@@ -376,12 +369,7 @@ async fn wave6_logout_accepts_registered_post_logout_redirect_uri() {
 
     // Should redirect (302) to the registered URI.
     assert_eq!(resp.status(), 302);
-    let location = resp
-        .headers()
-        .get("Location")
-        .unwrap()
-        .to_str()
-        .unwrap();
+    let location = resp.headers().get("Location").unwrap().to_str().unwrap();
     assert!(location.starts_with("https://example.com/logged-out"));
 }
 
@@ -478,12 +466,7 @@ async fn wave6_prompt_consent_proceeds_after_auto_approve() {
         302,
         "prompt=consent should succeed with auto-approve"
     );
-    let location = resp
-        .headers()
-        .get("Location")
-        .unwrap()
-        .to_str()
-        .unwrap();
+    let location = resp.headers().get("Location").unwrap().to_str().unwrap();
     assert!(
         location.contains("code="),
         "redirect must contain authorization code"
@@ -538,12 +521,7 @@ async fn wave6_prompt_select_account_forces_reauth() {
 
     // prompt=select_account forces login, should redirect to login page.
     assert_eq!(resp.status(), 302);
-    let location = resp
-        .headers()
-        .get("Location")
-        .unwrap()
-        .to_str()
-        .unwrap();
+    let location = resp.headers().get("Location").unwrap().to_str().unwrap();
     assert!(
         location.contains("/auth/login"),
         "prompt=select_account must redirect to login"
@@ -563,8 +541,7 @@ async fn wave6_client_registration_includes_logout_fields() {
         .expect("storage");
     storage.init().await.expect("init");
 
-    let client_actor =
-        oauth2_actix::actors::ClientActor::new(storage.clone()).start();
+    let client_actor = oauth2_actix::actors::ClientActor::new(storage.clone()).start();
 
     let app = test::init_service(
         App::new()
@@ -594,11 +571,7 @@ async fn wave6_client_registration_includes_logout_fields() {
         .set_json(&reg_body)
         .to_request();
     let resp = test::call_service(&app, req).await;
-    assert_eq!(
-        resp.status(),
-        201,
-        "dynamic registration should succeed"
-    );
+    assert_eq!(resp.status(), 201, "dynamic registration should succeed");
 
     let body: Value = test::read_body_json(resp).await;
     assert_eq!(
