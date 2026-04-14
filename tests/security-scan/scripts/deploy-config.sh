@@ -33,7 +33,7 @@ _free_port() {
 if ! kind get clusters 2>/dev/null | grep -qx "${CLUSTER_NAME}"; then
   echo "==> Creating KinD cluster (${CLUSTER_NAME})" >&2
   mkdir -p "$(dirname "${KUBECONFIG}")"
-  kind create cluster --name "${CLUSTER_NAME}" --kubeconfig "${KUBECONFIG}"
+  kind create cluster --name "${CLUSTER_NAME}" --kubeconfig "${KUBECONFIG}" >&2
 fi
 
 kubectl --kubeconfig "${KUBECONFIG}" config use-context "kind-${CLUSTER_NAME}" >/dev/null
@@ -52,7 +52,7 @@ if [[ "${SKIP_IMAGE_BUILD}" != "1" ]]; then
   echo "==> Building image (${IMAGE_REF})" >&2
   docker build -t "${IMAGE_REF}" -f Dockerfile . 2>&1 | tail -5 >&2
 fi
-kind load docker-image "${IMAGE_REF}" --name "${CLUSTER_NAME}" 2>/dev/null || true
+kind load docker-image "${IMAGE_REF}" --name "${CLUSTER_NAME}" >/dev/null 2>&1 || true
 
 # Clean namespace — wait for full deletion before recreating to avoid Terminating races
 _kubectl delete namespace "${NAMESPACE}" --ignore-not-found 2>/dev/null || true
@@ -61,30 +61,30 @@ for _ in $(seq 1 "${_ns_wait_iters}"); do
   _kubectl get namespace "${NAMESPACE}" >/dev/null 2>&1 || break
   sleep 2
 done
-_kubectl create namespace "${NAMESPACE}"
+_kubectl create namespace "${NAMESPACE}" >&2
 
 # Deploy
 echo "==> Deploying config: ${CONFIG_NAME}" >&2
-kustomize build "${KUSTOMIZE_DIR}" | _kubectl apply -n "${NAMESPACE}" -f -
-_kubectl delete job flyway-migration -n "${NAMESPACE}" --ignore-not-found 2>/dev/null || true
-kustomize build "${KUSTOMIZE_DIR}" | _kubectl apply -n "${NAMESPACE}" -f -
+kustomize build "${KUSTOMIZE_DIR}" | _kubectl apply -n "${NAMESPACE}" -f - >&2
+_kubectl delete job flyway-migration -n "${NAMESPACE}" --ignore-not-found >/dev/null 2>&1 || true
+kustomize build "${KUSTOMIZE_DIR}" | _kubectl apply -n "${NAMESPACE}" -f - >&2
 
 # Wait for postgres
 echo "==> Waiting for Postgres" >&2
-_kubectl rollout status statefulset/postgres -n "${NAMESPACE}" --timeout=240s
+_kubectl rollout status statefulset/postgres -n "${NAMESPACE}" --timeout=240s >&2
 
 # Wait for migration
 echo "==> Waiting for migrations" >&2
-if ! _kubectl wait --for=condition=complete job/flyway-migration -n "${NAMESPACE}" --timeout=360s; then
+if ! _kubectl wait --for=condition=complete job/flyway-migration -n "${NAMESPACE}" --timeout=360s >&2; then
   echo "Migration failed" >&2
   _kubectl logs -n "${NAMESPACE}" -l job-name=flyway-migration -c flyway --tail=100 >&2 || true
   exit 1
 fi
 
 # Restart deployment for clean start
-_kubectl rollout restart deployment/oauth2-server -n "${NAMESPACE}"
+_kubectl rollout restart deployment/oauth2-server -n "${NAMESPACE}" >&2
 echo "==> Waiting for oauth2-server" >&2
-if ! _kubectl rollout status deployment/oauth2-server -n "${NAMESPACE}" --timeout=240s; then
+if ! _kubectl rollout status deployment/oauth2-server -n "${NAMESPACE}" --timeout=240s >&2; then
   echo "Deployment failed" >&2
   _kubectl describe pods -n "${NAMESPACE}" >&2 || true
   _kubectl logs deployment/oauth2-server -n "${NAMESPACE}" --tail=100 >&2 || true
