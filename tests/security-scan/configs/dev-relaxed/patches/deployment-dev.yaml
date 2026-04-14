@@ -12,5 +12,3 @@ spec:
               value: "1"
             - name: OAUTH2_PUBLIC_INTROSPECTION
               value: "1"
-            - name: RUST_LOG
-              value: "debug"

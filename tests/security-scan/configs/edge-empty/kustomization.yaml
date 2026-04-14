@@ -13,6 +13,7 @@ patches:
   - path: patches/delete-hpa.yaml
   - path: patches/delete-postgres-pvc.yaml
   - path: patches/secret-empty.yaml
+  - path: patches/configmap-empty.yaml
   - target:
       group: apps
       version: v1

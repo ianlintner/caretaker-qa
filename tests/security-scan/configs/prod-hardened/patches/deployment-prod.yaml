@@ -10,5 +10,3 @@ spec:
           env:
             - name: OAUTH2_ALLOWED_ORIGINS
               value: "http://localhost:3000"
-            - name: RUST_LOG
-              value: "info"

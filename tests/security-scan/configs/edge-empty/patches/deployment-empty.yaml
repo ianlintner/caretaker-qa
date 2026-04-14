@@ -7,6 +7,3 @@ spec:
     spec:
       containers:
         - name: oauth2-server
-          env:
-            - name: RUST_LOG
-              value: "debug"
