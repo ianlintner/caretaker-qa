@@ -189,3 +189,28 @@ data:
     -- Add token_endpoint_auth_method to support public clients (RFC 7591 §2).
     -- Default to 'client_secret_basic' for all existing clients.
     ALTER TABLE clients ADD COLUMN token_endpoint_auth_method TEXT NOT NULL DEFAULT 'client_secret_basic';
+
+  V13__add_rfc7591_client_metadata.sql: |
+    -- RFC 7591 / RFC 7592: Dynamic Client Registration metadata fields
+    ALTER TABLE clients ADD COLUMN registration_access_token TEXT NOT NULL DEFAULT '';
+    ALTER TABLE clients ADD COLUMN response_types TEXT NOT NULL DEFAULT '["code"]';
+    ALTER TABLE clients ADD COLUMN contacts TEXT NOT NULL DEFAULT '';
+    ALTER TABLE clients ADD COLUMN logo_uri TEXT NOT NULL DEFAULT '';
+    ALTER TABLE clients ADD COLUMN client_uri TEXT NOT NULL DEFAULT '';
+    ALTER TABLE clients ADD COLUMN policy_uri TEXT NOT NULL DEFAULT '';
+    ALTER TABLE clients ADD COLUMN tos_uri TEXT NOT NULL DEFAULT '';
+
+    -- RFC 7523: JWT client authentication keys
+    ALTER TABLE clients ADD COLUMN jwks TEXT NOT NULL DEFAULT '';
+    ALTER TABLE clients ADD COLUMN jwks_uri TEXT NOT NULL DEFAULT '';
+
+  V14__add_resource_to_auth_codes.sql: |
+    -- RFC 8707: Resource Indicators — store the requested resource URI on authorization codes
+    -- so it can be threaded through to the access token's audience claim.
+    ALTER TABLE authorization_codes ADD COLUMN resource TEXT;
+
+  V15__add_wave4_fields_to_auth_codes.sql: |
+    -- Wave 4: RFC 9396 (RAR) + OIDC Core §5.5 (Claims Request)
+    -- These columns are nullable so existing rows continue to read as NULL.
+    ALTER TABLE authorization_codes ADD COLUMN authorization_details TEXT;
+    ALTER TABLE authorization_codes ADD COLUMN claims_request TEXT;

@@ -67,6 +67,7 @@ impl ResponseError for OAuth2Error {
         match self.error.as_str() {
             "invalid_client" => StatusCode::UNAUTHORIZED,
             "access_denied" => StatusCode::FORBIDDEN,
+            "server_error" => StatusCode::INTERNAL_SERVER_ERROR,
             _ => StatusCode::BAD_REQUEST,
         }
     }
