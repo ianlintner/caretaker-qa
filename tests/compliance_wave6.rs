@@ -17,6 +17,7 @@ use oauth2_actix::actors::TokenActorPool;
 use oauth2_actix::handlers::wellknown::OidcConfig;
 use oauth2_core::{Client, User};
 use oauth2_observability::Metrics;
+use oauth2_ports::DynStorage;
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -68,6 +69,7 @@ async fn setup_context(
     TokenActorPool,
     Addr<oauth2_actix::actors::ClientActor>,
     Addr<oauth2_actix::actors::AuthActor>,
+    DynStorage,
     String,
     Metrics,
     OidcConfig,
@@ -110,6 +112,7 @@ async fn setup_context(
         token_pool,
         client_actor,
         auth_actor,
+        storage,
         jwt_secret,
         metrics,
         oidc_config,
@@ -153,7 +156,7 @@ fn frontchannel_client() -> Client {
 /// Build a test app with session middleware and logout/session endpoints.
 macro_rules! logout_app {
     ($token_actor:expr, $client_actor:expr, $auth_actor:expr,
-     $jwt_secret:expr, $metrics:expr, $oidc_config:expr) => {
+     $storage:expr, $jwt_secret:expr, $metrics:expr, $oidc_config:expr) => {
         test::init_service(
             App::new()
                 .wrap(SessionMiddleware::new(
@@ -164,6 +167,7 @@ macro_rules! logout_app {
                 .app_data(web::Data::new($token_actor))
                 .app_data(web::Data::new($client_actor))
                 .app_data(web::Data::new($auth_actor))
+                .app_data(web::Data::new($storage))
                 .app_data(web::Data::new($jwt_secret))
                 .app_data(web::Data::new($metrics))
                 .app_data(web::Data::new($oidc_config))
@@ -304,12 +308,13 @@ async fn wave6_check_session_iframe_returns_html() {
 #[actix_web::test]
 async fn wave6_logout_renders_frontchannel_iframes() {
     let client = frontchannel_client();
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+    let (token_actor, client_actor, auth_actor, storage, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let app = logout_app!(
         token_actor,
         client_actor,
         auth_actor,
+        storage,
         jwt_secret,
         metrics,
         oidc_config
@@ -345,12 +350,13 @@ async fn wave6_logout_renders_frontchannel_iframes() {
 #[actix_web::test]
 async fn wave6_logout_accepts_registered_post_logout_redirect_uri() {
     let client = backchannel_client();
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+    let (token_actor, client_actor, auth_actor, storage, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let app = logout_app!(
         token_actor,
         client_actor,
         auth_actor,
+        storage,
         jwt_secret,
         metrics,
         oidc_config
@@ -383,12 +389,13 @@ async fn wave6_logout_accepts_registered_post_logout_redirect_uri() {
 #[actix_web::test]
 async fn wave6_logout_rejects_unregistered_post_logout_redirect_uri() {
     let client = backchannel_client();
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+    let (token_actor, client_actor, auth_actor, storage, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let app = logout_app!(
         token_actor,
         client_actor,
         auth_actor,
+        storage,
         jwt_secret,
         metrics,
         oidc_config
@@ -431,13 +438,14 @@ async fn wave6_prompt_consent_proceeds_after_auto_approve() {
     );
     client.token_endpoint_auth_method = "client_secret_basic".to_string();
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+    let (token_actor, client_actor, auth_actor, storage, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
 
     let app = logout_app!(
         token_actor,
         client_actor,
         auth_actor,
+        storage,
         jwt_secret,
         metrics,
         oidc_config
@@ -495,12 +503,13 @@ async fn wave6_prompt_select_account_forces_reauth() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+    let (token_actor, client_actor, auth_actor, storage, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let app = logout_app!(
         token_actor,
         client_actor,
         auth_actor,
+        storage,
         jwt_secret,
         metrics,
         oidc_config
@@ -560,6 +569,7 @@ async fn wave6_client_registration_includes_logout_fields() {
     let app = test::init_service(
         App::new()
             .app_data(web::Data::new(client_actor))
+            .app_data(web::Data::new(oidc_config()))
             .service(web::scope("/connect").route(
                 "/register",
                 web::post().to(oauth2_actix::handlers::client::dynamic_register),
@@ -621,12 +631,13 @@ async fn wave6_simple_logout_returns_ok() {
         "test".to_string(),
     );
 
-    let (token_actor, client_actor, auth_actor, jwt_secret, metrics, oidc_config) =
+    let (token_actor, client_actor, auth_actor, storage, jwt_secret, metrics, oidc_config) =
         setup_context(client).await;
     let app = logout_app!(
         token_actor,
         client_actor,
         auth_actor,
+        storage,
         jwt_secret,
         metrics,
         oidc_config
