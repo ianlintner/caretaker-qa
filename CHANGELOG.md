@@ -19,4 +19,6 @@
 - chore: update caretaker to v0.2.1 and sync CI workflow templates (#102)
 - chore: improve CLAUDE.md with Karpathy-inspired behavioral guidelines for AI coding agents (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) (#104)
 - fix: upgrade `rustls-webpki` 0.103.10 → 0.103.12 (RUSTSEC-2026-0098: URI name constraints bypass; RUSTSEC-2026-0099: wildcard certificate name constraint bypass) (#108)
+- chore: upgrade caretaker from 0.2.1 to 0.4.0 — updates orchestrator workflow, agent instruction templates, and CI pin (#110)
+- docs: reconcile CHANGELOG — 2026-W16, adding expanded descriptions for PRs #58–#110 (#111)
 
