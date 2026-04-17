@@ -1,6 +1,5 @@
-## [2026-W16] — 2026-04-16
+## [2026-W16] — 2026-04-17
 
-- docs: weekly documentation reconciliation (2026-04-09) — client auth for introspection/revocation, event ingest bearer token, database pool config (#58)
 - docs: weekly reconciliation 2026-04-09 — client auth defaults, revoke example, benchmark CI (#60)
 - feat: add LLM-driven security scanning framework — kustomize K8s config variants (prod-hardened, dev-relaxed, misconfig), OAuth2 flow/timing/entropy/error-leakage scanners, CI validation workflow (#61)
 - fix: restore Semgrep code scanning workflow using modern `semgrep/semgrep` container with SARIF upload to GitHub code scanning (#62)
@@ -17,8 +16,9 @@
 - security: replace `rand::ThreadRng` with `StdRng::from_os_rng()` in OAuth token/code generation paths to eliminate ThreadRng unsoundness under reentrancy (#98)
 - fix: move Semgrep `nosemgrep` suppression annotations onto flagged lines — resolves 20 previously un-suppressed code scanning alerts (#100)
 - chore: update caretaker to v0.2.1 and sync CI workflow templates (#102)
-- chore: improve CLAUDE.md with Karpathy-inspired behavioral guidelines for AI coding agents (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) (#104)
+- chore: improve `CLAUDE.md` with Karpathy-inspired behavioral guidelines for AI coding agents (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) (#104)
 - fix: upgrade `rustls-webpki` 0.103.10 → 0.103.12 (RUSTSEC-2026-0098: URI name constraints bypass; RUSTSEC-2026-0099: wildcard certificate name constraint bypass) (#108)
 - chore: upgrade caretaker from 0.2.1 to 0.4.0 — updates orchestrator workflow, agent instruction templates, and CI pin (#110)
-- docs: reconcile CHANGELOG — 2026-W16, adding expanded descriptions for PRs #58–#110 (#111)
+- docs: reconcile CHANGELOG — 2026-W16, adding expanded descriptions for PRs #60–#110 (#111)
+- docs: reconcile CHANGELOG — 2026-W16, consolidate duplicate sections and expand cryptic titles (#112)
 
