@@ -399,13 +399,20 @@ impl Storage for MongoStorage {
 
     async fn list_all_clients(&self) -> Result<Vec<Client>, OAuth2Error> {
         use futures::TryStreamExt;
+        // Sort application-side: CosmosDB for MongoDB rejects DB-level ORDER BY on
+        // fields not in its indexing policy, and silently ignores create_index calls
+        // for those fields.
         let cursor = self
             .clients
             .find(doc! {})
-            .sort(doc! { "created_at": -1 })
             .await
             .map_err(Self::mongo_err_to_oauth)?;
-        cursor.try_collect().await.map_err(Self::mongo_err_to_oauth)
+        let mut clients: Vec<Client> = cursor
+            .try_collect()
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+        clients.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        Ok(clients)
     }
 
     async fn list_all_users(&self) -> Result<Vec<User>, OAuth2Error> {
@@ -413,10 +420,14 @@ impl Storage for MongoStorage {
         let cursor = self
             .users
             .find(doc! {})
-            .sort(doc! { "created_at": -1 })
             .await
             .map_err(Self::mongo_err_to_oauth)?;
-        cursor.try_collect().await.map_err(Self::mongo_err_to_oauth)
+        let mut users: Vec<User> = cursor
+            .try_collect()
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+        users.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        Ok(users)
     }
 
     async fn list_all_tokens(&self) -> Result<Vec<Token>, OAuth2Error> {
@@ -424,11 +435,16 @@ impl Storage for MongoStorage {
         let cursor = self
             .tokens
             .find(doc! {})
-            .sort(doc! { "created_at": -1 })
-            .limit(200)
             .await
             .map_err(Self::mongo_err_to_oauth)?;
-        cursor.try_collect().await.map_err(Self::mongo_err_to_oauth)
+        let mut tokens: Vec<Token> = cursor
+            .try_collect()
+            .await
+            .map_err(Self::mongo_err_to_oauth)?;
+        tokens.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        // Match the SQLx 200-token cap
+        tokens.truncate(200);
+        Ok(tokens)
     }
 
     async fn healthcheck(&self) -> Result<(), OAuth2Error> {
