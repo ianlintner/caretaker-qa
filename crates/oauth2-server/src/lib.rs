@@ -979,7 +979,7 @@ pub async fn run() -> std::io::Result<()> {
                     // external files or converted to nonce/hash-based CSP.
                     // `style-src` also retains 'unsafe-inline' for
                     // Tailwind utility classes.
-                    .add(("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")),
+                    .add(("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")),
             )
             .wrap(cors)
             .wrap(oauth2_observability::actix::MetricsMiddleware::new(
