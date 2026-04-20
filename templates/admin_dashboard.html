@@ -614,8 +614,11 @@
           </div>
         </div>
 
-        <!-- Rotate modal -->
-        <div x-show="showRotateModal" class="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50">
+        <!-- Rotate modal — gated on page AND showRotateModal so fixed positioning can't escape parent display:none -->
+        <div x-show="$store.router.page === 'keys' && showRotateModal"
+             @click.self="showRotateModal = false"
+             @keydown.escape.window="showRotateModal = false"
+             class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
             <h3 class="font-semibold text-slate-800 dark:text-slate-200">Rotate Signing Key</h3>
             <div class="space-y-3 text-sm">
