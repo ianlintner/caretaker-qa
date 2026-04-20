@@ -581,7 +581,7 @@
           <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
             <h2 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mr-auto">JWT Signing Keys</h2>
             <a href="/.well-known/jwks.json" target="_blank" class="btn btn-secondary text-xs">JWKS →</a>
-            <button @click="showRotateModal = true" class="btn btn-primary text-xs">Rotate Key</button>
+            <button @click="$store.router.showRotateModal = true" class="btn btn-primary text-xs">Rotate Key</button>
           </div>
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
@@ -614,30 +614,6 @@
           </div>
         </div>
 
-        <!-- Rotate modal — gated on page AND showRotateModal so fixed positioning can't escape parent display:none -->
-        <div x-show="$store.router.page === 'keys' && showRotateModal"
-             @click.self="showRotateModal = false"
-             @keydown.escape.window="showRotateModal = false"
-             class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
-            <h3 class="font-semibold text-slate-800 dark:text-slate-200">Rotate Signing Key</h3>
-            <div class="space-y-3 text-sm">
-              <div>
-                <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Algorithm</label>
-                <select x-model="rotateAlgorithm" class="select w-full"><option>RS256</option><option>HS256</option></select>
-              </div>
-              <div>
-                <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Grace period (hours)</label>
-                <input type="number" x-model="rotateGrace" min="1" max="720" class="input w-full">
-              </div>
-              <p class="text-xs text-slate-400">Old keys remain valid during the grace period so existing tokens can still be verified.</p>
-            </div>
-            <div class="flex justify-end gap-2">
-              <button @click="showRotateModal = false" class="btn btn-secondary">Cancel</button>
-              <button @click="rotate()" :disabled="rotating" class="btn btn-primary" x-text="rotating ? 'Rotating…' : 'Rotate'"></button>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- ══ Metrics ═════════════════════════════════════════════════════ -->
@@ -757,6 +733,32 @@
     </footer>
   </div><!-- /main column -->
 </div><!-- /layout -->
+
+<!-- ══ Rotate Signing Key modal — at body level so position:fixed is never inside a display:none parent ══ -->
+<div style="display:none"
+     x-show="$store.router.page === 'keys' && $store.router.showRotateModal"
+     @click.self="$store.router.showRotateModal = false"
+     @keydown.escape.window="$store.router.showRotateModal = false"
+     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+  <div x-data="rotateModalData()" class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+    <h3 class="font-semibold text-slate-800 dark:text-slate-200">Rotate Signing Key</h3>
+    <div class="space-y-3 text-sm">
+      <div>
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Algorithm</label>
+        <select x-model="rotateAlgorithm" class="select w-full"><option>RS256</option><option>HS256</option></select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Grace period (hours)</label>
+        <input type="number" x-model="rotateGrace" min="1" max="720" class="input w-full">
+      </div>
+      <p class="text-xs text-slate-400">Old keys remain valid during the grace period so existing tokens can still be verified.</p>
+    </div>
+    <div class="flex justify-end gap-2">
+      <button @click="$store.router.showRotateModal = false" class="btn btn-secondary">Cancel</button>
+      <button @click="rotate()" :disabled="rotating" class="btn btn-primary" x-text="rotating ? 'Rotating…' : 'Rotate'"></button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>

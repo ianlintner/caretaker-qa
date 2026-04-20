@@ -155,6 +155,7 @@ document.addEventListener('alpine:init', () => {
   Alpine.store('router', {
     page: 'dashboard',
     sidebarOpen: false,
+    showRotateModal: false,
     init() {
       const path = window.location.pathname.replace('/admin', '').replace(/^\//, '');
       this.page = PAGE_ROUTES[path] || 'dashboard';
@@ -462,7 +463,6 @@ function keysPage() {
     rotating: false,
     rotateAlgorithm: 'RS256',
     rotateGrace: 24,
-    showRotateModal: false,
     error: null,
 
     async init() {
@@ -495,7 +495,7 @@ function keysPage() {
           }),
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Rotation failed');
-        this.showRotateModal = false;
+        Alpine.store('router').showRotateModal = false;
         await this.load();
       } catch (e) {
         alert(e.message);
@@ -506,6 +506,34 @@ function keysPage() {
     keyAge(created) {
       if (!created) return null;
       return Math.floor((Date.now() - new Date(created).getTime()) / 86400000);
+    },
+  };
+}
+
+// ─── Rotate modal (body-level, outside any x-show parent) ─────────────────────
+function rotateModalData() {
+  return {
+    rotating: false,
+    rotateAlgorithm: 'RS256',
+    rotateGrace: 24,
+
+    async rotate() {
+      this.rotating = true;
+      try {
+        const res = await fetch('/admin/api/keys/rotate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            algorithm: this.rotateAlgorithm,
+            grace_period_hours: parseInt(this.rotateGrace),
+          }),
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Rotation failed');
+        Alpine.store('router').showRotateModal = false;
+      } catch (e) {
+        alert(e.message);
+      }
+      this.rotating = false;
     },
   };
 }
