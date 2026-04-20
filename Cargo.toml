@@ -1,6 +1,6 @@
 [package]
 name = "rust_oauth2_server"
-version = "0.0.10"
+version = "0.1.0"
 edition = "2021"
 autolib = false
 authors = ["Ian Lintner"]

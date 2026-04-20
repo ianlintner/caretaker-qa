@@ -78,7 +78,7 @@ and the Actix actor model. Hosted in a Cargo workspace.
 
 - **Branch for active development:** `claude/oauth2-spec-audit-UheZ5`
 - **Authoritative roadmap:** `docs/oauth2-spec-audit.md`
-- **Crate version:** `0.0.10`
+- **Crate version:** `0.1.0`
 
 ---
 
