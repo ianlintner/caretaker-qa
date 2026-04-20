@@ -380,6 +380,7 @@ function makeGrid(endpoint, defaultSort = 'created_at', defaultDir = 'desc', def
 
     destroy() {
       if (this.refreshTimer) clearInterval(this.refreshTimer);
+      this.drawer = null;
     },
   };
 }

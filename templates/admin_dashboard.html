@@ -333,7 +333,7 @@
         </div>
 
         <!-- Client detail drawer -->
-        <div x-show="drawer" class="fixed inset-0 z-40 flex justify-end" @keydown.escape.window="closeDrawer()">
+        <div x-show="$store.router.page === 'clients' && drawer" class="fixed inset-0 z-40 flex justify-end" @keydown.escape.window="closeDrawer()">
           <div class="absolute inset-0 bg-black/40" @click="closeDrawer()"></div>
           <div class="relative w-full max-w-md bg-white dark:bg-slate-800 shadow-xl flex flex-col h-full"
                x-transition:enter="transition duration-250"
@@ -434,7 +434,7 @@
           </div>
         </div>
         <!-- Token drawer -->
-        <div x-show="drawer" class="fixed inset-0 z-40 flex justify-end" @keydown.escape.window="closeDrawer()">
+        <div x-show="$store.router.page === 'tokens' && drawer" class="fixed inset-0 z-40 flex justify-end" @keydown.escape.window="closeDrawer()">
           <div class="absolute inset-0 bg-black/40" @click="closeDrawer()"></div>
           <div class="relative w-full max-w-md bg-white dark:bg-slate-800 shadow-xl flex flex-col h-full"
                x-transition:enter="transition duration-250" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0">
