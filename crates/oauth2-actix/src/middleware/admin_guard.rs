@@ -7,9 +7,10 @@
 //! 2. **Session cookie** — `role == "admin"` in the session, or the user's
 //!    email matches `OAUTH2_ADMIN_EMAILS`. Intended for browser dashboard access.
 //!
-//! Unauthenticated requests redirect to `/auth/login`; authenticated but
-//! non-admin requests receive a 302 redirect to `OAUTH2_NON_ADMIN_REDIRECT`
-//! (defaults to `/profile`).
+//! Unauthenticated requests redirect to `/auth/login`. Authenticated but
+//! non-admin requests receive:
+//!   - JSON 403 `insufficient_permissions` for `/admin/api/*` paths
+//!   - 302 redirect to `/error?error=forbidden&error_code=403` for HTML paths
 
 use actix_session::SessionExt;
 use actix_web::{
@@ -133,16 +134,26 @@ where
             let is_admin = role == "admin" || is_admin_email(&email);
 
             if !is_admin {
-                let redirect_url = std::env::var("OAUTH2_NON_ADMIN_REDIRECT")
-                    .unwrap_or_else(|_| "/profile".to_string());
                 tracing::warn!(
                     username = %username,
                     email = %email,
-                    "Non-admin user attempted to access admin dashboard, redirecting"
+                    path = %req.path(),
+                    "Non-admin user attempted to access admin area"
                 );
-                let response = HttpResponse::Found()
-                    .append_header(("Location", redirect_url.as_str()))
-                    .finish();
+                let is_api = req.path().starts_with("/admin/api/");
+                let response = if is_api {
+                    HttpResponse::Forbidden().json(serde_json::json!({
+                        "error": "insufficient_permissions",
+                        "error_description": "Admin access required"
+                    }))
+                } else {
+                    HttpResponse::Found()
+                        .append_header((
+                            "Location",
+                            "/error?error=forbidden&error_description=Admin+access+required&error_code=403",
+                        ))
+                        .finish()
+                };
                 return Ok(req.into_response(response).map_into_right_body());
             }
 
