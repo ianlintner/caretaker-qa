@@ -3684,7 +3684,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-actix"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "actix",
  "actix-session",
@@ -3719,7 +3719,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-config"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "config",
  "hocon",
@@ -3730,7 +3730,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-core"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "actix-web",
  "aes-gcm",
@@ -3749,7 +3749,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-events"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "actix",
  "actix-rt",
@@ -3770,7 +3770,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-observability"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "actix-web",
  "async-trait",
@@ -3789,7 +3789,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-openapi"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "oauth2-core",
  "utoipa",
@@ -3797,7 +3797,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-ports"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "async-trait",
  "oauth2-core",
@@ -3825,7 +3825,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-server"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "actix",
  "actix-cors",
@@ -3856,7 +3856,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-social-login"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "actix-session",
  "actix-web",
@@ -3874,7 +3874,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-storage-factory"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "oauth2-core",
  "oauth2-observability",
@@ -3885,7 +3885,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-storage-mongo"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -3898,7 +3898,7 @@ dependencies = [
 
 [[package]]
 name = "oauth2-storage-sqlx"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4962,7 +4962,7 @@ dependencies = [
 
 [[package]]
 name = "rust_oauth2_server"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "actix",
  "actix-cors",

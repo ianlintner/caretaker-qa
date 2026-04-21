@@ -1,6 +1,6 @@
 [package]
 name = "oauth2-observability"
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Observability helpers (metrics + telemetry) for rust-oauth2-server"
