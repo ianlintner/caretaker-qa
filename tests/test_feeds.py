@@ -270,9 +270,7 @@ async def test_osv_severity_score_buckets() -> None:
                 "affected": [
                     {
                         "package": {"ecosystem": "PyPI", "name": "pkg"},
-                        "ranges": [
-                            {"events": [{"introduced": "0"}, {"fixed": "1.2.3"}]}
-                        ],
+                        "ranges": [{"events": [{"introduced": "0"}, {"fixed": "1.2.3"}]}],
                     }
                 ],
             },
@@ -287,12 +285,8 @@ async def test_osv_severity_score_buckets() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_ghsa_empty_response() -> None:
-    respx.get("https://api.github.com/advisories").mock(
-        return_value=httpx.Response(200, json=[])
-    )
-    adv = await fetch_ghsa(
-        datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC)
-    )
+    respx.get("https://api.github.com/advisories").mock(return_value=httpx.Response(200, json=[]))
+    adv = await fetch_ghsa(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
     assert adv == []
 
 
@@ -302,9 +296,7 @@ async def test_ghsa_unexpected_payload_shape() -> None:
     respx.get("https://api.github.com/advisories").mock(
         return_value=httpx.Response(200, json={"unexpected": "dict"})
     )
-    adv = await fetch_ghsa(
-        datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC)
-    )
+    adv = await fetch_ghsa(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
     assert adv == []
 
 
