@@ -59,3 +59,9 @@ spec:
               value: https://roauth2.cat-herding.net/auth/callback/github
             - name: OAUTH2_GOOGLE_REDIRECT_URI
               value: https://roauth2.cat-herding.net/auth/callback/google
+            # Comma-separated allowlist of admin emails. Users authenticated
+            # via social login whose email matches one of these addresses are
+            # treated as admins by the admin_guard middleware, regardless of
+            # the role stored on their user record.
+            - name: OAUTH2_ADMIN_EMAILS
+              value: lintner.ian@gmail.com
