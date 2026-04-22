@@ -1,20 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-
 bases:
   - ../../base
-
 labels:
   - pairs:
       environment: production
       app.kubernetes.io/instance: production
     includeSelectors: true
     includeTemplates: true
-
 patchesStrategicMerge:
   - observability-patch.yaml
-
 images:
   - name: docker.io/example/oauth2-server
     newName: docker.io/ianlintner068/oauth2-server
-    newTag: 0.7.0-mongo # {"$imagepolicy": "flux-system:oauth2-server:tag"}
+    newTag: 0.7.0 # {"$imagepolicy": "flux-system:oauth2-server:tag"}
