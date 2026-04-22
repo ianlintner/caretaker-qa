@@ -49,10 +49,13 @@ jobs:
         with:
           script: |
             const ev = context.eventName;
-            if (ev !== "issue_comment" && ev !== "pull_request_review") {
-              core.setOutput("should_run", "true");
-              return;
-            }
+            const botActors = new Set([
+              "the-care-taker[bot]",
+              "github-actions[bot]",
+              "copilot-swe-agent[bot]",
+              "anthropic-code-agent[bot]",
+              "copilot-pull-request-reviewer[bot]",
+            ]);
             const payload = context.payload || {};
             if (ev === "issue_comment") {
               const body = payload.comment?.body || "";
@@ -62,13 +65,6 @@ jobs:
                 return;
               }
               const actor = payload.comment?.user?.login || "";
-              const botActors = new Set([
-                "the-care-taker[bot]",
-                "github-actions[bot]",
-                "copilot-swe-agent[bot]",
-                "anthropic-code-agent[bot]",
-                "copilot-pull-request-reviewer[bot]",
-              ]);
               if (botActors.has(actor)) {
                 core.notice(`skip: bot-authored issue_comment from ${actor}`);
                 core.setOutput("should_run", "false");
@@ -79,6 +75,16 @@ jobs:
               const reviewer = payload.review?.user?.login || "";
               if (reviewer === "copilot-pull-request-reviewer[bot]") {
                 core.notice(`skip: pull_request_review by ${reviewer}`);
+                core.setOutput("should_run", "false");
+                return;
+              }
+            }
+            // Skip issues:labeled events that were triggered by caretaker
+            // itself to prevent feedback loops from its own labelling actions.
+            if (ev === "issues" && payload.action === "labeled") {
+              const sender = payload.sender?.login || "";
+              if (botActors.has(sender)) {
+                core.notice(`skip: issues:labeled triggered by bot ${sender}`);
                 core.setOutput("should_run", "false");
                 return;
               }
