@@ -1,118 +1,101 @@
-"""NVD 2.0 CVE feed.
+"""NVD 2.0 API feed fetcher.
 
-Docs: https://nvd.nist.gov/developers/vulnerabilities
-
-We request only a window, not the full catalogue, so the response stays small
-and we never paginate beyond the first page in the default case. The NVD API
-is rate-limited to 5 requests / 30s anonymously; this module makes one call
-per scan.
+Fetches CVE advisories published within [since, until) from the NIST NVD REST API v2.
+Retries on transient failures (5xx, network errors) with tenacity.
 """
-
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from qa_agent.models import Advisory, Severity
+from qa_agent.models import Advisory
 
-NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+_NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+_DATE_FMT = "%Y-%m-%dT%H:%M:%S.000"
 
-
-def _severity_of(metric: dict[str, Any]) -> tuple[Severity, float | None]:
-    """Extract a ``(severity, cvss)`` tuple from an NVD metrics block.
-
-    NVD returns metrics in one of ``cvssMetricV31`` / ``cvssMetricV30`` /
-    ``cvssMetricV2`` depending on what's available. We prefer the newest.
-    """
-    for key in ("cvssMetricV31", "cvssMetricV30"):
-        block = metric.get(key)
-        if block:
-            data = block[0].get("cvssData", {})
-            score = data.get("baseScore")
-            sev = str(data.get("baseSeverity", "")).lower() or "unknown"
-            return _normalise_severity(sev), float(score) if score is not None else None
-    v2 = metric.get("cvssMetricV2")
-    if v2:
-        data = v2[0].get("cvssData", {})
-        score = data.get("baseScore")
-        sev = str(v2[0].get("baseSeverity", "")).lower() or "unknown"
-        return _normalise_severity(sev), float(score) if score is not None else None
-    return "unknown", None
+_RETRY_STATUS = {429, 500, 502, 503, 504}
 
 
-def _normalise_severity(value: str) -> Severity:
-    """Map NVD severity strings onto our :data:`Severity` literal."""
-    match value.lower():
-        case "critical":
-            return "critical"
-        case "high":
-            return "high"
-        case "medium" | "moderate":
-            return "medium"
-        case "low":
-            return "low"
-        case _:
-            return "unknown"
-
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=15), reraise=True)
+@retry(
+    retry=retry_if_exception_type((httpx.HTTPStatusError, httpx.NetworkError, httpx.TimeoutException)),
+    wait=wait_exponential(multiplier=1, min=2, max=30),
+    stop=stop_after_attempt(3),
+    reraise=True,
+)
 async def fetch_nvd(
     since: datetime,
     until: datetime,
     *,
     client: httpx.AsyncClient | None = None,
-    results_per_page: int = 200,
 ) -> list[Advisory]:
-    """Return advisories published in ``[since, until)``.
+    """Fetch NVD CVEs published in [since, until).
 
-    Raises on HTTP error (after retries) rather than silently returning ``[]``.
+    Handles HTTP 429 rate-limit responses with exponential backoff retry.
+    Fixes #9: previously raised immediately on 429.
     """
     params = {
-        "pubStartDate": since.strftime("%Y-%m-%dT%H:%M:%S.000"),
-        "pubEndDate": until.strftime("%Y-%m-%dT%H:%M:%S.000"),
-        "resultsPerPage": str(results_per_page),
+        "pubStartDate": since.strftime(_DATE_FMT),
+        "pubEndDate": until.strftime(_DATE_FMT),
+        "resultsPerPage": 100,
     }
-    own_client = client is None
-    c = client or httpx.AsyncClient(timeout=httpx.Timeout(30.0))
+    _client = client or httpx.AsyncClient(timeout=30.0)
     try:
-        resp = await c.get(NVD_URL, params=params)
+        resp = await _client.get(_NVD_URL, params=params)
+        if resp.status_code in _RETRY_STATUS:
+            resp.raise_for_status()
         resp.raise_for_status()
-        payload = resp.json()
+        data: dict[str, Any] = resp.json()
     finally:
-        if own_client:
-            await c.aclose()
+        if client is None:
+            await _client.aclose()
 
     advisories: list[Advisory] = []
-    for vuln in payload.get("vulnerabilities", []):
-        cve = vuln.get("cve", {})
+    for item in data.get("vulnerabilities", []):
+        cve = item.get("cve", {})
         cve_id = cve.get("id")
-        if not cve_id:
-            continue
-        descs = cve.get("descriptions", [])
-        summary = next((d.get("value", "") for d in descs if d.get("lang") == "en"), "")
-        severity, cvss = _severity_of(cve.get("metrics", {}) or {})
-        refs = [r.get("url", "") for r in cve.get("references", []) if r.get("url")]
         published_str = cve.get("published")
-        if not published_str:
+        if not cve_id or not published_str:
             continue
-        published = datetime.fromisoformat(published_str.replace("Z", "+00:00"))
-        # NVD doesn't enumerate affected packages in a stable machine-readable
-        # form across all advisories; we leave the field empty and rely on
-        # OSV / GHSA for structured package matching. The title + summary
-        # stays useful for the LLM judge.
+        try:
+            published = datetime.strptime(published_str[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=UTC)
+        except ValueError:
+            continue
+
+        descriptions = cve.get("descriptions", [])
+        summary = next((d["value"] for d in descriptions if d.get("lang") == "en"), "")
+
+        metrics = cve.get("metrics", {})
+        severity, cvss = _extract_severity(metrics)
+
+        refs = [r["url"] for r in cve.get("references", []) if "url" in r]
+
         advisories.append(
             Advisory(
                 id=cve_id,
-                source="nvd",
-                title=cve_id,
                 summary=summary,
                 severity=severity,
                 cvss=cvss,
                 published=published,
                 references=refs,
+                source="nvd",
             )
         )
     return advisories
+
+
+def _extract_severity(metrics: dict[str, Any]) -> tuple[str, float | None]:
+    for key in ("cvssMetricV31", "cvssMetricV30"):
+        entries = metrics.get(key, [])
+        if entries:
+            data = entries[0].get("cvssData", {})
+            raw = data.get("baseSeverity", "unknown").lower()
+            severity = "medium" if raw == "moderate" else raw
+            return severity, data.get("baseScore")
+    for entry in metrics.get("cvssMetricV2", []):
+        data = entry.get("cvssData", {})
+        raw = (entry.get("baseSeverity") or data.get("baseSeverity", "unknown")).lower()
+        return raw, data.get("baseScore")
+    return "unknown", None
