@@ -21,7 +21,7 @@ executor:
   provider: auto
   foundry:
     enabled: true
-    model: azure_ai/gpt-4o
+    model: azure_ai/gpt-5.4
     allowed_task_types:
       - LINT_FAILURE
       - REVIEW_COMMENT
