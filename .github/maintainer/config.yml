@@ -1,0 +1,82 @@
+version: v1
+
+# caretaker-qa is itself a QA surface for caretaker. The config keeps most
+# advanced features ON (this is exactly where we want real traffic) but
+# keeps destructive actions gated behind labels.
+
+orchestrator:
+  schedule: "0 8 * * *"
+
+repos:
+  - owner: ianlintner
+    name: caretaker-qa
+
+llm:
+  claude_enabled: auto
+  claude_features:
+    - ci_log_analysis
+    - architectural_review
+
+executor:
+  provider: auto
+  foundry:
+    enabled: true
+    model: azure_ai/gpt-4o
+    allowed_task_types:
+      - LINT_FAILURE
+      - REVIEW_COMMENT
+    route_same_repo_only: true
+
+triage:
+  enabled: true
+  pr_triage: true
+  issue_triage: true
+  cascade: true
+  binary_only_paths: [".caretaker-memory.db"]
+  dry_run: false
+
+self_heal:
+  enabled: true
+  # Wave A3: deterministic-first fix ladder.
+  fix_ladder:
+    enabled: true
+    storm_cap_per_day: 8
+
+attribution:
+  enabled: true
+
+# Wave A5 guardrails default on — do not override.
+
+agentic:
+  # Readiness LLM runs in shadow; flip to enforce once eval clears the gate.
+  readiness:
+    mode: shadow
+    enforce_gate:
+      min_agreement_rate: 0.95
+  ci_triage:
+    mode: shadow
+  issue_triage:
+    mode: shadow
+  dispatch_guard:
+    mode: shadow
+
+dependency_agent:
+  bisector:
+    enabled: false  # part 1 only ships the parser; wait for part 2
+
+stale:
+  enabled: true
+  auto_close_stale_days: 30
+
+escalation:
+  targets: []
+  stale_days: 7
+  labels: ["maintainer:escalated"]
+
+fleet:
+  include_global_in_prompts: true
+  alerts:
+    enabled: false
+
+memory_store:
+  retrieval_enabled: true

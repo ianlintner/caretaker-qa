@@ -1,0 +1,56 @@
+# Watchlist — repos to match incoming advisories against.
+#
+# Each entry describes a public GitHub repo we want to track. The matcher
+# reads the repo's dependency manifest (pyproject.toml, package.json,
+# go.mod, Cargo.toml) and flags advisories whose affected package matches
+# a declared dependency. Topics help the LLM-judge stage prioritise news
+# that names a framework rather than a specific package.
+#
+# Shape:
+#   - owner: ianlintner
+#     repo: audio_engineer
+#     ecosystem: pypi | npm | go | cargo | actions
+#     topics: [audio, python, pytest]   # free-form, for LLM context
+#     # Optional: override which manifest file to parse.
+#     manifest: pyproject.toml
+
+repos:
+  # ── Caretaker fleet ─────────────────────────────────────────
+  - owner: ianlintner
+    repo: caretaker
+    ecosystem: pypi
+    topics: [automation, github-app, llm, fastapi, pydantic]
+  - owner: ianlintner
+    repo: audio_engineer
+    ecosystem: pypi
+    topics: [audio, dsp, python]
+  - owner: ianlintner
+    repo: python_dsa
+    ecosystem: pypi
+    topics: [algorithms, datastructures, python]
+  - owner: ianlintner
+    repo: kubernetes-apply-vscode
+    ecosystem: npm
+    topics: [vscode-extension, kubernetes, typescript]
+  - owner: ianlintner
+    repo: flashcards
+    ecosystem: pypi
+    topics: [education, spaced-repetition, python]
+  - owner: ianlintner
+    repo: Example-React-AI-Chat-App
+    ecosystem: npm
+    topics: [react, expo, ai, chat]
+
+  # ── Widely-used OSS (noise source + real coverage) ──────────
+  - owner: langchain-ai
+    repo: langchain
+    ecosystem: pypi
+    topics: [llm, agent-framework, python]
+  - owner: tiangolo
+    repo: fastapi
+    ecosystem: pypi
+    topics: [web, http, asgi, python]
+  - owner: axios
+    repo: axios
+    ecosystem: npm
+    topics: [http-client, javascript, typescript]
