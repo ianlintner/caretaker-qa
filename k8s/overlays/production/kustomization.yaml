@@ -13,8 +13,8 @@ labels:
 
 patchesStrategicMerge:
   - observability-patch.yaml
-  - postgres-pvc-patch.yaml
 
 images:
-  - name: docker.io/ianlintner068/oauth2-server
-    newTag: 0.7.0 # {"$imagepolicy": "flux-system:oauth2-server:tag"}
+  - name: docker.io/example/oauth2-server
+    newName: docker.io/ianlintner068/oauth2-server
+    newTag: 0.7.0-mongo # {"$imagepolicy": "flux-system:oauth2-server:tag"}
