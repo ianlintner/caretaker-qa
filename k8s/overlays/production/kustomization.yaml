@@ -10,6 +10,8 @@ labels:
     includeTemplates: true
 patchesStrategicMerge:
   - observability-patch.yaml
+  - deployment-csi-mount.yaml
+  - delete-base-secret.yaml
 images:
   - name: docker.io/example/oauth2-server
     newName: docker.io/ianlintner068/oauth2-server
