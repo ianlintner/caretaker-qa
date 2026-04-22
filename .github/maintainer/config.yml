@@ -9,10 +9,13 @@ orchestrator:
   dry_run: false
 
 llm:
-  # Explicit false — this repo uses Azure AI (LiteLLM) only; no direct
-  # Anthropic key. 'auto' probes for ANTHROPIC_API_KEY and fails the
-  # preflight otherwise. See caretaker issue #508.
+  # Azure AI via LiteLLM — no direct Anthropic SDK key. Setting provider
+  # to litellm stops doctor's ANTHROPIC_API_KEY probe. Setting
+  # claude_enabled="false" stops the feature-flag auto-probe too. See
+  # caretaker issue #508 for the related caretaker-self-doctor gap.
+  provider: litellm
   claude_enabled: "false"
+  default_model: azure_ai/gpt-5.4
 
 executor:
   provider: auto
