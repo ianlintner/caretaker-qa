@@ -9,10 +9,10 @@ orchestrator:
   dry_run: false
 
 llm:
-  claude_enabled: auto
-  claude_features:
-    - ci_log_analysis
-    - architectural_review
+  # Explicit false — this repo uses Azure AI (LiteLLM) only; no direct
+  # Anthropic key. 'auto' probes for ANTHROPIC_API_KEY and fails the
+  # preflight otherwise. See caretaker issue #508.
+  claude_enabled: "false"
 
 executor:
   provider: auto
