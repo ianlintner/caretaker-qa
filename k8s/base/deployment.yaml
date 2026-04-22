@@ -41,6 +41,16 @@ spec:
             - secretRef:
                 name: oauth2-server-secret
           env:
+            # Map the generic MONGODB_CONNECTION_STRING secret key onto the
+            # OAUTH2_DATABASE_URL env var the binary actually reads. The
+            # Dockerfile bakes in a sqlite default for OAUTH2_DATABASE_URL,
+            # so this override is required whenever the deployment backs
+            # onto MongoDB / Cosmos DB.
+            - name: OAUTH2_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: oauth2-server-secret
+                  key: MONGODB_CONNECTION_STRING
             - name: OAUTH2_SERVER_HOST
               valueFrom:
                 configMapKeyRef:
