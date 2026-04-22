@@ -44,3 +44,18 @@ spec:
               value: parentbased_always_on
             - name: OTEL_PROPAGATORS
               value: tracecontext,baggage
+            # Public issuer URL — used for the `iss` claim on tokens,
+            # the OIDC discovery document, and the default redirect_uri
+            # for social login providers. Must match the hostname behind
+            # the Istio ingress VirtualService.
+            - name: OAUTH2_PUBLIC_URL
+              value: https://roauth2.cat-herding.net
+            - name: OAUTH2_ISSUER_URL
+              value: https://roauth2.cat-herding.net
+            # Social login redirect URIs — must match what is registered
+            # on each provider's OAuth App (GitHub / Google). Do not
+            # change these without updating the provider configuration.
+            - name: OAUTH2_GITHUB_REDIRECT_URI
+              value: https://roauth2.cat-herding.net/auth/callback/github
+            - name: OAUTH2_GOOGLE_REDIRECT_URI
+              value: https://roauth2.cat-herding.net/auth/callback/google
