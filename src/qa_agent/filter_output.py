@@ -137,19 +137,46 @@ def _is_url(text: str) -> bool:
     return bool(_URL_SCHEME_RE.match(text.strip()))
 
 
+_DEFAULT_PORTS: dict[str, int] = {"http": 80, "https": 443}
+
+
+def _strip_default_port(scheme: str, netloc: str) -> str:
+    """Remove the port from *netloc* when it is the default for *scheme*.
+
+    e.g. ``example.com:443`` with scheme ``https`` → ``example.com``
+         ``example.com:8080`` with scheme ``https`` → ``example.com:8080``
+    """
+    if ":" not in netloc:
+        return netloc
+    host, _, port_str = netloc.rpartition(":")
+    try:
+        port = int(port_str)
+    except ValueError:
+        return netloc
+    if _DEFAULT_PORTS.get(scheme) == port:
+        return host
+    return netloc
+
+
 def _normalise(url: str) -> str:
     """Normalise *url* for mismatch comparison.
 
-    Only scheme and host are lowercased; path, query, and fragment retain
-    their original case because those components are case-sensitive for many
-    real-world URLs.  A single trailing slash on the path is stripped.
+    - Scheme and host are lowercased.
+    - Default ports (80 for http, 443 for https) are stripped so that
+      ``https://example.com/foo`` and ``https://example.com:443/foo`` compare
+      as equal and do not produce a false positive.
+    - Path, query, and fragment retain their original case because those
+      components are case-sensitive for many real-world URLs.
+    - A single trailing slash on the path is stripped.
     """
     url = url.strip()
     try:
         parsed = urlparse(url)
+        scheme = parsed.scheme.lower()
+        netloc = _strip_default_port(scheme, parsed.netloc.lower())
         normalised = parsed._replace(
-            scheme=parsed.scheme.lower(),
-            netloc=parsed.netloc.lower(),
+            scheme=scheme,
+            netloc=netloc,
             path=parsed.path.rstrip("/"),
         )
         return urlunparse(normalised)

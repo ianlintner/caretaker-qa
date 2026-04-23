@@ -195,3 +195,38 @@ def test_scheme_case_difference_is_not_a_mismatch() -> None:
     result = apply(payload)
     assert result == payload
     assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+# ---------------------------------------------------------------------------
+# Default-port normalisation
+# ---------------------------------------------------------------------------
+
+
+def test_https_default_port_443_not_a_mismatch() -> None:
+    """https://example.com:443/foo and https://example.com/foo are the same URL."""
+    with_port = "https://example.com:443/foo"
+    without_port = "https://example.com/foo"
+    payload = f"[{with_port}]({without_port})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_http_default_port_80_not_a_mismatch() -> None:
+    """http://example.com:80/foo and http://example.com/foo are the same URL."""
+    with_port = "http://example.com:80/foo"
+    without_port = "http://example.com/foo"
+    payload = f"[{with_port}]({without_port})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_non_default_port_is_still_a_mismatch() -> None:
+    """A non-default port (e.g. :8080) must still be flagged as a mismatch."""
+    display = "https://example.com:8080/foo"
+    href = "https://example.com/foo"
+    payload = f"[{display}]({href})"
+    result = apply(payload)
+    assert "[REDACTED DECEPTIVE LINK]" in result
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 1
