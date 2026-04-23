@@ -51,6 +51,20 @@ self_heal_agent:
 
 # Wave A5 guardrails default on — nothing to override.
 
+# Dual-path PR code reviewer. Defaults are fine for production; we
+# opt-in to polling here so already-ready PRs get reviewed on the
+# next scheduled or dispatched run, not only on webhook events.
+pr_reviewer:
+  enabled: true
+  webhook_only: false
+  trigger_actions:
+    - opened
+    - ready_for_review
+    - reopened
+    - synchronize
+  skip_draft: true
+  post_inline_comments: true
+
 # Security-agent probes: caretaker-qa has no Dependabot security updates,
 # no code scanning alerts, and no PAT that can read secret-scanning alerts
 # (the default GITHUB_TOKEN cannot access /secret-scanning/alerts on public
