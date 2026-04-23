@@ -51,6 +51,17 @@ self_heal_agent:
 
 # Wave A5 guardrails default on — nothing to override.
 
+# Security-agent probes: caretaker-qa has no Dependabot security updates,
+# no code scanning alerts, and no PAT that can read secret-scanning alerts
+# (the default GITHUB_TOKEN cannot access /secret-scanning/alerts on public
+# repos regardless of the security-events: read scope). Disable to silence
+# the 403 scope-gap noise. Re-enable per-feature when a PAT is added.
+security_agent:
+  enabled: true
+  include_dependabot: false
+  include_code_scanning: false
+  include_secret_scanning: false
+
 agentic:
   # Shadow-mode on the usual suspects; promote to enforce once the
   # nightly-eval clears the gate.
