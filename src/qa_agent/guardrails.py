@@ -12,14 +12,10 @@ on (Wave A5).
 
 from __future__ import annotations
 
-import re
+import html
 import threading
 
-# Matches only real HTML/XML tags: opening, closing, or self-closing, where
-# the tag name starts with an ASCII letter.  This avoids stripping non-HTML
-# angle-bracket text such as comparisons ("1 < 2 > 0") or version constraints
-# ("pkg<2.0").
-_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>", re.DOTALL)
+import nh3
 
 # Module-level hit counter — incremented atomically whenever sanitize_input
 # strips at least one tag.  Bounded cardinality: this is a single monotonic
@@ -29,14 +25,31 @@ _counter_lock = threading.Lock()
 
 
 def sanitize_input(text: str) -> str:
-    """Strip HTML tags from *text* before it is embedded in an LLM prompt.
+    """Strip HTML from *text* before it is embedded in an LLM prompt.
 
-    Returns the sanitized string unchanged if no tags were present.
+    Uses ``nh3`` (backed by the Rust ``ammonia`` crate) with an empty tag
+    allowlist so:
+
+    * All HTML tags are removed.
+    * The *content* of ``<script>`` and ``<style>`` elements is also removed.
+    * Entity-encoded tags (``&lt;img onerror=x&gt;``) are decoded first and
+      then stripped, so they cannot survive by hiding behind entities.
+    * Bare angle-bracket expressions used in comparisons (``1 < 2 > 0``) or
+      version constraints (``pkg<2.0``) are preserved unchanged.
+
+    Returns the sanitized string unchanged if no HTML was present.
     Increments :data:`GUARDRAIL_SANITIZE_INPUT_HIT` once per call that
-    removes at least one tag.
+    removes at least one tag or encoded tag.
     """
     global GUARDRAIL_SANITIZE_INPUT_HIT
-    cleaned = _HTML_TAG_RE.sub("", text)
+    # Step 1 — decode any HTML entities so entity-encoded tags are exposed.
+    decoded = html.unescape(text)
+    # Step 2 — strip all tags; nh3 also removes script/style content and
+    # escapes bare < / > to &lt; / &gt;.
+    nh3_cleaned = nh3.clean(decoded, tags=set())
+    # Step 3 — restore the &lt;/&gt; that nh3 added for bare angle-brackets so
+    # comparison operators and version constraints survive intact.
+    cleaned = html.unescape(nh3_cleaned)
     if cleaned != text:
         with _counter_lock:
             GUARDRAIL_SANITIZE_INPUT_HIT += 1
