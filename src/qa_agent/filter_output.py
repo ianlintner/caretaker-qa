@@ -21,10 +21,11 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass, field
 from threading import Lock
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import SplitResult, urlsplit, urlunsplit
 
 # ---------------------------------------------------------------------------
 # Metric
@@ -82,14 +83,21 @@ def _scan_links(text: str) -> list[tuple[int, int, str, str]]:
         if bracket_open == -1:
             break
 
-        # Scan display text up to the closing `]`, honouring `\` escapes.
+        # Scan display text up to the matching `]`, honouring `\` escapes and
+        # counting nested `[…]` pairs so IPv6 literals in display URLs are
+        # parsed correctly (e.g. `[https://[::1]/foo](…)`).
         j = bracket_open + 1
+        bracket_depth = 1
         while j < n:
             if text[j] == "\\":
                 j += 2
                 continue
-            if text[j] == "]":
-                break
+            if text[j] == "[":
+                bracket_depth += 1
+            elif text[j] == "]":
+                bracket_depth -= 1
+                if bracket_depth == 0:
+                    break
             j += 1
         if j >= n:
             i = bracket_open + 1
@@ -140,46 +148,71 @@ def _is_url(text: str) -> bool:
 _DEFAULT_PORTS: dict[str, int] = {"http": 80, "https": 443}
 
 
-def _strip_default_port(scheme: str, netloc: str) -> str:
-    """Remove the port from *netloc* when it is the default for *scheme*.
+def _normalise_host(host: str) -> str:
+    """Lowercase *host* and attempt best-effort IDN → punycode normalisation.
 
-    e.g. ``example.com:443`` with scheme ``https`` → ``example.com``
-         ``example.com:8080`` with scheme ``https`` → ``example.com:8080``
+    Skips encoding for IPv6 addresses (which contain colons and are not valid
+    IDNA labels).  Falls back to the lowercased original on any encoding
+    error so plain ASCII names and already-encoded punycode pass through
+    unchanged.
     """
-    if ":" not in netloc:
-        return netloc
-    host, _, port_str = netloc.rpartition(":")
-    try:
-        port = int(port_str)
-    except ValueError:
-        return netloc
-    if _DEFAULT_PORTS.get(scheme) == port:
-        return host
-    return netloc
+    host = host.lower()
+    if ":" not in host:  # skip IPv6 literals
+        with contextlib.suppress(UnicodeError, ValueError):
+            host = host.encode("idna").decode("ascii")
+    return host
+
+
+def _build_netloc(scheme: str, parsed: SplitResult) -> str:
+    """Re-build a netloc from *parsed* without userinfo and with default-port
+    stripping.
+
+    Using :attr:`~urllib.parse.SplitResult.hostname` and
+    :attr:`~urllib.parse.SplitResult.port` (which :mod:`urllib.parse` already
+    separates correctly for IPv6 addresses) avoids the raw-string
+    ``rpartition(":")`` approach that misfires on ``[::1]:443``.
+
+    IPv6 hosts are re-bracketed as required by RFC 3986.
+    """
+    host = _normalise_host(parsed.hostname or "")
+    # IPv6 addresses contain colons and must be enclosed in square brackets in
+    # the authority component.
+    if ":" in host:
+        host = f"[{host}]"
+    port = parsed.port
+    if port is not None and _DEFAULT_PORTS.get(scheme) != port:
+        return f"{host}:{port}"
+    return host
 
 
 def _normalise(url: str) -> str:
     """Normalise *url* for mismatch comparison.
 
     - Scheme and host are lowercased.
+    - Userinfo (``user:pass@``) is stripped — it is not relevant to host
+      identity for deceptive-link detection.
     - Default ports (80 for http, 443 for https) are stripped so that
       ``https://example.com/foo`` and ``https://example.com:443/foo`` compare
-      as equal and do not produce a false positive.
+      as equal.  IPv6 hosts (e.g. ``[::1]:443``) are handled correctly
+      because :mod:`urllib.parse` separates host and port before we inspect
+      them.
+    - Best-effort IDN → punycode normalisation so that ``münchen.de`` and
+      ``xn--mnchen-3ya.de`` compare as equal.
     - Path, query, and fragment retain their original case because those
       components are case-sensitive for many real-world URLs.
     - A single trailing slash on the path is stripped.
     """
     url = url.strip()
     try:
-        parsed = urlparse(url)
-        scheme = parsed.scheme.lower()
-        netloc = _strip_default_port(scheme, parsed.netloc.lower())
-        normalised = parsed._replace(
+        parts = urlsplit(url)
+        scheme = parts.scheme.lower()
+        netloc = _build_netloc(scheme, parts)
+        normalised = parts._replace(
             scheme=scheme,
             netloc=netloc,
-            path=parsed.path.rstrip("/"),
+            path=parts.path.rstrip("/"),
         )
-        return urlunparse(normalised)
+        return urlunsplit(normalised)
     except ValueError:  # pragma: no cover
         return url.rstrip("/")
 

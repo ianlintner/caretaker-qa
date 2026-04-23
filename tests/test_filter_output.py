@@ -230,3 +230,79 @@ def test_non_default_port_is_still_a_mismatch() -> None:
     result = apply(payload)
     assert "[REDACTED DECEPTIVE LINK]" in result
     assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 1
+
+
+# ---------------------------------------------------------------------------
+# Userinfo stripping
+# ---------------------------------------------------------------------------
+
+
+def test_userinfo_only_difference_is_not_a_mismatch() -> None:
+    """Userinfo (user:pass@) is stripped before comparison; same host is clean."""
+    display = "https://user:pass@example.com/foo"
+    href = "https://example.com/foo"
+    payload = f"[{display}]({href})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_userinfo_with_different_host_is_still_mismatch() -> None:
+    """Different host behind userinfo must still be redacted."""
+    display = "https://user@example.com/foo"
+    href = "https://attacker.test/foo"
+    payload = f"[{display}]({href})"
+    result = apply(payload)
+    assert "[REDACTED DECEPTIVE LINK]" in result
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 1
+
+
+# ---------------------------------------------------------------------------
+# IPv6 host normalisation
+# ---------------------------------------------------------------------------
+
+
+def test_ipv6_with_default_port_443_not_a_mismatch() -> None:
+    """https://[::1]:443/foo and https://[::1]/foo are the same URL."""
+    with_port = "https://[::1]:443/foo"
+    without_port = "https://[::1]/foo"
+    payload = f"[{with_port}]({without_port})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_ipv6_without_port_matches_with_default_port_reversed() -> None:
+    """Display without port, href with explicit :443 — still not a mismatch."""
+    without_port = "https://[::1]/foo"
+    with_port = "https://[::1]:443/foo"
+    payload = f"[{without_port}]({with_port})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_ipv6_non_default_port_is_a_mismatch() -> None:
+    """IPv6 with a non-default port must still be redacted."""
+    display = "https://[::1]:8443/foo"
+    href = "https://[::1]/foo"
+    payload = f"[{display}]({href})"
+    result = apply(payload)
+    assert "[REDACTED DECEPTIVE LINK]" in result
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 1
+
+
+# ---------------------------------------------------------------------------
+# IDN / punycode host normalisation
+# ---------------------------------------------------------------------------
+
+
+def test_idn_and_punycode_host_not_a_mismatch() -> None:
+    """An IDN host and its punycode equivalent must compare as equal."""
+    # münchen.de encoded to punycode is xn--mnchen-3ya.de
+    idn_url = "https://münchen.de/path"
+    punycode_url = "https://xn--mnchen-3ya.de/path"
+    payload = f"[{idn_url}]({punycode_url})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
