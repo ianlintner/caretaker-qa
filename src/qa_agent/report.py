@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from qa_agent.filter_output import apply as _filter_output
 from qa_agent.models import Brief, ReportEntry
 
 _SEVERITY_ORDER: dict[str, int] = {
@@ -37,7 +38,7 @@ def render_markdown(brief: Brief) -> str:
     if not brief.entries:
         lines.append("No relevant advisories in this window.")
         lines.append("")
-        return "\n".join(lines)
+        return _filter_output("\n".join(lines))
 
     ranked = sorted(
         brief.entries,
@@ -57,7 +58,7 @@ def render_markdown(brief: Brief) -> str:
         for entry in group_entries:
             lines.extend(_render_entry(entry))
         lines.append("")
-    return "\n".join(lines)
+    return _filter_output("\n".join(lines))
 
 
 def _render_entry(entry: ReportEntry) -> list[str]:
