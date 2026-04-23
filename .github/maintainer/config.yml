@@ -88,7 +88,7 @@ agentic:
   issue_triage:
     mode: shadow
   dispatch_guard:
-    mode: shadow
+    mode: enforce
 
 stale_agent:
   enabled: true
