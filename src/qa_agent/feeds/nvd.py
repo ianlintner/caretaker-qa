@@ -22,15 +22,16 @@ NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 
 
 def _is_retryable_http_error(exc: BaseException) -> bool:
-    """Return True only for HTTP errors worth retrying (429 and 5xx).
+    """Return True only for transient failures worth retrying.
 
-    Non-retriable client errors (400, 401, 403, 404, …) propagate immediately.
-    Network-level exceptions (``httpx.RequestError``) are also retriable.
+    - HTTP 429 and 5xx → retry (rate-limit / server-side transient).
+    - ``httpx.RequestError`` (connect/timeout/network) → retry.
+    - Everything else (4xx client errors, parsing bugs, …) → fail fast.
     """
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
         return code == 429 or code >= 500
-    return True
+    return isinstance(exc, httpx.RequestError)  # network-level only; everything else fails fast
 
 
 def _severity_of(metric: dict[str, Any]) -> tuple[Severity, float | None]:
