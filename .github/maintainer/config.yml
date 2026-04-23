@@ -9,12 +9,14 @@ orchestrator:
   dry_run: false
 
 llm:
-  # Azure AI via LiteLLM — no direct Anthropic SDK key. Setting provider
-  # to litellm stops doctor's ANTHROPIC_API_KEY probe. Setting
-  # claude_enabled="false" stops the feature-flag auto-probe too. See
-  # caretaker issue #508 for the related caretaker-self-doctor gap.
+  # Azure AI via LiteLLM — no direct Anthropic SDK key.
+  # - provider: litellm  → routes azure_ai/* models through LiteLLM
+  # - claude_enabled: auto  → LLMRouter consults ClaudeClient.available,
+  #   which returns True when any provider key (incl. AZURE_AI_API_KEY) is
+  #   set. "false" here would short-circuit the router and disable all
+  #   feature-model LLM calls, including the pr_reviewer inline review path.
   provider: litellm
-  claude_enabled: "false"
+  claude_enabled: auto
   default_model: azure_ai/gpt-5.4
   # QA scenario 11 — pin ci_log_analysis to azure_ai/claude-sonnet-4 to
   # exercise _supports_prompt_cache (src/caretaker/llm/provider.py:45) and
