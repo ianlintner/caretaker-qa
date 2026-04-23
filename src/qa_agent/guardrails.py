@@ -15,8 +15,11 @@ from __future__ import annotations
 import re
 import threading
 
-# Matches any well-formed or partial HTML/XML tag including self-closing ones.
-_HTML_TAG_RE = re.compile(r"<[^>]+>", re.DOTALL)
+# Matches only real HTML/XML tags: opening, closing, or self-closing, where
+# the tag name starts with an ASCII letter.  This avoids stripping non-HTML
+# angle-bracket text such as comparisons ("1 < 2 > 0") or version constraints
+# ("pkg<2.0").
+_HTML_TAG_RE = re.compile(r"</?[a-zA-Z][^>]*>", re.DOTALL)
 
 # Module-level hit counter — incremented atomically whenever sanitize_input
 # strips at least one tag.  Bounded cardinality: this is a single monotonic

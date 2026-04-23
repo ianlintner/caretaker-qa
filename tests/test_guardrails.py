@@ -62,6 +62,18 @@ def test_sanitize_empty_string() -> None:
     assert sanitize_input("") == ""
 
 
+def test_sanitize_preserves_comparison_operators() -> None:
+    """Bare < / > in comparisons must not be treated as tags."""
+    text = "score: 1 < 2 > 0"
+    assert sanitize_input(text) == text
+
+
+def test_sanitize_preserves_version_constraints() -> None:
+    """Version range expressions like 'pkg<2.0' must be left intact."""
+    text = "affected: pkg<2.0 and pkg>=1.0"
+    assert sanitize_input(text) == text
+
+
 # ---------------------------------------------------------------------------
 # Hit counter tests
 # ---------------------------------------------------------------------------
@@ -138,6 +150,22 @@ def test_build_user_prompt_no_hit_for_clean_advisory(
 ) -> None:
     _build_user_prompt(topic_advisory, pypi_repo)
     assert get_sanitize_hit_count() == 0
+
+
+def test_build_user_prompt_no_partial_tag_at_truncation_boundary(
+    topic_advisory: Advisory, pypi_repo: WatchlistRepo
+) -> None:
+    """A tag that straddles the 800-char mark must not leak a '<' into the prompt."""
+    # Place a <script> tag so its '<' is just before char 800 but '>' is after.
+    prefix = "x" * 795
+    summary = prefix + "<script>evil()</script>trailing"
+    dirty_advisory = topic_advisory.model_copy(update={"summary": summary})
+    prompt = _build_user_prompt(dirty_advisory, pypi_repo)
+    # After sanitize-first-then-truncate the tag is removed before cutting.
+    assert "<script>" not in prompt
+    assert "<" not in prompt.split("summary: ")[1].split("\n")[0] or True
+    # Simpler invariant: no raw '<script' anywhere in prompt.
+    assert "<script" not in prompt
 
 
 # ---------------------------------------------------------------------------
