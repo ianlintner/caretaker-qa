@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-W17] — 2026-04-23
+
+- qa(scenario-11): pin ci_log_analysis to azure_ai/claude-sonnet-4 for prompt-cache validation (#22)
+
 ## [0.1.0] — 2026-04-22
 
 Initial release. Ships the scaffolding for a live QA harness for `ianlintner/caretaker`.
