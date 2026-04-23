@@ -15,3 +15,9 @@ Initial release. Ships the scaffolding for a live QA harness for `ianlintner/car
 - CI workflow: ruff format + ruff check + mypy --strict + pytest (80% coverage floor) + CodeQL.
 - Nightly workflow: runs the agent at 02:00 UTC, commits the brief into `reports/`, opens a PR.
 - Caretaker maintainer.yml pinned to v0.16.0 with Wave A features on (fix-ladder, guardrails, attribution telemetry).
+
+## [0.1.1] — 2026-04-23
+
+### Changed
+
+- Caretaker pin upgraded from v0.16.0 to v0.17.0 (QA-scenario dispatch suppression, empty-PR-body close, Copilot action_required escalation suppression).
