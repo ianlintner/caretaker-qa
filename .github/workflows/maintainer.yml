@@ -79,12 +79,18 @@ jobs:
                 return;
               }
             }
-            // Skip issues:labeled events that were triggered by caretaker
-            // itself to prevent feedback loops from its own labelling actions.
+            // Skip issues:labeled events triggered by caretaker's own
+            // labelling actions to prevent feedback loops. Other bots
+            // (Dependabot, Renovate, etc.) are intentionally allowed through
+            // so caretaker stays responsive to their label-driven events.
             if (ev === "issues" && payload.action === "labeled") {
               const sender = payload.sender?.login || "";
-              if (botActors.has(sender)) {
-                core.notice(`skip: issues:labeled triggered by bot ${sender}`);
+              const caretakerActors = new Set([
+                "the-care-taker[bot]",
+                "github-actions[bot]",
+              ]);
+              if (caretakerActors.has(sender)) {
+                core.notice(`skip: issues:labeled triggered by ${sender}`);
                 core.setOutput("should_run", "false");
                 return;
               }
