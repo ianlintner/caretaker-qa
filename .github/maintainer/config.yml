@@ -67,6 +67,16 @@ pr_reviewer:
   skip_draft: true
   post_inline_comments: true
 
+# Auto-approve workflow runs from trusted bot actors that are gated by
+# GitHub's first-time-contributor owner-approval gate. Without this,
+# every Copilot/dependabot revision push requires manual owner approval
+# before CI can run, blocking the automated review+fix loop entirely.
+# allowed_actors defaults cover: Copilot, copilot-swe-agent[bot],
+# github-actions[bot], dependabot[bot], the-care-taker[bot].
+pr_ci_approver:
+  enabled: true
+  auto_approve: true
+
 # Security-agent probes: caretaker-qa has no Dependabot security updates,
 # no code scanning alerts, and no PAT that can read secret-scanning alerts
 # (the default GITHUB_TOKEN cannot access /secret-scanning/alerts on public
