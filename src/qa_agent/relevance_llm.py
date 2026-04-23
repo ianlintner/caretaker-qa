@@ -16,6 +16,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from qa_agent.guardrails import sanitize_input
 from qa_agent.models import Advisory, JudgeVerdict, WatchlistRepo
 
 _DEFAULT_MODEL = "azure_ai/gpt-4o"
@@ -47,8 +48,8 @@ relevant=false with confidence=low and a one-sentence rationale."""
 def _build_user_prompt(advisory: Advisory, repo: WatchlistRepo) -> str:
     return (
         f"ADVISORY id={advisory.id} source={advisory.source} severity={advisory.severity}\n"
-        f"title: {advisory.title}\n"
-        f"summary: {advisory.summary[:800]}\n"
+        f"title: {sanitize_input(advisory.title)}\n"
+        f"summary: {sanitize_input(advisory.summary)[:800]}\n"
         f"affected_packages: {', '.join(advisory.affected_packages) or '(none declared)'}\n"
         f"ecosystem: {advisory.ecosystem or 'unspecified'}\n\n"
         f"REPO owner={repo.owner} name={repo.repo} ecosystem={repo.ecosystem}\n"
