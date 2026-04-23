@@ -239,6 +239,66 @@ async def test_nvd_http_error_retries_then_raises() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_nvd_429_retries_and_succeeds() -> None:
+    """A single 429 response must be retried; a subsequent 200 must succeed."""
+    ok_payload = {
+        "vulnerabilities": [
+            {
+                "cve": {
+                    "id": "CVE-2026-0429",
+                    "descriptions": [{"lang": "en", "value": "rate-limit retry"}],
+                    "metrics": {
+                        "cvssMetricV31": [
+                            {"cvssData": {"baseScore": 5.0, "baseSeverity": "MEDIUM"}}
+                        ]
+                    },
+                    "references": [],
+                    "published": "2026-04-22T08:00:00.000",
+                }
+            }
+        ]
+    }
+    route = respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0")
+    route.side_effect = [
+        httpx.Response(429),
+        httpx.Response(200, json=ok_payload),
+    ]
+    adv = await fetch_nvd(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
+    assert len(adv) == 1
+    assert adv[0].id == "CVE-2026-0429"
+    assert adv[0].severity == "medium"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_nvd_non_retryable_4xx_raises_immediately() -> None:
+    """Client errors other than 429 (e.g. 403) must not be retried."""
+    route = respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0")
+    route.mock(return_value=httpx.Response(403))
+    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+        await fetch_nvd(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
+    assert exc_info.value.response.status_code == 403
+    # Only one HTTP call should have been made (no retries for 403).
+    assert route.call_count == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_nvd_non_http_exception_does_not_retry() -> None:
+    """Parsing/logic errors must not be retried."""
+    route = respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0")
+    # Return a 200 with non-JSON body.  httpx>=0.27,<1 lets json.JSONDecodeError
+    # bubble through resp.json() unwrapped, so _is_retryable_http_error returns
+    # False and tenacity re-raises without consuming any retry budget.
+    route.mock(return_value=httpx.Response(200, content=b"not-json"))
+    with pytest.raises(json.JSONDecodeError):
+        await fetch_nvd(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
+    # Only one HTTP call should have been made — no retries for parse errors.
+    assert route.call_count == 1
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_osv_skips_missing_vulns() -> None:
     respx.post("https://api.osv.dev/v1/querybatch").mock(
         return_value=httpx.Response(

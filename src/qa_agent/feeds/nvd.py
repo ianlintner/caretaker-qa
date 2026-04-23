@@ -14,11 +14,24 @@ from datetime import datetime
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from qa_agent.models import Advisory, Severity
 
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+
+
+def _is_retryable_http_error(exc: BaseException) -> bool:
+    """Return True only for transient failures worth retrying.
+
+    - HTTP 429 and 5xx → retry (rate-limit / server-side transient).
+    - ``httpx.RequestError`` (connect/timeout/network) → retry.
+    - Everything else (4xx client errors, parsing bugs, …) → fail fast.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        return code == 429 or code >= 500
+    return isinstance(exc, httpx.RequestError)  # network-level only; everything else fails fast
 
 
 def _severity_of(metric: dict[str, Any]) -> tuple[Severity, float | None]:
@@ -58,7 +71,12 @@ def _normalise_severity(value: str) -> Severity:
             return "unknown"
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=15), reraise=True)
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(min=1, max=30),
+    retry=retry_if_exception(_is_retryable_http_error),
+    reraise=True,
+)
 async def fetch_nvd(
     since: datetime,
     until: datetime,
