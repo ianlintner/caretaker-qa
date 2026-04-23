@@ -285,11 +285,13 @@ async def test_nvd_non_retryable_4xx_raises_immediately() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_nvd_non_http_exception_does_not_retry() -> None:
-    """Parsing/logic errors (e.g. ValueError) must not be retried."""
+    """Parsing/logic errors must not be retried."""
     route = respx.get("https://services.nvd.nist.gov/rest/json/cves/2.0")
-    # Return a body that cannot be parsed as JSON to trigger a ValueError.
+    # Return a 200 with non-JSON body.  httpx>=0.27,<1 lets json.JSONDecodeError
+    # bubble through resp.json() unwrapped, so _is_retryable_http_error returns
+    # False and tenacity re-raises without consuming any retry budget.
     route.mock(return_value=httpx.Response(200, content=b"not-json"))
-    with pytest.raises(ValueError):
+    with pytest.raises(json.JSONDecodeError):
         await fetch_nvd(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
     # Only one HTTP call should have been made — no retries for parse errors.
     assert route.call_count == 1
