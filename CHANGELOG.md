@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [2026-W17] — 2026-04-23
 
 - enforce triage deduplication and suppress caretaker-triggered issues:labeled re-runs (#14)
+- fetch_nvd retries on HTTP 429 with targeted exponential backoff (#17)
 - qa(scenario-11): pin ci_log_analysis to azure_ai/claude-sonnet-4 for prompt-cache validation (#22)
 - upgrade caretaker pin from v0.16.0 to v0.17.0 (#26)
 
