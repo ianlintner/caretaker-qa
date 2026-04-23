@@ -24,6 +24,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from threading import Lock
+from urllib.parse import urlparse, urlunparse
 
 # ---------------------------------------------------------------------------
 # Metric
@@ -50,25 +51,85 @@ class _Counter:
 GUARDRAIL_FILTER_OUTPUT_HIT: _Counter = _Counter()
 
 # ---------------------------------------------------------------------------
-# Regex
+# Regex / constants
 # ---------------------------------------------------------------------------
 
 # Matches http(s):// at the start of a string — used to detect URL display text.
 _URL_SCHEME_RE = re.compile(r"^https?://", re.IGNORECASE)
 
-# Matches [display text](url).
-# Capture groups:
-#   1 — display text (the visible part)
-#   2 — href (the actual link destination)
-_MD_LINK_RE = re.compile(
-    r"\[([^\]]+)\]\(([^)]+)\)",
-)
-
 _REDACTED_TOKEN = "[REDACTED DECEPTIVE LINK]"
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Link extraction (balanced-parens aware)
+# ---------------------------------------------------------------------------
+
+
+def _scan_links(text: str) -> list[tuple[int, int, str, str]]:
+    """Return a list of ``(start, end, display, href)`` for every Markdown link.
+
+    Handles hrefs that contain parentheses (balanced or ``\\``-escaped), so
+    URLs like ``https://en.wikipedia.org/wiki/Knuth_(book)`` are parsed
+    correctly and cannot evade redaction by embedding an unbalanced ``)``.
+    """
+    results: list[tuple[int, int, str, str]] = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        # Locate the next opening bracket.
+        bracket_open = text.find("[", i)
+        if bracket_open == -1:
+            break
+
+        # Scan display text up to the closing `]`, honouring `\` escapes.
+        j = bracket_open + 1
+        while j < n:
+            if text[j] == "\\":
+                j += 2
+                continue
+            if text[j] == "]":
+                break
+            j += 1
+        if j >= n:
+            i = bracket_open + 1
+            continue
+        bracket_close = j
+
+        # The very next character must be `(`.
+        if bracket_close + 1 >= n or text[bracket_close + 1] != "(":
+            i = bracket_close + 1
+            continue
+        paren_open = bracket_close + 1
+
+        # Scan href with depth counting so balanced inner parens are included.
+        k = paren_open + 1
+        depth = 1
+        while k < n and depth > 0:
+            if text[k] == "\\":
+                k += 2
+                continue
+            if text[k] == "(":
+                depth += 1
+            elif text[k] == ")":
+                depth -= 1
+            k += 1
+        if depth != 0:
+            # Unmatched opening paren — not a valid link; skip past it.
+            i = bracket_close + 1
+            continue
+
+        paren_close = k - 1
+        display = text[bracket_open + 1 : bracket_close]
+        href = text[paren_open + 1 : paren_close]
+        results.append((bracket_open, paren_close + 1, display, href))
+        i = paren_close + 1
+
+    return results
+
+
+# ---------------------------------------------------------------------------
+# Normalisation
 # ---------------------------------------------------------------------------
 
 
@@ -77,8 +138,23 @@ def _is_url(text: str) -> bool:
 
 
 def _normalise(url: str) -> str:
-    """Strip trailing slashes for comparison."""
-    return url.strip().rstrip("/").lower()
+    """Normalise *url* for mismatch comparison.
+
+    Only scheme and host are lowercased; path, query, and fragment retain
+    their original case because those components are case-sensitive for many
+    real-world URLs.  A single trailing slash on the path is stripped.
+    """
+    url = url.strip()
+    try:
+        parsed = urlparse(url)
+        normalised = parsed._replace(
+            scheme=parsed.scheme.lower(),
+            netloc=parsed.netloc.lower(),
+            path=parsed.path.rstrip("/"),
+        )
+        return urlunparse(normalised)
+    except ValueError:  # pragma: no cover
+        return url.rstrip("/")
 
 
 def _is_mismatch(display: str, href: str) -> bool:
@@ -88,13 +164,9 @@ def _is_mismatch(display: str, href: str) -> bool:
     return _normalise(display) != _normalise(href)
 
 
-def _redact_match(m: re.Match[str]) -> str:
-    display = m.group(1)
-    href = m.group(2)
-    if _is_mismatch(display, href):
-        GUARDRAIL_FILTER_OUTPUT_HIT.increment()
-        return _REDACTED_TOKEN
-    return m.group(0)
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 
 def apply(text: str) -> str:
@@ -103,7 +175,25 @@ def apply(text: str) -> str:
     Returns the sanitised text.  Increments
     :data:`GUARDRAIL_FILTER_OUTPUT_HIT` once per redacted link.
     """
-    return _MD_LINK_RE.sub(_redact_match, text)
+    links = _scan_links(text)
+    if not links:
+        return text
+
+    # Rebuild the string by concatenating clean slices and redaction tokens,
+    # processing links right-to-left so earlier offsets stay valid.
+    chunks: list[str] = []
+    cursor = len(text)
+    for start, end, display, href in reversed(links):
+        # Append the tail slice that follows this link (or previous link end).
+        chunks.append(text[end:cursor])
+        if _is_mismatch(display, href):
+            GUARDRAIL_FILTER_OUTPUT_HIT.increment()
+            chunks.append(_REDACTED_TOKEN)
+        else:
+            chunks.append(text[start:end])
+        cursor = start
+    chunks.append(text[:cursor])
+    return "".join(reversed(chunks))
 
 
 __all__ = ["GUARDRAIL_FILTER_OUTPUT_HIT", "apply"]

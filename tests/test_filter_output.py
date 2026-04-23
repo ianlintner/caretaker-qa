@@ -104,3 +104,94 @@ def test_counter_accumulates_across_calls() -> None:
 def test_counter_reset_between_tests() -> None:
     """autouse fixture should ensure counter starts at 0."""
     assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+# ---------------------------------------------------------------------------
+# Parentheses in hrefs (balanced-parens parser)
+# ---------------------------------------------------------------------------
+
+
+def test_href_with_parentheses_clean_passes_through() -> None:
+    """A safe link whose href contains balanced parens must not be altered."""
+    url = "https://en.wikipedia.org/wiki/Knuth_(book)"
+    payload = f"[{url}]({url})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_deceptive_link_with_parens_in_href_is_redacted() -> None:
+    """Deceptive link where the href contains balanced parens must still be caught."""
+    display = "https://trusted.example.com"
+    href = "https://attacker.test/phish_(evil)"
+    payload = f"[{display}]({href})"
+    result = apply(payload)
+    assert "[REDACTED DECEPTIVE LINK]" in result
+    assert "attacker.test" not in result
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 1
+
+
+def test_href_with_nested_parens_clean_passes_through() -> None:
+    """Deeper nesting e.g. /path/(a_(b)) must not cause a false positive."""
+    url = "https://example.com/path/(a_(b))"
+    payload = f"[{url}]({url})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+# ---------------------------------------------------------------------------
+# Escaped characters in display / href
+# ---------------------------------------------------------------------------
+
+
+def test_escaped_bracket_in_display_does_not_confuse_parser() -> None:
+    """A `\\]` inside display text must not prematurely end the display span."""
+    # This is not a URL display text so it should pass through unchanged.
+    payload = r"[text\] more](https://example.com)"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_escaped_paren_in_href_does_not_truncate() -> None:
+    """A `\\)` inside the href must not be treated as the link close."""
+    url = r"https://example.com/path\)extra"
+    # Non-URL display — should pass through unchanged.
+    payload = f"[label]({url})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+# ---------------------------------------------------------------------------
+# Path-case sensitivity
+# ---------------------------------------------------------------------------
+
+
+def test_path_case_difference_is_detected_as_mismatch() -> None:
+    """Different path case must be flagged — paths are case-sensitive."""
+    display = "https://example.com/Resource"
+    href = "https://example.com/resource"
+    payload = f"[{display}]({href})"
+    result = apply(payload)
+    assert "[REDACTED DECEPTIVE LINK]" in result
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 1
+
+
+def test_host_case_difference_is_not_a_mismatch() -> None:
+    """Host is case-insensitive; EXAMPLE.COM == example.com."""
+    url_lower = "https://example.com/path"
+    url_upper = "https://EXAMPLE.COM/path"
+    payload = f"[{url_upper}]({url_lower})"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
+
+
+def test_scheme_case_difference_is_not_a_mismatch() -> None:
+    """Scheme is case-insensitive; HTTPS == https."""
+    payload = "[HTTPS://example.com/path](https://example.com/path)"
+    result = apply(payload)
+    assert result == payload
+    assert GUARDRAIL_FILTER_OUTPUT_HIT.total == 0
