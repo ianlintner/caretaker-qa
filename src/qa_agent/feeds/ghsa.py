@@ -104,7 +104,9 @@ def _parse_advisory(item: dict[str, Any]) -> Advisory | None:
         affected_packages=sorted(set(affected_packages)),
         affected_ranges=sorted(set(affected_ranges)),
         references=[
-            ref.get("url", "") for ref in item.get("references", []) or [] if ref.get("url")
+            url
+            for ref in item.get("references", []) or []
+            if (url := ref if isinstance(ref, str) else ref.get("url", ""))
         ],
     )
 
