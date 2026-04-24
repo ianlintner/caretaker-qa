@@ -104,9 +104,22 @@ def _parse_advisory(item: dict[str, Any]) -> Advisory | None:
         affected_packages=sorted(set(affected_packages)),
         affected_ranges=sorted(set(affected_ranges)),
         references=[
-            ref.get("url", "") for ref in item.get("references", []) or [] if ref.get("url")
+            url for ref in item.get("references", []) or [] if (url := _extract_ref_url(ref))
         ],
     )
+
+
+def _extract_ref_url(ref: Any) -> str:
+    """Return the URL string from a reference entry.
+
+    The GHSA API may return references as plain strings or as dicts with a
+    ``url`` key. This helper normalises both formats.
+    """
+    if isinstance(ref, str):
+        return ref
+    if isinstance(ref, dict):
+        return str(ref.get("url", "") or "")
+    return ""
 
 
 def _severity(value: Any) -> str:

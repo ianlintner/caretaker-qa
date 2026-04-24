@@ -344,6 +344,30 @@ async def test_osv_severity_score_buckets() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_ghsa_references_as_strings() -> None:
+    """GHSA API may return references as plain URL strings instead of dicts."""
+    payload = [
+        {
+            "ghsa_id": "GHSA-str-refs",
+            "summary": "String refs advisory",
+            "description": "details",
+            "severity": "medium",
+            "cvss": {"score": 5.0},
+            "published_at": "2026-04-22T09:00:00Z",
+            "vulnerabilities": [],
+            "references": ["https://example.com/a", "https://example.com/b"],
+        }
+    ]
+    respx.get("https://api.github.com/advisories").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+    adv = await fetch_ghsa(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
+    assert len(adv) == 1
+    assert adv[0].references == ["https://example.com/a", "https://example.com/b"]
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_ghsa_empty_response() -> None:
     respx.get("https://api.github.com/advisories").mock(return_value=httpx.Response(200, json=[]))
     adv = await fetch_ghsa(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
