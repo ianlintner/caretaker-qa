@@ -126,7 +126,7 @@ jobs:
           # [backend] extra pulls fastapi/uvicorn/pyjwt that the
           # orchestrator imports even with executor.foundry.enabled=false.
           pip install "caretaker-github[backend] @ git+https://github.com/ianlintner/caretaker.git@v${VERSION}"
-          pip install "litellm>=1.50,<2"
+          pip install "litellm>=1.83.7,<2"
 
       # Cheap, offline sanity check — runs before every doctor/run call
       # so a broken pin, unparseable config, or missing secret for an
@@ -203,7 +203,7 @@ jobs:
           # [backend] extra pulls fastapi/uvicorn/pyjwt that the
           # orchestrator imports even with executor.foundry.enabled=false.
           pip install "caretaker-github[backend] @ git+https://github.com/ianlintner/caretaker.git@v${VERSION}"
-          pip install "litellm>=1.50,<2"
+          pip install "litellm>=1.83.7,<2"
 
       - name: Self-heal — analyse own failure
         env:

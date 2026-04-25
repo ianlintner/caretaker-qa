@@ -1,6 +1,6 @@
 # Caretaker setup on `caretaker-qa`
 
-This repo is maintained by [`ianlintner/caretaker`](https://github.com/ianlintner/caretaker) pinned at `.github/maintainer/.version` (currently **v0.19.2**). The maintainer workflow runs on every PR + a daily 08:00 UTC schedule.
+This repo is maintained by [`ianlintner/caretaker`](https://github.com/ianlintner/caretaker) pinned at `.github/maintainer/.version` (currently **v0.19.3**). The maintainer workflow runs on every PR + a daily 08:00 UTC schedule.
 
 ## Secrets
 
