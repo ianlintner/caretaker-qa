@@ -165,6 +165,7 @@ jobs:
           CARETAKER_EVENT_PAYLOAD: ${{ toJSON(github.event) }}
           CARETAKER_RUN_MODE: ${{ github.event.inputs.mode || 'full' }}
           CARETAKER_EVENT_TYPE: ${{ github.event_name }}
+          CARETAKER_FLEET_SECRET: ${{ secrets.CARETAKER_FLEET_SECRET }}
         run: |
           caretaker run \
             --config .github/maintainer/config.yml \
@@ -216,6 +217,7 @@ jobs:
           AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
           AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
           CARETAKER_FAILED_RUN_ID: ${{ github.run_id }}
+          CARETAKER_FLEET_SECRET: ${{ secrets.CARETAKER_FLEET_SECRET }}
           CARETAKER_EVENT_PAYLOAD: >-
             {
               "workflow_run": {
