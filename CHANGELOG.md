@@ -16,7 +16,13 @@ Initial release. Ships the scaffolding for a live QA harness for `ianlintner/car
 - Nightly workflow: runs the agent at 02:00 UTC, commits the brief into `reports/`, opens a PR.
 - Caretaker maintainer.yml pinned to v0.16.0 with Wave A features on (fix-ladder, guardrails, attribution telemetry).
 
-## [0.1.2] — 2026-04-24
+## [0.1.3] — 2026-04-26
+
+### Changed
+
+- Caretaker pin upgraded from v0.19.4 to v0.19.6 (persistent SQLite fleet registry, fleet CLI commands, admin dashboard wiring, frontend Alerts + FleetDetail pages).
+
+
 
 ### Changed
 

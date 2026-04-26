@@ -115,6 +115,16 @@ fleet:
   alerts:
     enabled: false
 
+# Fleet registry — opt-in. Set enabled: true and add CARETAKER_FLEET_SECRET
+# to repo secrets to register this repo with the production dashboard.
+# See docs/fleet-opt-in-runbook.md for per-repo caveats and the four-step
+# opt-in checklist.
+fleet_registry:
+  enabled: false
+  endpoint: https://caretaker.cat-herding.net/api/fleet/heartbeat
+  hmac_env: CARETAKER_FLEET_SECRET
+  timeout_seconds: 10
+
 memory_store:
   retrieval_enabled: true
 

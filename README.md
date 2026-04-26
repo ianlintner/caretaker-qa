@@ -86,7 +86,7 @@ CI runs all four in `.github/workflows/ci.yml` and fails on any one.
 
 ## Caretaker wiring
 
-`.github/maintainer/config.yml` is pinned to v0.19.2 with Wave A features on. See `docs/caretaker-setup.md` for the full configuration.
+`.github/maintainer/config.yml` is pinned to v0.19.6 with Wave A features on. See `docs/caretaker-setup.md` for the full configuration.
 
 ## License
 
