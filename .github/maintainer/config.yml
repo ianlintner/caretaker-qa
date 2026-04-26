@@ -13,13 +13,18 @@ orchestrator:
 # orchestrator POSTs a heartbeat to the central registry after every run so
 # the fleet page at https://caretaker.cat-herding.net shows live status.
 #
-# Requirements:
-#   1. Set CARETAKER_FLEET_SECRET as a GitHub Actions secret in this repo.
-#   2. Ensure your workflow exports CARETAKER_FLEET_SECRET (v0.19.6+ templates
-#      do this automatically; older installs need a one-line workflow edit).
+# HMAC signing (CARETAKER_FLEET_SECRET) is disabled here (secret_env: "")
+# because authentication is already covered by the OAuth2 client_credentials
+# flow configured below. To re-enable HMAC signing, set secret_env to the
+# name of a GitHub Actions secret (e.g. "CARETAKER_FLEET_SECRET"), create
+# that secret in the repo, and export it in the workflow.
 fleet_registry:
   enabled: true
   endpoint: https://caretaker.cat-herding.net/api/fleet/heartbeat
+  # HMAC signing is optional when OAuth2 is configured. Set secret_env to
+  # an empty string so caretaker does not require CARETAKER_FLEET_SECRET;
+  # authentication is handled by the oauth2 client_credentials flow below.
+  secret_env: ""
   oauth2:
     enabled: true
     client_id_env: OAUTH2_CLIENT_ID
