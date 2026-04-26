@@ -4,7 +4,7 @@ on:
   schedule:
     - cron: "0 8 * * *"
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened]
   pull_request_review:
     types: [submitted]
   check_suite:
@@ -32,8 +32,6 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
-  checks: write
-  security-events: read
 
 jobs:
   # Short-circuit comment events that caretaker itself produced. Without this
@@ -51,13 +49,10 @@ jobs:
         with:
           script: |
             const ev = context.eventName;
-            const botActors = new Set([
-              "the-care-taker[bot]",
-              "github-actions[bot]",
-              "copilot-swe-agent[bot]",
-              "anthropic-code-agent[bot]",
-              "copilot-pull-request-reviewer[bot]",
-            ]);
+            if (ev !== "issue_comment" && ev !== "pull_request_review") {
+              core.setOutput("should_run", "true");
+              return;
+            }
             const payload = context.payload || {};
             if (ev === "issue_comment") {
               const body = payload.comment?.body || "";
@@ -67,6 +62,13 @@ jobs:
                 return;
               }
               const actor = payload.comment?.user?.login || "";
+              const botActors = new Set([
+                "the-care-taker[bot]",
+                "github-actions[bot]",
+                "copilot-swe-agent[bot]",
+                "anthropic-code-agent[bot]",
+                "copilot-pull-request-reviewer[bot]",
+              ]);
               if (botActors.has(actor)) {
                 core.notice(`skip: bot-authored issue_comment from ${actor}`);
                 core.setOutput("should_run", "false");
@@ -77,22 +79,6 @@ jobs:
               const reviewer = payload.review?.user?.login || "";
               if (reviewer === "copilot-pull-request-reviewer[bot]") {
                 core.notice(`skip: pull_request_review by ${reviewer}`);
-                core.setOutput("should_run", "false");
-                return;
-              }
-            }
-            // Skip issues:labeled events triggered by caretaker's own
-            // labelling actions to prevent feedback loops. Other bots
-            // (Dependabot, Renovate, etc.) are intentionally allowed through
-            // so caretaker stays responsive to their label-driven events.
-            if (ev === "issues" && payload.action === "labeled") {
-              const sender = payload.sender?.login || "";
-              const caretakerActors = new Set([
-                "the-care-taker[bot]",
-                "github-actions[bot]",
-              ]);
-              if (caretakerActors.has(sender)) {
-                core.notice(`skip: issues:labeled triggered by ${sender}`);
                 core.setOutput("should_run", "false");
                 return;
               }
@@ -123,9 +109,14 @@ jobs:
       - name: Install caretaker
         run: |
           VERSION=$(cat .github/maintainer/.version)
-          # [backend] extra pulls fastapi/uvicorn/pyjwt that the
-          # orchestrator imports even with executor.foundry.enabled=false.
-          pip install "caretaker-github[backend] @ git+https://github.com/ianlintner/caretaker.git@v${VERSION}"
+          pip install "git+https://github.com/ianlintner/caretaker.git@v${VERSION}"
+          # LiteLLM is the ``llm-multi`` extra from caretaker's
+          # pyproject.toml; installing it separately keeps the install
+          # line above compatible with both the pre- and post-v0.8.1
+          # distribution rename (``caretaker`` vs ``caretaker-github``).
+          # Harmless when ``executor.foundry.enabled=false`` — no model
+          # is called — but required when the repo opts into the
+          # custom coding agent (see docs/custom-coding-agent-plan.md).
           pip install "litellm>=1.50,<2"
 
       # Cheap, offline sanity check — runs before every doctor/run call
@@ -136,15 +127,30 @@ jobs:
       - name: Caretaker bootstrap-check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Preferred: pass GitHub App credentials so caretaker self-mints
+          # tokens via GitHubAppCredentialsProvider (auto-refresh, no expiry).
+          # Set CARETAKER_APP_ID (var) + CARETAKER_APP_PRIVATE_KEY (secret)
+          # and un-comment these three lines:
+          # CARETAKER_GITHUB_APP_ID: ${{ vars.CARETAKER_APP_ID }}
+          # CARETAKER_GITHUB_APP_INSTALLATION_ID: ${{ vars.CARETAKER_APP_INSTALLATION_ID }}
+          # CARETAKER_GITHUB_APP_PRIVATE_KEY: ${{ secrets.CARETAKER_APP_PRIVATE_KEY }}
           COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          # LiteLLM routes azure_ai/* models through Azure AI Foundry.
-          # QA scenario 11 pins ci_log_analysis to azure_ai/claude-sonnet-4,
-          # so these secrets must be present or bootstrap-check FAILs.
+          # Add your LLM provider credentials here. Examples:
+          # Azure AI Foundry (recommended):
           AZURE_AI_API_KEY: ${{ secrets.AZURE_AI_API_KEY }}
           AZURE_AI_API_BASE: ${{ secrets.AZURE_AI_API_BASE }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          # Azure OpenAI (classic):
+          # AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          # AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          # Direct Anthropic (if not using Azure AI Foundry):
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Fleet registry OAuth2 client_credentials wiring (only consumed
+          # when fleet_registry.enabled=true in config.yml). Safe to leave
+          # unset otherwise — caretaker just skips the heartbeat.
+          OAUTH2_CLIENT_ID: ${{ secrets.OAUTH2_CLIENT_ID }}
+          OAUTH2_CLIENT_SECRET: ${{ secrets.OAUTH2_CLIENT_SECRET }}
+          OAUTH2_TOKEN_URL: ${{ vars.OAUTH2_TOKEN_URL }}
+          OAUTH2_SCOPE: ${{ vars.OAUTH2_SCOPE }}
         run: |
           caretaker doctor \
             --config .github/maintainer/config.yml \
@@ -153,19 +159,29 @@ jobs:
       - name: Run
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Preferred: GitHub App self-mint credentials (see bootstrap-check above).
+          # CARETAKER_GITHUB_APP_ID: ${{ vars.CARETAKER_APP_ID }}
+          # CARETAKER_GITHUB_APP_INSTALLATION_ID: ${{ vars.CARETAKER_APP_INSTALLATION_ID }}
+          # CARETAKER_GITHUB_APP_PRIVATE_KEY: ${{ secrets.CARETAKER_APP_PRIVATE_KEY }}
           # Fine-grained PAT for a real write-capable user or machine user.
           # Caretaker uses this for Copilot issue assignment and @copilot comments
           # that must not be authored as github-actions[bot].
           COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # LLM provider credentials — add whichever your config uses:
           AZURE_AI_API_KEY: ${{ secrets.AZURE_AI_API_KEY }}
           AZURE_AI_API_BASE: ${{ secrets.AZURE_AI_API_BASE }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          # AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          # AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CARETAKER_EVENT_PAYLOAD: ${{ toJSON(github.event) }}
           CARETAKER_RUN_MODE: ${{ github.event.inputs.mode || 'full' }}
           CARETAKER_EVENT_TYPE: ${{ github.event_name }}
-          CARETAKER_FLEET_SECRET: ${{ secrets.CARETAKER_FLEET_SECRET }}
+          # Fleet registry OAuth2 client_credentials wiring (only consumed when
+          # fleet_registry.enabled=true in config.yml).
+          OAUTH2_CLIENT_ID: ${{ secrets.OAUTH2_CLIENT_ID }}
+          OAUTH2_CLIENT_SECRET: ${{ secrets.OAUTH2_CLIENT_SECRET }}
+          OAUTH2_TOKEN_URL: ${{ vars.OAUTH2_TOKEN_URL }}
+          OAUTH2_SCOPE: ${{ vars.OAUTH2_SCOPE }}
         run: |
           caretaker run \
             --config .github/maintainer/config.yml \
@@ -182,6 +198,8 @@ jobs:
           name: caretaker-memory-snapshot-${{ github.run_number }}
           path: .caretaker-memory-snapshot.json
           if-no-files-found: ignore
+          # Required: upload-artifact v4 excludes dotfiles by default.
+          include-hidden-files: true
           retention-days: 30
 
   # When the caretaker run itself fails, trigger the self-heal agent
@@ -201,23 +219,29 @@ jobs:
       - name: Install caretaker
         run: |
           VERSION=$(cat .github/maintainer/.version)
-          # [backend] extra pulls fastapi/uvicorn/pyjwt that the
-          # orchestrator imports even with executor.foundry.enabled=false.
-          pip install "caretaker-github[backend] @ git+https://github.com/ianlintner/caretaker.git@v${VERSION}"
+          pip install "git+https://github.com/ianlintner/caretaker.git@v${VERSION}"
+          # LiteLLM is the ``llm-multi`` extra from caretaker's
+          # pyproject.toml; installing it separately keeps the install
+          # line above compatible with both the pre- and post-v0.8.1
+          # distribution rename (``caretaker`` vs ``caretaker-github``).
+          # Harmless when ``executor.foundry.enabled=false`` — no model
+          # is called — but required when the repo opts into the
+          # custom coding agent (see docs/custom-coding-agent-plan.md).
           pip install "litellm>=1.50,<2"
 
       - name: Self-heal — analyse own failure
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Preferred: GitHub App self-mint credentials.
+          # CARETAKER_GITHUB_APP_ID: ${{ vars.CARETAKER_APP_ID }}
+          # CARETAKER_GITHUB_APP_INSTALLATION_ID: ${{ vars.CARETAKER_APP_INSTALLATION_ID }}
+          # CARETAKER_GITHUB_APP_PRIVATE_KEY: ${{ secrets.CARETAKER_APP_PRIVATE_KEY }}
           # Fine-grained PAT for a real write-capable user or machine user.
           COPILOT_PAT: ${{ secrets.COPILOT_PAT }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           AZURE_AI_API_KEY: ${{ secrets.AZURE_AI_API_KEY }}
           AZURE_AI_API_BASE: ${{ secrets.AZURE_AI_API_BASE }}
-          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
-          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CARETAKER_FAILED_RUN_ID: ${{ github.run_id }}
-          CARETAKER_FLEET_SECRET: ${{ secrets.CARETAKER_FLEET_SECRET }}
           CARETAKER_EVENT_PAYLOAD: >-
             {
               "workflow_run": {
@@ -227,11 +251,16 @@ jobs:
                 "head_branch": "${{ github.ref_name }}"
               }
             }
+          # Fleet registry OAuth2 client_credentials wiring (self-heal also
+          # emits a heartbeat). Only used when fleet_registry.enabled=true.
+          OAUTH2_CLIENT_ID: ${{ secrets.OAUTH2_CLIENT_ID }}
+          OAUTH2_CLIENT_SECRET: ${{ secrets.OAUTH2_CLIENT_SECRET }}
+          OAUTH2_TOKEN_URL: ${{ vars.OAUTH2_TOKEN_URL }}
+          OAUTH2_SCOPE: ${{ vars.OAUTH2_SCOPE }}
         run: |
           caretaker run \
             --config .github/maintainer/config.yml \
             --mode self-heal \
             --event-type workflow_run \
             --event-payload "$CARETAKER_EVENT_PAYLOAD"
-
 
