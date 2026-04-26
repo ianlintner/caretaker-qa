@@ -145,6 +145,9 @@ jobs:
           AZURE_AI_API_BASE: ${{ secrets.AZURE_AI_API_BASE }}
           AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
           AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+          # Required when fleet_registry.enabled: true — must be present in
+          # bootstrap-check so the doctor command can validate the secret.
+          CARETAKER_FLEET_SECRET: ${{ secrets.CARETAKER_FLEET_SECRET }}
         run: |
           caretaker doctor \
             --config .github/maintainer/config.yml \
