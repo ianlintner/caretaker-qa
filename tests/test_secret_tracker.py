@@ -136,9 +136,7 @@ def test_stale_resets_only_on_fingerprint_change(audit_path: Path) -> None:
         now=now - dt.timedelta(days=1),
     )
     # 30-day rotation policy → stale (first sighting was 40d ago).
-    assert (
-        stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is True
-    )
+    assert stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is True
     # Now a real rotation: a different token at t=-1d.
     observe(
         ["NVD_API_KEY"],
@@ -146,9 +144,7 @@ def test_stale_resets_only_on_fingerprint_change(audit_path: Path) -> None:
         env={"NVD_API_KEY": "rotated-token"},
         now=now - dt.timedelta(days=1),
     )
-    assert (
-        stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is False
-    )
+    assert stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is False
 
 
 def test_stale_tolerates_corrupt_rows(audit_path: Path) -> None:
@@ -163,9 +159,7 @@ def test_stale_tolerates_corrupt_rows(audit_path: Path) -> None:
     with audit_path.open("a", encoding="utf-8") as fh:
         fh.write("{this is not json}\n")
         fh.write("\n")  # also an empty line
-    assert (
-        stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is False
-    )
+    assert stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is False
 
 
 def test_stale_treats_a_b_a_sequence_as_no_new_rotation(audit_path: Path) -> None:
@@ -196,9 +190,24 @@ def test_stale_treats_a_b_a_sequence_as_no_new_rotation(audit_path: Path) -> Non
         regression we want.
     """
     now = dt.datetime(2026, 4, 27, tzinfo=dt.UTC)
-    observe(["NVD_API_KEY"], audit_path=audit_path, env={"NVD_API_KEY": "A"}, now=now - dt.timedelta(days=40))
-    observe(["NVD_API_KEY"], audit_path=audit_path, env={"NVD_API_KEY": "B"}, now=now - dt.timedelta(days=20))
-    observe(["NVD_API_KEY"], audit_path=audit_path, env={"NVD_API_KEY": "A"}, now=now - dt.timedelta(days=1))
+    observe(
+        ["NVD_API_KEY"],
+        audit_path=audit_path,
+        env={"NVD_API_KEY": "A"},
+        now=now - dt.timedelta(days=40),
+    )
+    observe(
+        ["NVD_API_KEY"],
+        audit_path=audit_path,
+        env={"NVD_API_KEY": "B"},
+        now=now - dt.timedelta(days=20),
+    )
+    observe(
+        ["NVD_API_KEY"],
+        audit_path=audit_path,
+        env={"NVD_API_KEY": "A"},
+        now=now - dt.timedelta(days=1),
+    )
 
     # 25d window: B's first sighting (t=-20d) is inside the window → fresh.
     assert stale("NVD_API_KEY", dt.timedelta(days=25), audit_path=audit_path, now=now) is False
@@ -233,6 +242,4 @@ def test_unset_observation_is_not_a_rotation(audit_path: Path) -> None:
         now=now - dt.timedelta(days=1),
     )
     # First sighting of the surviving fingerprint was 40d ago → stale.
-    assert (
-        stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is True
-    )
+    assert stale("NVD_API_KEY", dt.timedelta(days=30), audit_path=audit_path, now=now) is True
