@@ -168,6 +168,46 @@ def test_stale_tolerates_corrupt_rows(audit_path: Path) -> None:
     )
 
 
+def test_stale_treats_a_b_a_sequence_as_no_new_rotation(audit_path: Path) -> None:
+    """A→B→A is not three rotations.
+
+    Operator rolls back to a previously-used credential (or a token
+    re-issuer happens to mint the same value twice). Naive
+    last-fingerprint-changes logic would reset the clock to the third
+    observation, treating re-use of an old credential as a fresh
+    rotation. The seen-fingerprints set fix surfaces the *novelty* of
+    each fingerprint instead — only fingerprints never previously
+    observed advance the rotation clock.
+
+    Sequence:
+      t=-40d: token "A"     (first sighting of A — anchors the clock)
+      t=-20d: token "B"     (rotation — new anchor)
+      t=-1d:  token "A"     (re-use of A; should NOT reset the clock)
+
+    With a 25-day rotation policy:
+      * If A→B→A erroneously resets the clock to t=-1d, stale → False.
+      * Correctly, the most recent *novel* fingerprint is B at t=-20d
+        which is < 25 days, so still False.
+
+    With a 15-day rotation policy:
+      * Erroneous logic: clock at t=-1d → stale = False.
+      * Correct logic: clock at t=-20d (B's first sighting), 20 days
+        is past the 15-day window → stale = True. This is the
+        regression we want.
+    """
+    now = dt.datetime(2026, 4, 27, tzinfo=dt.UTC)
+    observe(["NVD_API_KEY"], audit_path=audit_path, env={"NVD_API_KEY": "A"}, now=now - dt.timedelta(days=40))
+    observe(["NVD_API_KEY"], audit_path=audit_path, env={"NVD_API_KEY": "B"}, now=now - dt.timedelta(days=20))
+    observe(["NVD_API_KEY"], audit_path=audit_path, env={"NVD_API_KEY": "A"}, now=now - dt.timedelta(days=1))
+
+    # 25d window: B's first sighting (t=-20d) is inside the window → fresh.
+    assert stale("NVD_API_KEY", dt.timedelta(days=25), audit_path=audit_path, now=now) is False
+    # 15d window: B's first sighting is outside the window → stale.
+    # The naive implementation pre-fix would have reported False here
+    # because A's reappearance at t=-1d would have looked like a rotation.
+    assert stale("NVD_API_KEY", dt.timedelta(days=15), audit_path=audit_path, now=now) is True
+
+
 def test_unset_observation_is_not_a_rotation(audit_path: Path) -> None:
     """An unset/empty observation (``present=False``) must not be treated
     as a rotation point — otherwise an env var that was set, briefly

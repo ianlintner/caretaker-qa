@@ -22,9 +22,10 @@ The tracker is deliberately tiny:
   rotation policy.
 
 Storage is append-only by design — the rotation history *is* the
-record we need. ``compact()`` is offered for ops who want to roll
-older entries into a summary, but the default behaviour is to keep
-every observation.
+record we need. There is no compaction primitive; every observation
+stays in the log until the operator manually trims it. The disk cost
+is bounded (one JSON line per observed env-var per scheduled run,
+~32 bytes after compression) so this is not a problem in practice.
 """
 
 from __future__ import annotations
@@ -142,19 +143,29 @@ def stale(
     audit_path: Path | None = None,
     now: dt.datetime | None = None,
 ) -> bool:
-    """Return True when the most recent fingerprint for ``name`` is older than ``max_age``.
+    """Return True when the most recent *novel* fingerprint for ``name`` is older than ``max_age``.
 
     A name with no recorded observations is considered stale (you've
     never seen the credential at all — that's worse than expired).
-    Different fingerprints reset the clock; the same fingerprint
-    seen multiple times does not.
+
+    "Novel" means the fingerprint has not been seen before for this
+    name. The clock resets on the first observation of a new
+    fingerprint and stays put until another genuinely-new fingerprint
+    appears. An A→B→A sequence (operator rolls back to a previously
+    used credential, or a token gets re-issued at the same value) does
+    NOT reset the clock — the second A is not a rotation, it's a
+    re-use of an old credential, and the rotation policy should still
+    catch it as stale relative to the last *new* credential.
+
+    The same fingerprint observed many consecutive times is also a
+    no-op for the clock; only fingerprint novelty advances it.
     """
     path = audit_path or _audit_path()
     if not path.is_file():
         return True
     now = now or dt.datetime.now(dt.UTC)
     last_rotation: dt.datetime | None = None
-    last_fingerprint: str | None = None
+    seen_fingerprints: set[str] = set()
     with path.open("r", encoding="utf-8") as fh:
         for raw in fh:
             raw = raw.strip()
@@ -168,9 +179,9 @@ def stale(
                 continue
             if obs.name != name or not obs.present:
                 continue
-            if obs.fingerprint != last_fingerprint:
+            if obs.fingerprint not in seen_fingerprints:
+                seen_fingerprints.add(obs.fingerprint)
                 last_rotation = obs.observed_at
-                last_fingerprint = obs.fingerprint
     if last_rotation is None:
         return True
     return (now - last_rotation) > max_age
