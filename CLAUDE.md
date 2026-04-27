@@ -38,7 +38,7 @@ Two audiences depend on how you treat changes here:
 
 ## Caretaker integration
 
-Caretaker v0.19.2 is pinned in `.github/workflows/maintainer.yml`. It maintains dependency freshness, triages PRs + issues, runs the deterministic-first fix ladder on CI failures, and applies guardrails to its own output. If caretaker opens a PR on this repo, treat it like any other contributor's — review, approve, merge.
+Caretaker v0.24.0 is pinned in `.github/workflows/maintainer.yml`. It maintains dependency freshness, triages PRs + issues, runs the deterministic-first fix ladder on CI failures, and applies guardrails to its own output. If caretaker opens a PR on this repo, treat it like any other contributor's — review, approve, merge.
 
 ## Shadow decisions
 
