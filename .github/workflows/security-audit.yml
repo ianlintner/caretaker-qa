@@ -120,7 +120,7 @@ jobs:
           # ``--out-json``. We capture both so the artifact has the
           # human-readable brief alongside the structured data.
           python -m qa_agent.cli scan \
-            --since "7 days ago" \
+            --since 7d \
             --out watchlist.md \
             --out-json watchlist.json
 
