@@ -116,12 +116,20 @@ jobs:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python -m qa_agent.cli scan --since "7 days ago" --output watchlist.json
+          # ``scan`` emits Markdown via ``--out`` and JSON via
+          # ``--out-json``. We capture both so the artifact has the
+          # human-readable brief alongside the structured data.
+          python -m qa_agent.cli scan \
+            --since "7 days ago" \
+            --out watchlist.md \
+            --out-json watchlist.json
 
       - name: Upload watchlist report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: watchlist-scan-report
-          path: watchlist.json
+          path: |
+            watchlist.md
+            watchlist.json
           retention-days: 30

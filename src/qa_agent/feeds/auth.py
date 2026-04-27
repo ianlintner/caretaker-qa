@@ -76,8 +76,7 @@ def credential_status() -> dict[str, bool]:
     rather than discovering it via 429 retries at runtime.
     """
     return {
-        name: bool(os.environ.get(cred.env_var, "").strip())
-        for name, cred in _CREDENTIALS.items()
+        name: bool(os.environ.get(cred.env_var, "").strip()) for name, cred in _CREDENTIALS.items()
     }
 
 
