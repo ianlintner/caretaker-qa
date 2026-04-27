@@ -22,6 +22,12 @@ Initial release. Ships the scaffolding for a live QA harness for `ianlintner/car
 
 - Caretaker pin upgraded from v0.18.0 to v0.19.2 (fleet lag regression harness — fleet.yml, weekly cron, caretaker fleet lag CLI).
 
+## [0.1.3] — 2026-04-27
+
+### Changed
+
+- Caretaker pin upgraded from v0.22.3 to v0.23.0 (auto-close stale/resolved issues, sortable admin-UI grids with repo/version/severity/kind filters, pluggable coding-agent registry with opencode hand-off, streaming workflow → backend with GitHub OIDC + SSE, unblocked PR readiness gate).
+
 ## [0.1.1] — 2026-04-23
 
 ### Changed
