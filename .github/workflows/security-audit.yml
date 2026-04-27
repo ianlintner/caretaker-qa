@@ -112,9 +112,21 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run watchlist scan
+        # Soft-fail: an Azure outage or expired credential should
+        # surface in the run summary but not block PRs. The Markdown +
+        # JSON artifacts are uploaded unconditionally below for triage.
+        continue-on-error: true
         env:
+          # Feed-fetcher credentials (consumed via ``qa_agent.feeds.auth``
+          # by NVD + GHSA fetchers; OSV stays anonymous).
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # LLM-judge credentials. ``relevance_llm`` calls Azure via
+          # LiteLLM, which reads ``AZURE_API_KEY`` / ``AZURE_API_BASE``
+          # natively. Empty values mean LLM-judge is skipped and the
+          # scan falls back to the deterministic regex matcher only.
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
         run: |
           # ``scan`` emits Markdown via ``--out`` and JSON via
           # ``--out-json``. We capture both so the artifact has the
