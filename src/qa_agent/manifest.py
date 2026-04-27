@@ -21,15 +21,11 @@ from __future__ import annotations
 import json
 import re
 import tomllib
-from typing import TYPE_CHECKING
 
 import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from qa_agent.models import Ecosystem, WatchlistRepo
-
-if TYPE_CHECKING:
-    pass
 
 RAW_URL = "https://raw.githubusercontent.com/{owner}/{repo}/HEAD/{path}"
 
