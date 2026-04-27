@@ -1,0 +1,62 @@
+name: Claude Code
+
+# Listens for ``@claude`` mentions and the ``claude-code`` label that
+# caretaker (running in this repo via ``maintainer.yml``) dispatches
+# when its PR-reviewer routes a complex PR to the ``claude_code``
+# hand-off backend. v0.24.0 added a structured-payload contract
+# (``<!-- caretaker:review-result -->`` + fenced ``caretaker-review``
+# JSON block) so caretaker can re-post the review under the GitHub
+# Reviews tab — this workflow is the upstream side of that contract.
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened, assigned]
+  pull_request_review:
+    types: [submitted]
+  pull_request:
+    types: [labeled]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+      (github.event_name == 'pull_request' && github.event.label.name == 'claude-code')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          # caretaker-qa uses ANTHROPIC_API_KEY directly rather than the
+          # OAuth-token path the parent caretaker repo uses. Either is
+          # accepted by the action; use whichever this repo has
+          # configured under Settings → Secrets.
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # Allow the caretaker bot to trigger this workflow via @claude
+          # mentions. Without this, comments posted by the maintainer
+          # workflow (running as github-actions[bot]) are filtered out
+          # and Claude never sees the hand-off.
+          allowed_bots: 'github-actions'
+
+          additional_permissions: |
+            actions: read
