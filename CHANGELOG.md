@@ -16,6 +16,12 @@ Initial release. Ships the scaffolding for a live QA harness for `ianlintner/car
 - Nightly workflow: runs the agent at 02:00 UTC, commits the brief into `reports/`, opens a PR.
 - Caretaker maintainer.yml pinned to v0.16.0 with Wave A features on (fix-ladder, guardrails, attribution telemetry).
 
+## [0.1.4] — 2026-04-28
+
+### Changed
+
+- Caretaker pin upgraded from v0.25.0 to v0.26.1 (deploy-mcp uses replace --force for the agent-worker Job, pre-dispatch comment gate for self-echo + @caretaker triggers, drop pip cache from thin maintainer workflow).
+
 ## [0.1.3] — 2026-04-27
 
 ### Changed
