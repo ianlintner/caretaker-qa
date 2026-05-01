@@ -373,7 +373,7 @@ kubectl apply -k overlays/production
 
 # Or use kubectl set image
 kubectl set image deployment/oauth2-server \
-  oauth2-server=docker.io/ianlintner068/oauth2-server:v1.1.0 \
+  oauth2-server=oauth2-server:v1.1.0 \
   -n oauth2-server
 
 # Check rollout status

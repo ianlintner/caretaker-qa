@@ -49,19 +49,19 @@ spec:
             # for social login providers. Must match the hostname behind
             # the Istio ingress VirtualService.
             - name: OAUTH2_PUBLIC_URL
-              value: https://roauth2.cat-herding.net
+              value: https://oauth.example.com
             - name: OAUTH2_ISSUER_URL
-              value: https://roauth2.cat-herding.net
+              value: https://oauth.example.com
             # Social login redirect URIs — must match what is registered
             # on each provider's OAuth App (GitHub / Google). Do not
             # change these without updating the provider configuration.
             - name: OAUTH2_GITHUB_REDIRECT_URI
-              value: https://roauth2.cat-herding.net/auth/callback/github
+              value: https://oauth.example.com/auth/callback/github
             - name: OAUTH2_GOOGLE_REDIRECT_URI
-              value: https://roauth2.cat-herding.net/auth/callback/google
+              value: https://oauth.example.com/auth/callback/google
             # Comma-separated allowlist of admin emails. Users authenticated
             # via social login whose email matches one of these addresses are
             # treated as admins by the admin_guard middleware, regardless of
             # the role stored on their user record.
             - name: OAUTH2_ADMIN_EMAILS
-              value: lintner.ian@gmail.com
+              value: admin@example.com
