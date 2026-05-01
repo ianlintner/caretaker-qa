@@ -17,7 +17,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -34,7 +33,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -51,7 +49,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -68,7 +65,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -85,7 +81,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -102,7 +97,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -119,7 +113,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -134,7 +127,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -148,7 +140,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -159,7 +150,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -170,7 +160,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -184,7 +173,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -198,7 +186,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -210,7 +197,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_service: oauth2-server
       sloth_slo: token-availability
@@ -221,7 +207,6 @@ groups:
       category: availability
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-availability
       sloth_mode: cli-gen-prom
       sloth_objective: "99.9"
@@ -293,7 +278,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -315,7 +299,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -337,7 +320,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -359,7 +341,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -381,7 +362,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -403,7 +383,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -425,7 +404,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -441,7 +419,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -456,7 +433,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -468,7 +444,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -480,7 +455,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -495,7 +469,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -510,7 +483,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -523,7 +495,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_service: oauth2-server
       sloth_slo: token-latency-500ms
@@ -535,7 +506,6 @@ groups:
       category: latency
       endpoint: /oauth/token
       owner: oauth2
-      repo: ianlintner/rust_oauth2_server
       sloth_id: oauth2-server-token-latency-500ms
       sloth_mode: cli-gen-prom
       sloth_objective: "99"
