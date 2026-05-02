@@ -16,6 +16,20 @@ Initial release. Ships the scaffolding for a live QA harness for `ianlintner/car
 - Nightly workflow: runs the agent at 02:00 UTC, commits the brief into `reports/`, opens a PR.
 - Caretaker maintainer.yml pinned to v0.16.0 with Wave A features on (fix-ladder, guardrails, attribution telemetry).
 
+## [0.1.6] — 2026-05-02
+
+### Changed
+
+- Caretaker pin upgraded from v0.26.2 to v0.27.0:
+  - Human PR merge opt-in via label and `@caretaker merge` comment.
+  - Two-phase triage gate for issue dispatch (prevent duplicate/spam queue).
+  - Pluggable third-party PR reviewer backends — pr-agent and `claude_code_local` (Claude CLI in caretaker pod).
+  - Retired consumer-side `maintainer.yml` bootstrap.
+  - LLM consensus engine for tiered/multi-model decisions; `ConsensusTrace` persisted on `ShadowDecisionRecord` end-to-end.
+  - Post-incident hardening: liveness probes, self-heal, admin reset, post-mortem tooling.
+  - Rate-limit self-heal: stale GitHub cooldown now cleared when bucket is healthy; cooldown gauge live at scrape time.
+  - OpenRouter integration with per-feature routing and `:online` web grounding.
+
 ## [0.1.5] — 2026-04-29
 
 ### Changed
