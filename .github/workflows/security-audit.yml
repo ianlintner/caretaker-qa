@@ -1,0 +1,147 @@
+name: Security Audit
+
+# Weekly security audit pass — runs the qa_agent's own dependency tree
+# through pip-audit and the matcher's own watchlist regex against
+# recently-published advisories. Surfaces issues into the repo when a
+# match is found rather than waiting for the scheduled NVD/GHSA fetch
+# to pick them up on its normal cadence.
+#
+# This is the testbed's mirror of caretaker's own security agent — it
+# shouldn't fail the matrix; it should *file* issues.
+
+on:
+  schedule:
+    # Tuesdays at 14:00 UTC, an hour after caretaker's nightly scan
+    # so the deduper has cleared the prior cycle's report.
+    - cron: "0 14 * * 2"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "pyproject.toml"
+      - "src/qa_agent/feeds/auth.py"
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  pip-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install --upgrade pip pip-audit
+
+      - name: Run pip-audit
+        id: audit
+        run: |
+          set +e
+          pip-audit --strict --format json > audit.json
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: audit.json
+          retention-days: 30
+
+      - name: Surface failures into an issue
+        if: steps.audit.outputs.exit_code != '0' && github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report = '(pip-audit produced no JSON output)';
+            try {
+              report = fs.readFileSync('audit.json', 'utf8');
+            } catch (e) {
+              core.warning(`Could not read audit.json: ${e.message}`);
+            }
+            const truncated = report.length > 60000
+              ? report.slice(0, 60000) + '\n…(truncated)'
+              : report;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[Security] pip-audit findings on ${new Date().toISOString().slice(0, 10)}`,
+              body: [
+                '## pip-audit findings',
+                '',
+                'The weekly security audit pass surfaced one or more',
+                'advisories in this repo\'s declared dependencies.',
+                '',
+                'Triage steps:',
+                '1. Open the artifact `pip-audit-report` from the workflow run.',
+                '2. For each entry, decide if the dependency upgrade is in scope here',
+                '   or if it should be filed against the upstream library.',
+                '3. Apply the fix in a PR labelled `security`.',
+                '',
+                '<details><summary>Raw report</summary>',
+                '',
+                '```json',
+                truncated,
+                '```',
+                '',
+                '</details>',
+              ].join('\n'),
+              labels: ['security', 'caretaker:auto-filed'],
+            });
+
+  watchlist-scan:
+    runs-on: ubuntu-latest
+    needs: pip-audit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install qa_agent
+        run: pip install -e ".[dev]"
+
+      - name: Run watchlist scan
+        # Soft-fail: an Azure outage or expired credential should
+        # surface in the run summary but not block PRs. The Markdown +
+        # JSON artifacts are uploaded unconditionally below for triage.
+        continue-on-error: true
+        env:
+          # Feed-fetcher credentials (consumed via ``qa_agent.feeds.auth``
+          # by NVD + GHSA fetchers; OSV stays anonymous).
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # LLM-judge credentials. ``relevance_llm`` calls Azure via
+          # LiteLLM, which reads ``AZURE_API_KEY`` / ``AZURE_API_BASE``
+          # natively. Empty values mean LLM-judge is skipped and the
+          # scan falls back to the deterministic regex matcher only.
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_API_BASE: ${{ secrets.AZURE_API_BASE }}
+        run: |
+          # ``scan`` emits Markdown via ``--out`` and JSON via
+          # ``--out-json``. We capture both so the artifact has the
+          # human-readable brief alongside the structured data.
+          python -m qa_agent.cli scan \
+            --since 7d \
+            --out watchlist.md \
+            --out-json watchlist.json
+
+      - name: Upload watchlist report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: watchlist-scan-report
+          path: |
+            watchlist.md
+            watchlist.json
+          retention-days: 30
