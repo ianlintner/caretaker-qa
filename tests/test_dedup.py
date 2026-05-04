@@ -30,10 +30,11 @@ def test_seen_set_len_deduplicates() -> None:
     assert len(seen) == 2
 
 
-def test_fingerprint_rejects_none_inputs() -> None:
+def test_fingerprint_rejects_invalid_inputs() -> None:
     import pytest
 
-    with pytest.raises(ValueError):
-        fingerprint(None, "acme/demo")  # type: ignore[arg-type]
-    with pytest.raises(ValueError):
-        fingerprint("CVE-2024-1234", None)  # type: ignore[arg-type]
+    for bad in (None, ""):
+        with pytest.raises(ValueError):
+            fingerprint(bad, "acme/demo")
+        with pytest.raises(ValueError):
+            fingerprint("CVE-2024-1234", bad)

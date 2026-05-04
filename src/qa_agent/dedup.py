@@ -13,10 +13,10 @@ import hashlib
 import json
 
 
-def fingerprint(advisory_id: str, repo: str) -> str:
+def fingerprint(advisory_id: str | None, repo: str | None) -> str:
     """Return a stable 16-char hex key for a (advisory_id, repo) pair."""
-    if advisory_id is None or repo is None:
-        raise ValueError("advisory_id and repo must not be None")
+    if not advisory_id or not repo:
+        raise ValueError("advisory_id and repo must be non-empty strings")
     payload = json.dumps({"id": advisory_id, "repo": repo}, sort_keys=True)
     return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
