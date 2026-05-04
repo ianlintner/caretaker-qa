@@ -54,8 +54,8 @@ jobs:
 
           # Allow the caretaker bot to trigger this workflow via @claude
           # mentions. Without this, comments posted by the maintainer
-          # workflow (running as github-actions[bot]) are filtered out
-          # and Claude never sees the hand-off.
+          # workflow (running as github-actions[bot] or the-care-taker[bot])
+          # are filtered out and Claude never sees the hand-off.
           allowed_bots: 'github-actions,the-care-taker'
 
           additional_permissions: |
