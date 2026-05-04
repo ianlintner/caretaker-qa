@@ -3,6 +3,8 @@
 NVD, OSV, and GHSA regularly mirror the same CVE.  Without dedup the same
 advisory can appear multiple times in the brief, which inflates the affected
 count and makes the output noisy.
+
+[qa-scenario-73] Re-trigger: fixed allowed_bots for caretaker handoff + skip_labels.
 """
 
 from __future__ import annotations
