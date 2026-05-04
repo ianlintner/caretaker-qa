@@ -89,6 +89,10 @@ pr_reviewer:
     - synchronize
   skip_draft: true
   post_inline_comments: true
+  # Allow re-review after auto-fix pushes a new commit. Without skip_labels:[],
+  # the caretaker:reviewed label (applied after each review) would block the
+  # fresh review that validates the fix — breaking the review→auto-fix loop.
+  skip_labels: []
 
 # Auto-approve workflow runs from trusted bot actors that are gated by
 # GitHub's first-time-contributor owner-approval gate. Without this,
