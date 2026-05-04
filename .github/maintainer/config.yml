@@ -93,6 +93,15 @@ pr_reviewer:
   # the caretaker:reviewed label (applied after each review) would block the
   # fresh review that validates the fix — breaking the review→auto-fix loop.
   skip_labels: []
+  auto_fix:
+    enabled: true
+    allowed_authors:
+      - ianlintner
+      - copilot-swe-agent[bot]
+      - github-actions[bot]
+      - dependabot[bot]
+      - the-care-taker[bot]
+    opt_in_label: caretaker:auto-fix
 
 # Auto-approve workflow runs from trusted bot actors that are gated by
 # GitHub's first-time-contributor owner-approval gate. Without this,
