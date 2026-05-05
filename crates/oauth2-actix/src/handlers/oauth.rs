@@ -16,7 +16,10 @@ use crate::actors::{
     MarkAuthorizationCodeUsed, StorePARRequest, TokenActorPool, ValidateAuthorizationCode,
     ValidateRefreshToken,
 };
-use crate::handlers::dpop::{build_request_url_bounded, validate_dpop_proof, DpopReplayStore};
+use crate::handlers::dpop::{
+    build_request_url_bounded, enforce_dpop_nonce, validate_dpop_proof, DpopReplayStore,
+};
+use crate::handlers::dpop_nonce::{use_dpop_nonce_response, DpopNonceIssuer};
 use crate::handlers::jwks_cache::JwksCache;
 use crate::handlers::wellknown::OidcConfig;
 use oauth2_core::{IdTokenClaims, OAuth2Error, TokenResponse};
@@ -1377,6 +1380,7 @@ pub async fn token(
     >,
     jwks_cache: Option<web::Data<JwksCache>>,
     dpop_replay_store: Option<web::Data<DpopReplayStore>>,
+    dpop_nonce_issuer: Option<web::Data<DpopNonceIssuer>>,
 ) -> Result<HttpResponse, OAuth2Error> {
     // OAuch: reject duplicate parameters (prevents parser differentials / smuggling).
     ensure_no_duplicate_query_params(&req)?;
@@ -1447,7 +1451,7 @@ pub async fn token(
     };
 
     // RFC 9449: DPoP — fully validate the DPoP proof and extract JWK Thumbprint.
-    let dpop_jkt: Option<String> = if let Some(dpop_header) = req.headers().get("DPoP") {
+    let dpop_validated = if let Some(dpop_header) = req.headers().get("DPoP") {
         let dpop_str = dpop_header
             .to_str()
             .map_err(|_| OAuth2Error::invalid_request("DPoP header is not valid UTF-8"))?;
@@ -1466,13 +1470,48 @@ pub async fn token(
                 &default_store
             }
         };
-        match validate_dpop_proof(dpop_str, method, &token_url, replay_store) {
-            Ok(jkt) => Some(jkt),
-            Err(e) => return Err(e),
-        }
+        Some(validate_dpop_proof(
+            dpop_str,
+            method,
+            &token_url,
+            replay_store,
+        )?)
     } else {
         None
     };
+    let dpop_jkt: Option<String> = dpop_validated.as_ref().map(|v| v.jkt.clone());
+
+    // RFC 9449 §§8, 9: per-client nonce enforcement. When the calling
+    // client has `dpop_nonce_required = true`, the DPoP proof must carry
+    // a fresh server-issued `nonce`; otherwise we respond with
+    // `error: use_dpop_nonce` and a `DPoP-Nonce` header so the client can
+    // retry. Skipped when no proof is presented (DPoP itself is optional).
+    if let (Some(validated), Some(issuer_data)) = (&dpop_validated, &dpop_nonce_issuer) {
+        let issuer = issuer_data.as_ref();
+        let lookup = client_actor
+            .send(GetClient {
+                client_id: form.client_id.clone(),
+                span: tracing::Span::current(),
+            })
+            .await
+            .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))?;
+        if let Ok(client) = lookup {
+            if client.dpop_nonce_required {
+                match enforce_dpop_nonce(validated, issuer) {
+                    Ok(()) => {}
+                    Err(e) if e.error == "use_dpop_nonce" => {
+                        return Ok(use_dpop_nonce_response(
+                            issuer,
+                            e.error_description.as_deref(),
+                        ));
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+        // If lookup returned an error (unknown client), fall through —
+        // the per-grant handler will produce the proper `invalid_client`.
+    }
 
     // RFC 8705: mTLS certificate-bound tokens — trust the reverse proxy thumbprint header.
     let mtls_thumbprint: Option<String> = req
@@ -1527,6 +1566,7 @@ pub async fn token(
                 token_actor,
                 client_actor,
                 auth_actor,
+                storage.clone(),
                 metrics,
                 oidc_config,
                 jwks_cache.clone(),
@@ -1757,13 +1797,35 @@ async fn handle_device_code_grant(
 
     let mut response = TokenResponse::from(token.clone());
     if device_auth.scope.split_whitespace().any(|s| s == "openid") {
-        let id_claims = IdTokenClaims::new(
+        let mut id_claims = IdTokenClaims::new(
             &oidc_config.issuer,
-            user_id,
+            user_id.clone(),
             req.client_id,
             3600,
             Some(&token.access_token),
         );
+
+        // OIDC Core §5.4: populate email/preferred_username when requested scope grants it.
+        let scope_set: std::collections::HashSet<&str> =
+            device_auth.scope.split_whitespace().collect();
+        if (scope_set.contains("email") || scope_set.contains("profile")) && !user_id.is_empty() {
+            match storage.get_user_by_id(&user_id).await {
+                Ok(Some(user)) => {
+                    if scope_set.contains("email") {
+                        id_claims.email = Some(user.email.clone());
+                    }
+                    if scope_set.contains("profile") {
+                        id_claims.preferred_username = Some(user.username.clone());
+                    }
+                }
+                Ok(None) => {
+                    tracing::warn!(user_id = %user_id, "User not found when populating id_token claims");
+                }
+                Err(e) => {
+                    tracing::error!(user_id = %user_id, error = %e, "Failed to fetch user for id_token claims");
+                }
+            }
+        }
 
         let id_token = if oidc_config.id_token_alg.eq_ignore_ascii_case("RS256") {
             let pem = oidc_config
@@ -1795,6 +1857,7 @@ async fn handle_authorization_code_grant(
     token_actor: web::Data<TokenActorPool>,
     client_actor: web::Data<Addr<ClientActor>>,
     auth_actor: web::Data<Addr<AuthActor>>,
+    storage: Option<web::Data<DynStorage>>,
     metrics: web::Data<Metrics>,
     oidc_config: web::Data<OidcConfig>,
     jwks_cache: Option<web::Data<JwksCache>>,
@@ -1969,7 +2032,7 @@ async fn handle_authorization_code_grant(
     if auth_code.scope.split_whitespace().any(|s| s == "openid") {
         let mut id_claims = IdTokenClaims::new(
             &oidc_config.issuer,
-            auth_code.user_id,
+            auth_code.user_id.clone(),
             auth_code.client_id,
             3600, // same lifetime as access token
             Some(&token.access_token),
@@ -1981,6 +2044,42 @@ async fn handle_authorization_code_grant(
             use sha2::{Digest, Sha256};
             let hash = Sha256::digest(auth_code.code.as_bytes());
             id_claims.c_hash = Some(general_purpose::URL_SAFE_NO_PAD.encode(&hash[..16]));
+        }
+
+        // OIDC Core §5.4: include email/preferred_username in the id_token when
+        // the corresponding scopes were requested. This lets oauth2-proxy (and
+        // other RP libraries) read the email claim directly from the id_token
+        // without a round-trip to the userinfo endpoint.
+        let scope_set: std::collections::HashSet<&str> =
+            auth_code.scope.split_whitespace().collect();
+        if (scope_set.contains("email") || scope_set.contains("profile"))
+            && !auth_code.user_id.is_empty()
+        {
+            if let Some(ref store) = storage {
+                match store.get_user_by_id(&auth_code.user_id).await {
+                    Ok(Some(user)) => {
+                        if scope_set.contains("email") {
+                            id_claims.email = Some(user.email.clone());
+                        }
+                        if scope_set.contains("profile") {
+                            id_claims.preferred_username = Some(user.username.clone());
+                        }
+                    }
+                    Ok(None) => {
+                        tracing::warn!(
+                            user_id = %auth_code.user_id,
+                            "User not found when populating id_token claims"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            user_id = %auth_code.user_id,
+                            error = %e,
+                            "Failed to fetch user for id_token claims"
+                        );
+                    }
+                }
+            }
         }
 
         let id_token = if oidc_config.id_token_alg.eq_ignore_ascii_case("RS256") {
