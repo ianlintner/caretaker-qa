@@ -16,6 +16,17 @@ Initial release. Ships the scaffolding for a live QA harness for `ianlintner/car
 - Nightly workflow: runs the agent at 02:00 UTC, commits the brief into `reports/`, opens a PR.
 - Caretaker maintainer.yml pinned to v0.16.0 with Wave A features on (fix-ladder, guardrails, attribution telemetry).
 
+## [0.1.7] — 2026-05-05
+
+### Changed
+
+- Caretaker pin upgraded from v0.27.0 to v0.27.1:
+  - Ownership requirement enforced for review fix requests in PRAgent.
+  - PR reviewer auto-fix loop — fixer dispatched on REQUEST_CHANGES.
+  - PR reviewer defaults complex_reviewer to opencode.
+  - Deployment: updated MCP backend image and adjusted Redis stream max.
+  - Dogfood LLM routing switched to provider=openrouter.
+
 ## [0.1.6] — 2026-05-02
 
 ### Changed
