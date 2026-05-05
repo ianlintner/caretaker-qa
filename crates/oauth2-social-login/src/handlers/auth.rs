@@ -1,7 +1,8 @@
 use actix_session::Session;
 use actix_web::{web, HttpResponse, Result};
 use oauth2::{
-    AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope, TokenResponse as OAuth2TokenResponse,
+    AuthorizationCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
+    TokenResponse as OAuth2TokenResponse,
 };
 use serde::Deserialize;
 use std::sync::Arc;
