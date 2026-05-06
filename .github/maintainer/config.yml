@@ -93,6 +93,21 @@ pr_reviewer:
   # the caretaker:reviewed label (applied after each review) would block the
   # fresh review that validates the fix — breaking the review→auto-fix loop.
   skip_labels: []
+  # Route complex / fall-through reviews to the in-pod opencode_local
+  # backend (caretaker MCP pod has the opencode CLI + OPENROUTER_API_KEY
+  # baked in). The legacy default 'opencode' is a comment-trigger that
+  # requires the sst/opencode-github-action App to be installed in this
+  # repo — it isn't — so handoffs would otherwise sit forever.
+  complex_reviewer: opencode_local
+  # opencode_local must be in the enabled list for non-caretaker-owned
+  # PRs to use it; without this the agent falls back to the first
+  # backend in this list. (caretaker-owned PRs always allow it via
+  # caretaker_owned_reviewer.)
+  enabled_backends:
+    - claude_code
+    - opencode
+    - opencode_local
+    - pr_agent
 
 # Auto-approve workflow runs from trusted bot actors that are gated by
 # GitHub's first-time-contributor owner-approval gate. Without this,
