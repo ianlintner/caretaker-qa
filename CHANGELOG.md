@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-W19] — 2026-05-04
+
+- credential rotation audit + nightly drift workflow [qa-scenario-12b] (#63)
+- add QA scenarios convention index [qa-scenario-16] (#66)
+- upgrade caretaker pin from v0.24.0 to v0.25.0 (#69)
+- upgrade caretaker pin from v0.25.0 to v0.26.1 (#79)
+- upgrade caretaker pin from v0.26.1 to v0.26.2 (#82)
+- upgrade caretaker pin v0.26.2 → v0.27.0 (#85)
+- advisory deduplication helper — auto-fix cycle validation [qa-scenario-73] (#87)
+
 ## [0.1.0] — 2026-04-22
 
 Initial release. Ships the scaffolding for a live QA harness for `ianlintner/caretaker`.
