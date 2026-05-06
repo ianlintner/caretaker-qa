@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.7] — 2026-05-06
+
+### Changed
+
+- Caretaker pin upgraded from v0.27.0 to v0.28.4:
+  - Use verified-working OpenRouter model IDs in the PR reviewer.
+
 ## [2026-W19] — 2026-05-04
 
 - credential rotation audit + nightly drift workflow [qa-scenario-12b] (#63)
