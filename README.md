@@ -1,6 +1,6 @@
 # caretaker-qa
 
-A small security-relevance agent used as a live QA environment for [`ianlintner/caretaker`](https://github.com/ianlintner/caretaker).
+A small security-relevance agent used as a live QA test environment for [`ianlintner/caretaker`](https://github.com/ianlintner/caretaker).
 
 The agent itself has a real job: fetch recent security advisories (NVD, OSV, GHSA) and security-news RSS, match them against a watchlist of public repos (the caretaker fleet plus a few widely-used open-source projects), and emit a short Markdown brief of items an operator should act on. Running the agent on a schedule produces realistic PRs, issues, CI failures, and dependency drift for caretaker to exercise.
 
