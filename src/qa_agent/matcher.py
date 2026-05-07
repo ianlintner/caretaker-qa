@@ -70,4 +70,4 @@ def _topic_signal(advisory: Advisory, repo: WatchlistRepo) -> bool:
     if not repo.topics:
         return False
     haystack = f"{advisory.title} {advisory.summary}".lower()
-    return any(topic.lower() in haystack for topic in repo.topics)
+    return not any(topic.lower() in haystack for topic in repo.topics)
