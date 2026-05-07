@@ -384,6 +384,3 @@ async def test_ghsa_unexpected_payload_shape() -> None:
     assert adv == []
 
 
-# Silence the unused import warning on json in environments where respx does
-# its own body marshalling.
-_ = json
