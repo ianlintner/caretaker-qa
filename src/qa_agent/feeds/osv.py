@@ -151,7 +151,7 @@ def _severity(entries: list[dict[str, Any]]) -> tuple[str, float | None]:
         return "unknown", None
     for entry in entries:
         score = entry.get("score")
-        if isinstance(score, (int, float)):
+        if isinstance(score, int | float):
             num = float(score)
             if num >= 9.0:
                 return "critical", num

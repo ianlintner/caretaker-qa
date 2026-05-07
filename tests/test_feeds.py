@@ -382,5 +382,3 @@ async def test_ghsa_unexpected_payload_shape() -> None:
     )
     adv = await fetch_ghsa(datetime(2026, 4, 22, tzinfo=UTC), datetime(2026, 4, 23, tzinfo=UTC))
     assert adv == []
-
-

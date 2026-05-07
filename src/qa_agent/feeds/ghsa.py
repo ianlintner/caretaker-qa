@@ -98,7 +98,7 @@ def _parse_advisory(item: dict[str, Any]) -> Advisory | None:
         title=item.get("summary") or ghsa_id,
         summary=item.get("description", "") or "",
         severity=severity,
-        cvss=float(cvss_score) if isinstance(cvss_score, (int, float)) else None,
+        cvss=float(cvss_score) if isinstance(cvss_score, int | float) else None,
         published=published,
         ecosystem=ecosystem_seen,
         affected_packages=sorted(set(affected_packages)),
