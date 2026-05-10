@@ -130,6 +130,12 @@ security_agent:
   include_code_scanning: false
   include_secret_scanning: false
 
+# Enable the caretaker/pr-readiness check-run (QA scenario 20).
+# advisory mode (default merge_authority) → blocked PRs publish "neutral",
+# never "failure", so the check is informational only.
+readiness:
+  enabled: true
+
 agentic:
   # Shadow-mode on the usual suspects; promote to enforce once the
   # nightly-eval clears the gate.
