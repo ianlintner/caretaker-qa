@@ -192,3 +192,4 @@ __all__ = [
     "observe",
     "stale",
 ]
+# QA test 2026-05-10T04:34:23Z — verify PR lifecycle against deployed caretaker v0.29.3
