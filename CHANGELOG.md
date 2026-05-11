@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-W20] — 2026-05-11
+
+- add QA scenarios convention index [qa-scenario-16] (#66)
+- advisory dedup helper — auto-fix cycle validation [qa-scenario-73] (#87)
+- reconcile CHANGELOG — 2026-W19 (#94)
+- remove legacy maintainer.yml workflow (#104)
+- route complex/fall-through PR reviews to opencode_local (#106)
+- caretaker fleet migration — gated review workflows (#111)
+
 ## [2026-W19] — 2026-05-04
 
 - credential rotation audit + nightly drift workflow [qa-scenario-12b] (#63)
