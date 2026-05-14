@@ -79,3 +79,5 @@ Initial release. Ships the scaffolding for a live QA harness for `ianlintner/car
 
 - Caretaker pin upgraded from v0.16.0 to v0.17.0 (QA-scenario dispatch suppression, empty-PR-body close, Copilot action_required escalation suppression).
 <!-- discord-test: trigger review 2026-05-14T04:18:54Z -->
+
+<!-- discord-test-trigger: 2026-05-14T05:38:17Z -->
