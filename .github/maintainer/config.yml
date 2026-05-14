@@ -185,3 +185,9 @@ pr_reviewer:
     timeout_seconds: 300
   auto_fix:
     pre_escalation_agent: "openclaw_http"
+discord:
+  enabled: true
+  channel_id: "1504316939089084506"
+  bot_token_env: CARETAKER_DISCORD_BOT_TOKEN
+  github_verbosity: summary
+  github_comment_max_chars: 1200
