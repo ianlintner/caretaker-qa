@@ -125,6 +125,19 @@ fn dynamic_registration_enabled() -> bool {
     )
 }
 
+/// Scopes that confer elevated authority and must never be self-assigned via
+/// the public RFC 7591 registration or RFC 7592 update endpoints. Operators can
+/// still grant them deliberately through the admin endpoint.
+const PRIVILEGED_SCOPES: &[&str] = &["admin", "write"];
+
+/// True if any space-delimited token in `scope` is a privileged scope
+/// (case-insensitive, exact-token match — `"administrator"` does not match).
+fn scope_contains_privileged(scope: &str) -> bool {
+    scope
+        .split_whitespace()
+        .any(|s| PRIVILEGED_SCOPES.iter().any(|p| p.eq_ignore_ascii_case(s)))
+}
+
 /// Common validation for a `ClientRegistration`, shared between the admin
 /// endpoint and the RFC 7591 public endpoint.
 fn validate_registration(reg: &ClientRegistration) -> Result<(), OAuth2Error> {
@@ -136,6 +149,12 @@ fn validate_registration(reg: &ClientRegistration) -> Result<(), OAuth2Error> {
     };
     validate_grant_types(&grant_types)?;
     validate_token_endpoint_auth_method(&reg.token_endpoint_auth_method, &grant_types)?;
+
+    if scope_contains_privileged(&reg.scope) {
+        return Err(OAuth2Error::invalid_request(
+            "requested scope includes a privileged scope that may not be self-registered",
+        ));
+    }
 
     if reg.redirect_uris.is_empty() {
         return Err(OAuth2Error::invalid_request(
@@ -411,5 +430,19 @@ mod registration_security_tests {
         assert!(!parse_registration_enabled(Some("false")));
         assert!(!parse_registration_enabled(Some("1")));
         assert!(!parse_registration_enabled(Some("garbage")));
+    }
+
+    #[test]
+    fn rejects_privileged_scopes() {
+        assert!(scope_contains_privileged("openid admin"));
+        assert!(scope_contains_privileged("write"));
+        assert!(scope_contains_privileged("ADMIN")); // case-insensitive
+    }
+
+    #[test]
+    fn allows_normal_scopes() {
+        assert!(!scope_contains_privileged("openid profile email read"));
+        assert!(!scope_contains_privileged("")); // empty handled elsewhere
+        assert!(!scope_contains_privileged("administrator")); // not an exact token match
     }
 }
