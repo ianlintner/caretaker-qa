@@ -232,10 +232,9 @@ pub async fn dynamic_register(
     oidc_config: web::Data<OidcConfig>,
 ) -> Result<HttpResponse, OAuth2Error> {
     if !dynamic_registration_enabled() {
-        return Ok(HttpResponse::Forbidden().json(serde_json::json!({
-            "error": "access_denied",
-            "error_description": "Dynamic client registration is disabled",
-        })));
+        return Err(OAuth2Error::access_denied(
+            "Dynamic client registration is disabled",
+        ));
     }
     normalise_registration(&mut registration);
     validate_registration(&registration)?;
