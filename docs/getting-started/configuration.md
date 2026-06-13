@@ -115,8 +115,9 @@ These are worth calling out because startup and auth flows depend on them.
 | `OAUTH2_ADMIN_CLIENT_IDS`         | Comma-separated `client_id`s whose bearer tokens (carrying the `admin` scope) may access `/admin/*`. Default empty, meaning no machine client is treated as admin. Set this to your MCP/automation `client_id` to grant machine-to-machine admin access. |
 
 Privileged scopes (`admin`, `write`) cannot be requested through the public
-RFC 7591 registration or RFC 7592 update endpoints; they are stripped from
-those requests and may only be granted via `POST /admin/clients/register`.
+RFC 7591 registration or RFC 7592 update endpoints; such requests are rejected
+with an error, and these scopes may only be granted via
+`POST /admin/clients/register`.
 
 ## Social login
 
