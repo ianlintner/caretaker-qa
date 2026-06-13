@@ -109,6 +109,22 @@ fn validate_token_endpoint_auth_method(
     Ok(())
 }
 
+/// Parse the dynamic-registration enable flag. Defaults to `false` (disabled)
+/// for any absent or non-`"true"` value, so open registration is opt-in.
+fn parse_registration_enabled(val: Option<&str>) -> bool {
+    val.and_then(|v| v.parse::<bool>().ok()).unwrap_or(false)
+}
+
+/// Whether the public RFC 7591 `POST /connect/register` endpoint is enabled.
+/// Controlled by `OAUTH2_DYNAMIC_REGISTRATION_ENABLED` (trusted env var).
+fn dynamic_registration_enabled() -> bool {
+    parse_registration_enabled(
+        std::env::var("OAUTH2_DYNAMIC_REGISTRATION_ENABLED")
+            .ok()
+            .as_deref(),
+    )
+}
+
 /// Common validation for a `ClientRegistration`, shared between the admin
 /// endpoint and the RFC 7591 public endpoint.
 fn validate_registration(reg: &ClientRegistration) -> Result<(), OAuth2Error> {
@@ -215,6 +231,12 @@ pub async fn dynamic_register(
     client_actor: web::Data<Addr<ClientActor>>,
     oidc_config: web::Data<OidcConfig>,
 ) -> Result<HttpResponse, OAuth2Error> {
+    if !dynamic_registration_enabled() {
+        return Ok(HttpResponse::Forbidden().json(serde_json::json!({
+            "error": "access_denied",
+            "error_description": "Dynamic client registration is disabled",
+        })));
+    }
     normalise_registration(&mut registration);
     validate_registration(&registration)?;
 
@@ -373,4 +395,22 @@ pub async fn delete_client_configuration(
         .map_err(|e| OAuth2Error::new("server_error", Some(&e.to_string())))??;
 
     Ok(HttpResponse::NoContent().finish())
+}
+
+#[cfg(test)]
+mod registration_security_tests {
+    use super::*;
+
+    #[test]
+    fn registration_disabled_by_default() {
+        assert!(!parse_registration_enabled(None));
+    }
+
+    #[test]
+    fn registration_enabled_only_for_true() {
+        assert!(parse_registration_enabled(Some("true")));
+        assert!(!parse_registration_enabled(Some("false")));
+        assert!(!parse_registration_enabled(Some("1")));
+        assert!(!parse_registration_enabled(Some("garbage")));
+    }
 }
