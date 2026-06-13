@@ -276,6 +276,10 @@ async fn bearer_token_without_admin_scope_is_403() {
     assert_eq!(body["error"], "insufficient_scope");
 }
 
+// Holds ADMIN_ENV_LOCK across .await to serialize the process-global
+// OAUTH2_ADMIN_CLIENT_IDS env var; safe because actix_web::test uses a
+// single-threaded runtime so the guard never crosses threads.
+#[allow(clippy::await_holding_lock)]
 #[actix_web::test]
 async fn bearer_token_with_admin_scope_passes() {
     // AdminGuard now also requires the token's client_id to be in the
@@ -332,6 +336,10 @@ async fn bearer_token_with_admin_scope_passes() {
     std::env::remove_var("OAUTH2_ADMIN_CLIENT_IDS");
 }
 
+// Holds ADMIN_ENV_LOCK across .await to serialize the process-global
+// OAUTH2_ADMIN_CLIENT_IDS env var; safe because actix_web::test uses a
+// single-threaded runtime so the guard never crosses threads.
+#[allow(clippy::await_holding_lock)]
 #[actix_web::test]
 async fn bearer_token_admin_scope_non_allowlisted_client_is_403() {
     // Security boundary: a token carrying `admin` scope must still be denied
