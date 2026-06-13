@@ -274,6 +274,9 @@ async fn bearer_token_without_admin_scope_is_403() {
 
 #[actix_web::test]
 async fn bearer_token_with_admin_scope_passes() {
+    // AdminGuard now also requires the token's client_id to be in the
+    // OAUTH2_ADMIN_CLIENT_IDS allow-list (fail-closed). Trust this client.
+    std::env::set_var("OAUTH2_ADMIN_CLIENT_IDS", "machine-admin");
     let storage = setup_storage().await;
     let client = Client::new(
         "machine-admin".to_string(),
