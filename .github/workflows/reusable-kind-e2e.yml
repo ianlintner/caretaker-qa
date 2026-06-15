@@ -78,7 +78,10 @@ jobs:
           path: target/release
 
       - name: Download prebuilt server binary (arm64)
+        # PR builds only produce an amd64 binary (the e2e image is single-arch
+        # amd64), so arm64 may be absent — tolerate that.
         if: inputs.use_prebuilt_binaries
+        continue-on-error: true
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: rust_oauth2_server-linux-arm64

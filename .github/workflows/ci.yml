@@ -28,31 +28,79 @@ env:
   IMAGE_VERSION: "0.0.0-dev"
 
 jobs:
+  # Detects whether this push/PR touches anything that needs the Rust pipeline.
+  # Docs/markdown-only changes set code=false, which skips the heavy compile/
+  # build/e2e steps while the required-context jobs (checks, security) still run
+  # and report success (their expensive steps are gated on this output).
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**/*.rs'
+              - '**/Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain*'
+              - 'Dockerfile*'
+              - '.dockerignore'
+              - 'migrations/**'
+              - 'scripts/**'
+              - 'tests/**'
+              - 'templates/**'
+              - 'static/**'
+              - 'deny.toml'
+              - 'audit.toml'
+              - '.cargo/**'
+              - 'supply-chain/**'
+              - '.github/workflows/**'
+              - '.github/actions/**'
+
   checks:
     name: Checks (fmt, clippy, test)
     runs-on: ubuntu-latest
+    needs: [changes]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
 
       - name: Rust toolchain + cache
+        if: needs.changes.outputs.code == 'true'
         uses: ./.github/actions/rust-setup
         with:
           toolchain: stable
           components: rustfmt, clippy
-          cache-key: checks
+          # Shared debug-profile cache: integration/mongo (db-tests) restore the
+          # artifacts compiled here instead of rebuilding the workspace.
+          cache-key: debug
           install-system-deps: "true"
 
       - name: Check formatting
+        if: needs.changes.outputs.code == 'true'
         run: cargo fmt --all -- --check
 
       - name: Clippy linting
+        if: needs.changes.outputs.code == 'true'
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Run tests
+        if: needs.changes.outputs.code == 'true'
         run: cargo test --verbose --all-features --locked
 
+      # Compliance matrix is only published by the (main-only) docs job, so the
+      # re-run + report + upload only need to happen on push events.
       - name: Compliance test results capture
+        if: needs.changes.outputs.code == 'true' && github.event_name == 'push'
         # Re-run only the RFC-tagged compliance tests with stable libtest
         # pretty output captured to a file. The compliance_report tool then
         # folds these results into the matrix as real pass/fail/ignored.
@@ -69,9 +117,11 @@ jobs:
             > target/compliance-tests.txt 2>&1 || true
 
       - name: Generate compliance report (with results)
+        if: needs.changes.outputs.code == 'true' && github.event_name == 'push'
         run: cargo run --bin compliance_report -- --results target/compliance-tests.txt
 
       - name: Upload compliance artifacts
+        if: needs.changes.outputs.code == 'true' && github.event_name == 'push'
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rfc-compliance-report
@@ -85,7 +135,8 @@ jobs:
   build-binaries:
     name: Build release binaries
     runs-on: ubuntu-latest
-    needs: [checks]
+    needs: [changes, checks]
+    if: needs.changes.outputs.code == 'true'
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
@@ -97,24 +148,32 @@ jobs:
           cache-key: build-binaries
           install-system-deps: "true"
 
+      # cross (arm64) is only needed for the multi-arch images published on
+      # main/tags. PRs build a single debug amd64 binary for the e2e image.
       - name: Install cross (for arm64 builds)
+        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
         uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
         with:
           tool: cross
 
-      - name: Build release binaries
+      - name: Build server binary/binaries
         shell: bash
         run: |
           set -euo pipefail
-          args=()
-
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]] && \
              ([[ "${GITHUB_REF}" == "refs/heads/${{ github.event.repository.default_branch }}" ]] || \
               [[ "${GITHUB_REF}" == refs/tags/* ]]); then
-            args+=(--include-mongo-variants)
+            # Release path: multi-arch (amd64 + cross arm64) + mongo variants for
+            # the published images.
+            bash .github/scripts/build_release_binaries.sh --include-mongo-variants
+          else
+            # PR/develop path: the only consumer is e2e-kind, which loads a
+            # single-arch amd64 image. A debug build is much faster than release
+            # and skips the slow cross arm64 compile entirely.
+            cargo build --locked
+            mkdir -p target/release
+            cp target/debug/rust_oauth2_server target/release/rust_oauth2_server-amd64
           fi
-
-          bash .github/scripts/build_release_binaries.sh "${args[@]}"
 
       - name: Upload release binary artifact (linux/amd64)
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -124,6 +183,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload release binary artifact (linux/arm64)
+        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: rust_oauth2_server-linux-arm64
@@ -165,12 +225,13 @@ jobs:
   security:
     name: Security (audit, deny, vet)
     runs-on: ubuntu-latest
-    needs: [checks]
+    needs: [changes]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
 
       - name: Rust toolchain + cache
+        if: needs.changes.outputs.code == 'true'
         uses: ./.github/actions/rust-setup
         with:
           toolchain: stable
@@ -178,14 +239,17 @@ jobs:
           install-system-deps: "true"
 
       - name: Install cargo-audit + cargo-vet
+        if: needs.changes.outputs.code == 'true'
         uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
         with:
           tool: cargo-audit,cargo-vet
 
       - name: Security Audit (cargo-audit)
+        if: needs.changes.outputs.code == 'true'
         run: cargo audit
 
       - name: Check Dependencies (cargo-deny)
+        if: needs.changes.outputs.code == 'true'
         uses: EmbarkStudios/cargo-deny-action@175dc7fd4fb85ec8f46948fb98f44db001149081 # v2
         with:
           command: check
@@ -194,45 +258,18 @@ jobs:
       # trusted import) or explicitly exempted. New/updated crates that are not
       # vouched for fail the build. --locked pins the imported audit sets.
       - name: Supply-chain review (cargo-vet)
+        if: needs.changes.outputs.code == 'true'
         run: cargo vet --locked
 
-  # Code Coverage
-  coverage:
-    name: Code Coverage
+  # Integration (Postgres) + Mongo storage tests in one job: both are
+  # Docker-backed debug-profile suites, and sharing the `debug` cache lets them
+  # restore the artifacts already compiled by `checks`.
+  db-tests:
+    name: Database Tests (postgres, mongo)
     runs-on: ubuntu-latest
-    needs: [checks]
-    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-
-      - name: Rust toolchain + cache
-        uses: ./.github/actions/rust-setup
-        with:
-          toolchain: stable
-          cache-key: coverage
-          install-system-deps: "true"
-
-      - name: Install tarpaulin
-        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
-        with:
-          tool: cargo-tarpaulin
-
-      - name: Generate Coverage
-        run: cargo tarpaulin --out Xml --output-dir ./coverage --all-features --locked
-
-      - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
-        with:
-          files: ./coverage/cobertura.xml
-          fail_ci_if_error: false
-
-  # Integration Tests
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [checks]
-    timeout-minutes: 20
+    needs: [changes, checks]
+    if: needs.changes.outputs.code == 'true'
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:15
@@ -254,7 +291,7 @@ jobs:
         uses: ./.github/actions/rust-setup
         with:
           toolchain: stable
-          cache-key: integration
+          cache-key: debug
           install-system-deps: "true"
 
       - name: Run Flyway Migrations
@@ -269,25 +306,10 @@ jobs:
             -locations=filesystem:/flyway/sql \
             migrate
 
-      - name: Run Integration Tests
+      - name: Run Integration Tests (Postgres)
         env:
           OAUTH2_DATABASE_URL: postgresql://test_user:test_password@localhost:5432/oauth2_test
         run: cargo test --test integration --locked
-
-  mongo-storage:
-    name: Mongo Storage Tests (feature)
-    runs-on: ubuntu-latest
-    needs: [checks]
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
-
-      - name: Rust toolchain + cache
-        uses: ./.github/actions/rust-setup
-        with:
-          toolchain: stable
-          cache-key: mongo-storage
-          install-system-deps: "true"
 
       - name: Run Mongo storage tests (requires Docker)
         env:
@@ -296,7 +318,8 @@ jobs:
 
   # E2E Tests on KIND (reuses prebuilt binaries from the build-binaries job)
   e2e-kind:
-    needs: [build-binaries]
+    needs: [changes, build-binaries]
+    if: needs.changes.outputs.code == 'true'
     uses: ./.github/workflows/reusable-kind-e2e.yml
     with:
       job_name: E2E Tests on KIND
@@ -309,7 +332,7 @@ jobs:
   docker:
     name: Docker (${{ matrix.variant_name }})
     runs-on: ubuntu-latest
-    needs: [build-binaries, security, integration, mongo-storage, e2e-kind]
+    needs: [build-binaries, security, db-tests, e2e-kind]
     if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
     timeout-minutes: 45
     permissions:
@@ -590,36 +613,37 @@ jobs:
   gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs:
-      [
-        checks,
-        build-binaries,
-        security,
-        integration,
-        mongo-storage,
-        e2e-kind,
-        coverage,
-      ]
+    needs: [changes, checks, security, build-binaries, db-tests, e2e-kind]
     if: always()
     steps:
       - name: Check Job Results
+        shell: bash
         run: |
-          # Security scan results are informational only
-          if [ "${{ needs.security.result }}" != "success" ]; then
-            echo "⚠️  Security scan found issues (informational only)"
+          set -euo pipefail
+          # Skipped jobs are expected for docs-only changes — only a real
+          # failure/cancellation of a critical job fails the gate.
+          fail=0
+          for pair in \
+            "checks:${{ needs.checks.result }}" \
+            "build-binaries:${{ needs.build-binaries.result }}" \
+            "db-tests:${{ needs.db-tests.result }}" \
+            "e2e-kind:${{ needs.e2e-kind.result }}"; do
+            name="${pair%%:*}"; res="${pair#*:}"
+            if [[ "$res" == "failure" || "$res" == "cancelled" ]]; then
+              echo "::error::${name}: ${res}"
+              fail=1
+            else
+              echo "${name}: ${res}"
+            fi
+          done
+
+          # Security is informational in the gate (it is its own required check).
+          sec='${{ needs.security.result }}'
+          if [[ "$sec" != "success" && "$sec" != "skipped" ]]; then
+            echo "⚠️  security: ${sec} (informational)"
           fi
 
-          # Coverage is informational and may be skipped
-          if [ "${{ needs.coverage.result }}" = "failure" ]; then
-            echo "⚠️  Coverage job failed (informational only)"
-          fi
-
-          # Only fail on critical job failures
-          if [ "${{ needs.checks.result }}" != "success" ] || \
-             [ "${{ needs.build-binaries.result }}" != "success" ] || \
-             [ "${{ needs.integration.result }}" != "success" ] || \
-             [ "${{ needs.mongo-storage.result }}" != "success" ] || \
-             [ "${{ needs.e2e-kind.result }}" != "success" ]; then
+          if [[ "$fail" -ne 0 ]]; then
             echo "Quality gate failed!"
             exit 1
           fi
@@ -635,8 +659,6 @@ jobs:
             echo "- checks: ${{ needs.checks.result }}"
             echo "- build-binaries: ${{ needs.build-binaries.result }}"
             echo "- security: ${{ needs.security.result }}"
-            echo "- integration: ${{ needs.integration.result }}"
-            echo "- mongo-storage: ${{ needs.mongo-storage.result }}"
+            echo "- db-tests: ${{ needs.db-tests.result }}"
             echo "- e2e-kind: ${{ needs.e2e-kind.result }}"
-            echo "- coverage: ${{ needs.coverage.result }}"
           } >> "$GITHUB_STEP_SUMMARY"

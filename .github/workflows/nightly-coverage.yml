@@ -1,0 +1,52 @@
+name: Nightly Coverage
+
+# Coverage moved off the per-merge CI path: tarpaulin recompiles the whole
+# workspace with instrumentation (~30 min) and the result is informational only.
+# Running it nightly keeps the Codecov trend without taxing every main push.
+on:
+  schedule:
+    # 04:42 UTC daily — off the top of the hour to avoid scheduler contention.
+    - cron: "42 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-coverage
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+  OAUTH2_JWT_SECRET: "test-jwt-secret-for-ci-only-do-not-use-in-production-32chars"
+
+jobs:
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+
+      - name: Rust toolchain + cache
+        uses: ./.github/actions/rust-setup
+        with:
+          toolchain: stable
+          cache-key: coverage
+          install-system-deps: "true"
+
+      - name: Install tarpaulin
+        uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
+        with:
+          tool: cargo-tarpaulin
+
+      - name: Generate Coverage
+        run: cargo tarpaulin --out Xml --output-dir ./coverage --all-features --locked
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5
+        with:
+          files: ./coverage/cobertura.xml
+          fail_ci_if_error: false
