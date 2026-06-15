@@ -91,3 +91,7 @@ CI runs all four in `.github/workflows/ci.yml` and fails on any one.
 ## License
 
 MIT.
+
+
+## Updates
+This repository is now actively maintained by the caretaker bot for improved security assessments and PR management.
