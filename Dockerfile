@@ -8,7 +8,9 @@
 ### The CSS is pre-built in a dedicated stage and copied into the final image.
 
 # ── Stage 0: Tailwind CSS build ─────────────────────────────────────────────
-FROM debian:trixie-slim AS tailwind-build
+# Base images are pinned by digest for supply-chain integrity. Refresh digests
+# deliberately (e.g. via Dependabot) rather than letting a mutable tag drift.
+FROM debian:trixie-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e AS tailwind-build
 
 ARG TAILWIND_VERSION=v3.4.17
 ARG TARGETARCH=amd64
@@ -36,7 +38,7 @@ COPY static/js/ ./static/js/
 
 RUN ./tailwindcss -c tailwind.config.js -i admin.src.css -o admin.min.css --minify
 
-FROM rust:slim AS chef
+FROM rust:slim@sha256:3b05f7c617a200c41c3506097f0d15fc193a1c93bfd8f141007b47cac8f95d3c AS chef
 
 WORKDIR /app
 
@@ -48,8 +50,9 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install cargo-chef (cached as a layer)
-RUN cargo install cargo-chef --locked
+# Install cargo-chef (cached as a layer). Pin the version so the build tool
+# itself can't drift to a newly-published (potentially compromised) release.
+RUN cargo install cargo-chef --version 0.1.77 --locked
 
 FROM chef AS planner
 
@@ -113,7 +116,8 @@ RUN if [ -n "$CARGO_FEATURES" ]; then \
 # NOTE: We keep the runtime distro aligned with the build environment's glibc.
 # CI runners and upstream base images now commonly require GLIBC_2.38+, which
 # Debian bookworm does not provide. Debian trixie includes GLIBC_2.38.
-FROM debian:trixie-slim
+# Digest-pinned (see note on the tailwind-build stage above).
+FROM debian:trixie-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e
 
 WORKDIR /app
 

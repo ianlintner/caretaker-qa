@@ -2,7 +2,8 @@
 # runtime failures like:
 #   /lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.38' not found
 # we use Debian trixie (glibc 2.38+) instead of Debian bookworm.
-FROM debian:trixie-slim
+# Digest-pinned for supply-chain integrity; refresh deliberately via Dependabot.
+FROM debian:trixie-slim@sha256:4e401d95de7083948053197a9c3913343cd06b706bf15eb6a0c3ccd26f436a0e
 
 WORKDIR /app
 

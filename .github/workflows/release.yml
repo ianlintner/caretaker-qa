@@ -8,37 +8,66 @@ on:
         required: true
         type: string
 
-env:
-  # Always define this so workflow expressions referencing env.IMAGE_VERSION are valid.
-  # It is overwritten later after version normalization.
-  IMAGE_VERSION: "0.0.0-dev"
-
+# Least privilege by default. Each job widens only what it needs:
+#   - prepare:        contents:write  (commit the bump + push the tag) — NO build
+#   - build-binaries: contents:read   (compiles deps; holds NO registry secrets)
+#   - publish:        packages:write  (pushes images; runs NO cargo build)
+#
+# This is the supply-chain split: dependency build scripts execute ONLY in
+# build-binaries, which has a read-only token and no registry credentials, so a
+# compromised crate's build.rs/proc-macro cannot exfiltrate the Docker token or
+# tamper with the repo. The credentialed publish job only assembles images from
+# already-built binaries via Dockerfile.prebuilt (no compilation).
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Bump Cargo.toml + Cargo.lock + tag + publish images
+  prepare:
+    name: Bump version + tag
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+      sha: ${{ steps.commit.outputs.sha }}
+      sha_short: ${{ steps.commit.outputs.sha_short }}
 
     steps:
+      # main is protected by a ruleset requiring the CI checks. The default
+      # GITHUB_TOKEN (GitHub Actions bot) cannot bypass it on a personal repo,
+      # so the bump commit + tag are pushed with an admin-owned fine-grained PAT
+      # (RELEASE_TOKEN, contents: write) which bypasses via the admin role.
+      - name: Require RELEASE_TOKEN
+        shell: bash
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RELEASE_TOKEN}" ]; then
+            echo "::error::RELEASE_TOKEN secret is required to push to the protected main branch. Create a fine-grained PAT with 'Contents: write' on this repo and add it as the RELEASE_TOKEN secret." >&2
+            exit 1
+          fi
+
       - name: Checkout default branch
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
+          # Use the PAT so the version-bump push + tag bypass branch protection.
+          token: ${{ secrets.RELEASE_TOKEN }}
+          persist-credentials: true
 
       - name: Rust toolchain + cache
         uses: ./.github/actions/rust-setup
         with:
           toolchain: stable
-          cache-key: release
+          cache-key: release-prepare
           install-system-deps: "true"
 
       - name: Normalize + validate version
@@ -80,7 +109,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Keep dependency versions pinned, but ensure the workspace package version is reflected.
+          # Resolve-only (no compilation, no build scripts): keeps dependency
+          # versions pinned while reflecting the new workspace package version.
           cargo generate-lockfile
 
       - name: Commit version bump to default branch
@@ -132,11 +162,28 @@ jobs:
           git tag -a "$tag" -m "$tag"
           git push origin "$tag"
 
-      - name: Set IMAGE_VERSION
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "IMAGE_VERSION=${{ steps.ver.outputs.version }}" >> "$GITHUB_ENV"
+  build-binaries:
+    name: Build release binaries (no secrets)
+    runs-on: ubuntu-latest
+    needs: [prepare]
+    timeout-minutes: 90
+    # Intentionally read-only and secret-free: this is the only job that
+    # compiles dependencies (and therefore runs their build scripts/proc-macros).
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Rust toolchain + cache
+        uses: ./.github/actions/rust-setup
+        with:
+          toolchain: stable
+          cache-key: release-build
+          install-system-deps: "true"
 
       - name: Install cross (for arm64 builds)
         uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
@@ -147,6 +194,39 @@ jobs:
         shell: bash
         run: bash .github/scripts/build_release_binaries.sh --include-mongo-variants
 
+      - name: Upload release binaries
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: release-binaries
+          path: |
+            target/release/rust_oauth2_server*-amd64
+            target/release/rust_oauth2_server*-arm64
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish images (no compilation)
+    runs-on: ubuntu-latest
+    needs: [prepare, build-binaries]
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_VERSION: ${{ needs.prepare.outputs.version }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Download release binaries
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: release-binaries
+          path: target/release
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -154,7 +234,7 @@ jobs:
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
 
       - name: Decide publishing targets
-        id: publish
+        id: targets
         shell: bash
         run: |
           set -euo pipefail
@@ -172,7 +252,7 @@ jobs:
           password: ${{ github.token }}
 
       - name: Login to Docker Hub
-        if: steps.publish.outputs.dockerhub == 'true'
+        if: steps.targets.outputs.dockerhub == 'true'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
@@ -186,7 +266,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/oauth2-server
           tags: |
             type=raw,value=latest
-            type=raw,value=sha-${{ steps.commit.outputs.sha_short }}
+            type=raw,value=sha-${{ needs.prepare.outputs.sha_short }}
             type=raw,value=${{ env.IMAGE_VERSION }}
 
       - name: Extract metadata (GHCR, mongo)
@@ -197,7 +277,7 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/oauth2-server
           tags: |
             type=raw,value=latest-mongo
-            type=raw,value=sha-${{ steps.commit.outputs.sha_short }}-mongo
+            type=raw,value=sha-${{ needs.prepare.outputs.sha_short }}-mongo
             type=raw,value=${{ env.IMAGE_VERSION }}-mongo
 
       - name: Extract metadata (GHCR, mongo-only)
@@ -208,11 +288,11 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/oauth2-server
           tags: |
             type=raw,value=latest-mongo-only
-            type=raw,value=sha-${{ steps.commit.outputs.sha_short }}-mongo-only
+            type=raw,value=sha-${{ needs.prepare.outputs.sha_short }}-mongo-only
             type=raw,value=${{ env.IMAGE_VERSION }}-mongo-only
 
       - name: Extract metadata (Docker Hub)
-        if: steps.publish.outputs.dockerhub == 'true'
+        if: steps.targets.outputs.dockerhub == 'true'
         id: meta_dockerhub
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
@@ -220,11 +300,11 @@ jobs:
             docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server
           tags: |
             type=raw,value=latest
-            type=raw,value=sha-${{ steps.commit.outputs.sha_short }}
+            type=raw,value=sha-${{ needs.prepare.outputs.sha_short }}
             type=raw,value=${{ env.IMAGE_VERSION }}
 
       - name: Extract metadata (Docker Hub, mongo)
-        if: steps.publish.outputs.dockerhub == 'true'
+        if: steps.targets.outputs.dockerhub == 'true'
         id: meta_dockerhub_mongo
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
@@ -232,11 +312,11 @@ jobs:
             docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server
           tags: |
             type=raw,value=latest-mongo
-            type=raw,value=sha-${{ steps.commit.outputs.sha_short }}-mongo
+            type=raw,value=sha-${{ needs.prepare.outputs.sha_short }}-mongo
             type=raw,value=${{ env.IMAGE_VERSION }}-mongo
 
       - name: Extract metadata (Docker Hub, mongo-only)
-        if: steps.publish.outputs.dockerhub == 'true'
+        if: steps.targets.outputs.dockerhub == 'true'
         id: meta_dockerhub_mongo_only
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
@@ -244,7 +324,7 @@ jobs:
             docker.io/${{ secrets.DOCKER_USERNAME }}/oauth2-server
           tags: |
             type=raw,value=latest-mongo-only
-            type=raw,value=sha-${{ steps.commit.outputs.sha_short }}-mongo-only
+            type=raw,value=sha-${{ needs.prepare.outputs.sha_short }}-mongo-only
             type=raw,value=${{ env.IMAGE_VERSION }}-mongo-only
 
       - name: Build and Push (base image)
@@ -298,11 +378,11 @@ jobs:
           {
             echo "## Release created"
             echo
-            echo "- Version: `${{ steps.ver.outputs.version }}`"
-            echo "- Tag: `${{ steps.ver.outputs.tag }}`"
+            echo "- Version: \`${{ needs.prepare.outputs.version }}\`"
+            echo "- Tag: \`${{ needs.prepare.outputs.tag }}\`"
             echo "- Cargo.toml + Cargo.lock updated + committed to main, then tag pushed."
             echo "- Docker images published:"
-            echo "  - GHCR: `ghcr.io/${{ github.repository_owner }}/oauth2-server:${{ steps.ver.outputs.version }}`"
-            echo "  - GHCR: `ghcr.io/${{ github.repository_owner }}/oauth2-server:sha-${{ steps.commit.outputs.sha_short }}`"
-            echo "  - GHCR: `ghcr.io/${{ github.repository_owner }}/oauth2-server:latest`"
+            echo "  - GHCR: \`ghcr.io/${{ github.repository_owner }}/oauth2-server:${{ needs.prepare.outputs.version }}\`"
+            echo "  - GHCR: \`ghcr.io/${{ github.repository_owner }}/oauth2-server:sha-${{ needs.prepare.outputs.sha_short }}\`"
+            echo "  - GHCR: \`ghcr.io/${{ github.repository_owner }}/oauth2-server:latest\`"
           } >> "$GITHUB_STEP_SUMMARY"

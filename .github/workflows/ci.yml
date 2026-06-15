@@ -163,7 +163,7 @@ jobs:
           if-no-files-found: error
 
   security:
-    name: Security (audit, deny)
+    name: Security (audit, deny, vet)
     runs-on: ubuntu-latest
     needs: [checks]
     timeout-minutes: 15
@@ -177,10 +177,10 @@ jobs:
           cache-key: security
           install-system-deps: "true"
 
-      - name: Install cargo-audit
+      - name: Install cargo-audit + cargo-vet
         uses: taiki-e/install-action@055f5df8c3f65ea01cd41e9dc855becd88953486 # v2.75.18
         with:
-          tool: cargo-audit
+          tool: cargo-audit,cargo-vet
 
       - name: Security Audit (cargo-audit)
         run: cargo audit
@@ -189,6 +189,12 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@175dc7fd4fb85ec8f46948fb98f44db001149081 # v2
         with:
           command: check
+
+      # Supply-chain trust gate: every dependency must be audited (by us or a
+      # trusted import) or explicitly exempted. New/updated crates that are not
+      # vouched for fail the build. --locked pins the imported audit sets.
+      - name: Supply-chain review (cargo-vet)
+        run: cargo vet --locked
 
   # Code Coverage
   coverage:

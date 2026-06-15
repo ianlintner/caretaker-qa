@@ -1,0 +1,57 @@
+version: 2
+
+# Dependabot keeps the supply chain current so known-vulnerable or
+# digest-pinned dependencies are refreshed deliberately (with a reviewable PR
+# and a green CI run) rather than drifting or going stale.
+#
+# Security updates (PRs opened automatically for advisories) are governed by
+# the repo's "Dependabot security updates" setting, which must be enabled in
+# Settings → Code security. The ecosystems below additionally drive scheduled
+# version-update PRs. Grouping keeps the PR volume low while still surfacing
+# every change for review.
+
+updates:
+  # ── Rust crates (Cargo workspace) ──────────────────────────────────────────
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    # Pull patch/minor bumps together to reduce churn; majors stay individual
+    # so breaking changes get a focused review.
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+
+  # ── GitHub Actions (workflows + composite actions) ─────────────────────────
+  # Refreshes the SHA pins to newer pinned releases so they don't go stale.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(ci)"
+
+  # ── Docker base images (Dockerfile + Dockerfile.prebuilt) ──────────────────
+  # Bumps the digest pins when upstream Debian/Rust images are rebuilt.
+  - package-ecosystem: docker
+    directories:
+      - "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(docker)"
