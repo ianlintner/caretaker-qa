@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2026-W21] — 2026-05-18
+
+- bump caretaker to v0.29.3 (#119)
+- enable openclaw integration (v0.29.4) (#125)
+
 ## [2026-W20] — 2026-05-11
 
 - add QA scenarios convention index [qa-scenario-16] (#66)
