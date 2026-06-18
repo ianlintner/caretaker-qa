@@ -22,7 +22,7 @@ jobs:
     container:
       image: semgrep/semgrep
     steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+      - uses: actions/checkout@v6.0.3 # v6
 
       - name: Run Semgrep scan
         run: semgrep scan --config auto --sarif --output=semgrep.sarif
