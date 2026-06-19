@@ -86,7 +86,7 @@ def build_graph(
 
         try:
             nvd_adv = await fetch_nvd_fn(since, until)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             log.warning(
                 "NVD feed unavailable (%s: %s) — continuing with OSV/GHSA only.",
                 type(exc).__name__,
