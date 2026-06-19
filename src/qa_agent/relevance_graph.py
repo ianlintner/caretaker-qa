@@ -15,6 +15,7 @@ to snapshot for debugging.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from typing import Any, TypedDict
@@ -34,6 +35,8 @@ from qa_agent.models import (
     WatchlistRepo,
 )
 from qa_agent.relevance_llm import judge as default_judge
+
+log = logging.getLogger(__name__)
 
 
 class ScanState(TypedDict, total=False):
@@ -81,7 +84,15 @@ def build_graph(
             for name in deps:
                 packages.append((repo.ecosystem, name))
 
-        nvd_adv = await fetch_nvd_fn(since, until)
+        try:
+            nvd_adv = await fetch_nvd_fn(since, until)
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "NVD feed unavailable (%s: %s) — continuing with OSV/GHSA only.",
+                type(exc).__name__,
+                exc,
+            )
+            nvd_adv = []
         osv_adv = await fetch_osv_fn(packages, since=since) if packages else []
         ghsa_adv = await fetch_ghsa_fn(since, until)
 
