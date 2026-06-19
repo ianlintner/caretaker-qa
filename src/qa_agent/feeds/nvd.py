@@ -72,8 +72,8 @@ def _normalise_severity(value: str) -> Severity:
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(min=1, max=30),
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(min=2, max=60),
     retry=retry_if_exception(_is_retryable_http_error),
     reraise=True,
 )
