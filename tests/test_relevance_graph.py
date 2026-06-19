@@ -92,3 +92,42 @@ async def test_run_scan_drops_judge_non_relevant(
         fetch_deps_fn=_fake_deps,
     )
     assert brief.entries == []
+
+
+@pytest.mark.asyncio
+async def test_run_scan_continues_when_nvd_unavailable(
+    pypi_advisory: Advisory, pypi_repo: WatchlistRepo
+) -> None:
+    """Scan must succeed even if the NVD feed raises (e.g. 503)."""
+    import httpx
+
+    async def _nvd_503(*_: Any, **__: Any) -> list[Advisory]:
+        resp = httpx.Response(503)
+        raise httpx.HTTPStatusError(
+            "503", request=httpx.Request("GET", "https://nvd"), response=resp
+        )
+
+    async def _fake_osv(*_: Any, **__: Any) -> list[Advisory]:
+        return [pypi_advisory]
+
+    async def _empty(*_: Any, **__: Any) -> list[Advisory]:
+        return []
+
+    async def _fake_deps(repo: WatchlistRepo) -> set[str]:
+        return {"pydantic", "httpx"}
+
+    brief = await run_scan(
+        since=datetime(2026, 4, 22, tzinfo=UTC),
+        until=datetime(2026, 4, 23, tzinfo=UTC),
+        watchlist=[pypi_repo],
+        fetch_nvd_fn=_nvd_503,
+        fetch_osv_fn=_fake_osv,
+        fetch_ghsa_fn=_empty,
+        fetch_deps_fn=_fake_deps,
+    )
+
+    assert isinstance(brief, Brief)
+    # NVD was unavailable — scan still produced results from OSV
+    assert brief.feed_counts["nvd"] == 0
+    assert brief.feed_counts["osv"] == 1
+    assert any(e.advisory.id == pypi_advisory.id for e in brief.entries)
