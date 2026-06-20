@@ -766,6 +766,10 @@ criteria = "safe-to-run"
 version = "0.3.0"
 criteria = "safe-to-run"
 
+[[exemptions.hmac]]
+version = "0.13.0"
+criteria = "safe-to-deploy"
+
 [[exemptions.hermit-abi]]
 version = "0.3.9"
 criteria = "safe-to-deploy"
