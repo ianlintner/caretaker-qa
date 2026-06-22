@@ -15,6 +15,7 @@ to snapshot for debugging.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -118,9 +119,9 @@ def build_graph(
         return {"verdicts": verdicts}
 
     async def judge_ambiguous(state: ScanState) -> ScanState:
-        judge_verdicts: list[JudgeVerdict] = []
         advisories_by_id = {a.id: a for a in state["advisories"]}
         repos_by_name = {f"{r.owner}/{r.repo}": r for r in state["watchlist"]}
+        tasks = []
         for verdict in state["verdicts"]:
             if verdict.status != "ambiguous":
                 continue
@@ -128,7 +129,8 @@ def build_graph(
             repo = repos_by_name.get(verdict.repo)
             if advisory is None or repo is None:
                 continue
-            judge_verdicts.append(await judge_fn(advisory, repo))
+            tasks.append(judge_fn(advisory, repo))
+        judge_verdicts: list[JudgeVerdict] = list(await asyncio.gather(*tasks))
         return {"judge_verdicts": judge_verdicts}
 
     def assemble_brief(state: ScanState) -> ScanState:
