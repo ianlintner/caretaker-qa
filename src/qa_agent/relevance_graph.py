@@ -121,12 +121,15 @@ def build_graph(
     async def judge_ambiguous(state: ScanState) -> ScanState:
         advisories_by_id = {a.id: a for a in state["advisories"]}
         repos_by_name = {f"{r.owner}/{r.repo}": r for r in state["watchlist"]}
-        pending = [
-            (verdict, advisories_by_id.get(verdict.advisory_id), repos_by_name.get(verdict.repo))
-            for verdict in state["verdicts"]
-            if verdict.status == "ambiguous"
-        ]
-        pending = [(v, a, r) for v, a, r in pending if a is not None and r is not None]
+        pending: list[tuple[object, Advisory, WatchlistRepo]] = []
+        for verdict in state["verdicts"]:
+            if verdict.status != "ambiguous":
+                continue
+            advisory = advisories_by_id.get(verdict.advisory_id)
+            repo = repos_by_name.get(verdict.repo)
+            if advisory is None or repo is None:
+                continue
+            pending.append((verdict, advisory, repo))
 
         async def _safe_judge(advisory: Advisory, repo: WatchlistRepo) -> JudgeVerdict | None:
             try:
