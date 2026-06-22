@@ -121,7 +121,7 @@ def build_graph(
     async def judge_ambiguous(state: ScanState) -> ScanState:
         advisories_by_id = {a.id: a for a in state["advisories"]}
         repos_by_name = {f"{r.owner}/{r.repo}": r for r in state["watchlist"]}
-        pending: list[tuple[object, Advisory, WatchlistRepo]] = []
+        pending: list[tuple[MatchVerdict, Advisory, WatchlistRepo]] = []
         for verdict in state["verdicts"]:
             if verdict.status != "ambiguous":
                 continue
