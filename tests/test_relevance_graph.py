@@ -138,6 +138,7 @@ async def test_run_scan_skips_failed_judge_calls(
     topic_advisory: Advisory, pypi_repo: WatchlistRepo
 ) -> None:
     """A judge that raises should be skipped, not crash the whole scan."""
+
     async def _fake_nvd(*_: Any, **__: Any) -> list[Advisory]:
         return [topic_advisory]
 
