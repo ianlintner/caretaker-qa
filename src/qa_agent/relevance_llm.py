@@ -10,6 +10,7 @@ it relevant?* Not *write a brief* — the brief assembly is a separate stage.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -77,13 +78,18 @@ async def judge(
         {"role": "user", "content": _build_user_prompt(advisory, repo)},
     ]
 
+    _JUDGE_TIMEOUT_S = 30  # per-call wall-clock budget
+
     for attempt in range(2):
-        resp = await acompletion(
-            model=model_name,
-            messages=messages,
-            response_format={"type": "json_object"},
-            temperature=0.0,
-            max_tokens=400,
+        resp = await asyncio.wait_for(
+            acompletion(
+                model=model_name,
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.0,
+                max_tokens=400,
+            ),
+            timeout=_JUDGE_TIMEOUT_S,
         )
         text = _extract_content(resp)
         try:

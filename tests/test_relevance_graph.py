@@ -131,3 +131,36 @@ async def test_run_scan_continues_when_nvd_unavailable(
     assert brief.feed_counts["nvd"] == 0
     assert brief.feed_counts["osv"] == 1
     assert any(e.advisory.id == pypi_advisory.id for e in brief.entries)
+
+
+@pytest.mark.asyncio
+async def test_run_scan_skips_failed_judge_calls(
+    topic_advisory: Advisory, pypi_repo: WatchlistRepo
+) -> None:
+    """A judge that raises should be skipped, not crash the whole scan."""
+    async def _fake_nvd(*_: Any, **__: Any) -> list[Advisory]:
+        return [topic_advisory]
+
+    async def _empty(*_: Any, **__: Any) -> list[Advisory]:
+        return []
+
+    async def _fake_deps(repo: WatchlistRepo) -> set[str]:
+        return {"requests"}  # triggers ambiguous path
+
+    async def _failing_judge(advisory: Advisory, repo: WatchlistRepo) -> JudgeVerdict:
+        raise TimeoutError("simulated LLM timeout")
+
+    brief = await run_scan(
+        since=datetime(2026, 4, 22, tzinfo=UTC),
+        until=datetime(2026, 4, 23, tzinfo=UTC),
+        watchlist=[pypi_repo],
+        judge_fn=_failing_judge,
+        fetch_nvd_fn=_fake_nvd,
+        fetch_osv_fn=_empty,
+        fetch_ghsa_fn=_empty,
+        fetch_deps_fn=_fake_deps,
+    )
+    # Failed judge verdicts are skipped — ambiguous items don't appear
+    assert isinstance(brief, Brief)
+    # No entry should be present (no direct match and judge failed)
+    assert not any(e.advisory.id == topic_advisory.id for e in brief.entries)
