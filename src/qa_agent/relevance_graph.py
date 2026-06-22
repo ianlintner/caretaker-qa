@@ -121,7 +121,7 @@ def build_graph(
     async def judge_ambiguous(state: ScanState) -> ScanState:
         advisories_by_id = {a.id: a for a in state["advisories"]}
         repos_by_name = {f"{r.owner}/{r.repo}": r for r in state["watchlist"]}
-        tasks = []
+        pending: list[tuple[MatchVerdict, Advisory, WatchlistRepo]] = []
         for verdict in state["verdicts"]:
             if verdict.status != "ambiguous":
                 continue
@@ -129,8 +129,23 @@ def build_graph(
             repo = repos_by_name.get(verdict.repo)
             if advisory is None or repo is None:
                 continue
-            tasks.append(judge_fn(advisory, repo))
-        judge_verdicts: list[JudgeVerdict] = list(await asyncio.gather(*tasks))
+            pending.append((verdict, advisory, repo))
+
+        async def _safe_judge(advisory: Advisory, repo: WatchlistRepo) -> JudgeVerdict | None:
+            try:
+                return await judge_fn(advisory, repo)
+            except Exception as exc:
+                log.warning(
+                    "judge skipped for %s/%s advisory=%s: %s",
+                    repo.owner,
+                    repo.repo,
+                    advisory.id,
+                    exc,
+                )
+                return None
+
+        results = await asyncio.gather(*[_safe_judge(a, r) for _, a, r in pending])
+        judge_verdicts = [jv for jv in results if jv is not None]
         return {"judge_verdicts": judge_verdicts}
 
     def assemble_brief(state: ScanState) -> ScanState:
