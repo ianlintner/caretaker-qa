@@ -1,0 +1,20 @@
+# .devbox.yaml — toolchain config for openclaw's ephemeral devbox build/test Jobs.
+#
+# openclaw (the autonomous PR maintainer) reads this from the DEFAULT branch only
+# and runs the named commands in a throwaway Kubernetes Job to judge a PR before
+# merge. It is an advisory oracle — GitHub CI + branch protection remain the real
+# merge gate. The image must be on openclaw's allowlist (official toolchain images
+# or the cluster ACR); arbitrary images are rejected.
+image: python:3.12-slim
+
+# Mirrors CI: install uv, then sync the project with its dev extra (ruff, mypy,
+# pytest). `uv run` executes inside that synced environment.
+setup: >-
+  pip install -q uv &&
+  uv sync --extra dev
+
+commands:
+  fmt: uv run ruff format --check src tests
+  lint: uv run ruff check src tests
+  mypy: uv run mypy src
+  test: uv run pytest --cov=qa_agent --cov-branch --cov-report=term-missing --cov-fail-under=80
