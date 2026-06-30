@@ -1,0 +1,235 @@
+{
+  "generated_at": "2026-06-30T03:13:10.120047Z",
+  "since": "2026-06-29T03:13:10.120042Z",
+  "until": "2026-06-30T03:13:10.120047Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "PYSEC-2026-387",
+        "source": "osv",
+        "title": "LiteLLM has Server-Side Template Injection vulnerability in /completions endpoint",
+        "summary": "BerriAI/litellm is vulnerable to Server-Side Template Injection (SSTI) via the `/completions` endpoint. The vulnerability arises from the `hf_chat_template` method processing the `chat_template` parameter from the `tokenizer_config.json` file through the Jinja template engine without proper sanitization. Attackers can exploit this by crafting malicious `tokenizer_config.json` files that execute arbitrary code on the server.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-06-29T11:50:39.562812Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.34.42",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-2952",
+          "https://github.com/BerriAI/litellm/issues/2949",
+          "https://github.com/BerriAI/litellm/pull/2941",
+          "https://github.com/BerriAI/litellm/commit/8a1cdc901708b07b7ff4eca20f9cb0f1f0e8d0b3",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/blob/0d803e13798db40aa7463e64a6bafaee386424f5/litellm/proxy/proxy_server.py#L2087",
+          "https://huntr.com/bounties/a9e0a164-6de0-43a4-a640-0cbfb54220a4",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-46cm-pfwv-cgf8"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-388",
+        "source": "osv",
+        "title": "LiteLLM: Authentication Bypass via Host Header Injection",
+        "summary": "### Impact\n\nA Host-header parsing flaw in the LiteLLM proxy could, under specific conditions, allow unauthenticated access to protected management routes.\n \nThe auth layer derived the effective route from `request.url.path` in `litellm/proxy/auth/auth_utils.py::get_request_route()`, which Starlette reconstructs from the `Host` header. A crafted `Host` could therefore make the auth gate evaluate a different route from the one FastAPI dispatched.\n \n**Most deployments are not affected.** The bypass is blocked by any upstream layer that validates or normalizes `Host`, such as:\n\n- a CDN or WAF, such as Cloudflare\n - a reverse proxy with `server_name` allowlists\n- a host-based load balancer\n\n **LiteLLM Cloud customers are not affected.**\n\n### Patches\n\nFixed in **`1.84.0`**. Upgrade to `1.84.0` or later. No configuration change is required.\n\n### Workarounds\n \nIf upgrading is not immediately possible, place the proxy behind an upstream component that validates or normalizes the `Host` header before forwarding (a CDN/WAF, a reverse proxy with explicit `server_name` allowlists, or a cloud load balancer with host-based routing rules), or otherwise restrict network access to the proxy listener.\n\n ### References\n\n- Patched release: [`v1.84.0`](https://github.com/BerriAI/litellm/releases/tag/v1.84.0)\n \n**Discovery Credit**: Le The Thang (KCSC) and Kim Ngoc Chung (One Mount Group)",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-06-29T11:50:52.648950Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.84.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-4xpc-pv4p-pm3w",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.84.0",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-4xpc-pv4p-pm3w",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-49468"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-372",
+        "source": "osv",
+        "title": "Langchain SQL Injection vulnerability",
+        "summary": "In Langchain before 0.0.247, prompt injection allows execution of arbitrary code against the SQL service provided by the chain. ",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-06-29T11:50:43.657008Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "langchain"
+        ],
+        "affected_ranges": [
+          "0..0.0.247",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2023-32785",
+          "https://github.com/langchain-ai/langchain/issues/5923#issuecomment-1696053841",
+          "https://gist.github.com/rharang/9c58d39db8c01db5b7c888e467c0533f",
+          "https://github.com/langchain-ai/langchain",
+          "https://pypi.org/project/langchain",
+          "https://github.com/advisories/GHSA-8h5w-f6q9-wg35"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'langchain' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-390",
+        "source": "osv",
+        "title": "LiteLLM: Authentication bypass via OIDC userinfo cache key collision",
+        "summary": "###  Impact\n\nWhen JWT authentication is enabled (`enable_jwt_auth: true`), the OIDC userinfo cache uses `token[:20]` as the cache key. JWT headers produced by the same signing algorithm generate identical first 20 characters.\n\nThis configuration option is not enabled by default. **Most instances are not affected.**\n\nAn unauthenticated attacker can craft a token whose first 20 characters match a legitimate user's cached token. On cache hit, the attacker inherits the legitimate user's identity and permissions. This affects deployments with JWT/OIDC authentication enabled.\n\n###  Patches\n \nFixed in v1.83.0. The cache key now uses the full hash of the JWT token.\n\n###  Workarounds\n\nDisable OIDC userinfo caching by setting the cache TTL to 0, or disable JWT authentication entirely.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-06-29T11:50:47.498250Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-jjhc-v7c2-5hh6",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-35030",
+          "https://github.com/BerriAI/litellm",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-jjhc-v7c2-5hh6"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-391",
+        "source": "osv",
+        "title": "LiteLLM has SQL Injection in Proxy API key verification",
+        "summary": "### Impact\n\nA database query used during proxy API key checks mixed the caller-supplied key value into the query text instead of passing it as a separate parameter. An unauthenticated attacker could send a specially crafted `Authorization` header to any LLM API route (for example `POST /chat/completions`) and reach this query through the proxy's error-handling path.\n\nAn attacker could read data from the proxy's database and may be able to modify it, leading to unauthorised access to the proxy and the credentials it manages.\n\n### Patches\n\nFixed in **`1.83.7`**. The caller-supplied value is now always passed to the database as a separate parameter. Upgrade to `1.83.7` or later.\n\n### Workarounds\n\nIf upgrading is not immediately possible, set `disable_error_logs: true` under `general_settings`. This removes the path through which unauthenticated input reaches the vulnerable query.\n\n### References\n\n- Patched release: [`v1.83.7-stable`](https://github.com/BerriAI/litellm/releases/tag/v1.83.7-stable)\n \n**Discovery Credit**: Tencent YunDing Security Lab",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-06-29T11:50:45.645996Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.7",
+          "1.81.16..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-r75f-5x8p-qvmc",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-42208",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.7-stable",
+          "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-42208",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-r75f-5x8p-qvmc"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-287",
+        "source": "osv",
+        "title": "Authlib JWS JWK Header Injection: Signature Verification Bypass",
+        "summary": "## Description\n\n### Summary\n\nA JWK Header Injection vulnerability in `authlib`'s JWS implementation allows an unauthenticated\nattacker to forge arbitrary JWT tokens that pass signature verification. When `key=None` is passed\nto any JWS deserialization function, the library extracts and uses the cryptographic key embedded\n in the attacker-controlled JWT `jwk` header field. An attacker can sign a token with their own\nprivate key, embed the matching public key in the header, and have the server accept the forged\ntoken as cryptographically valid — bypassing authentication and authorization entirely.\n\nThis behavior violates **RFC 7515 §4.1.3** and the validation algorithm defined in **RFC 7515 §5.2**.\n\n### Details\n\n**Vulnerable file:** `authlib/jose/rfc7515/jws.py`  \n**Vulnerable method:** `JsonWebSignature._prepare_algorithm_key()`  \n**Lines:** 272–273\n\n```python\nelif key is None and \"jwk\" in header:\n    key = header[\"jwk\"]   # ← attacker-controlled key used for verification\n ```\n\nWhen `key=None` is passed to `jws.deserialize_compact()`, `jws.deserialize_json()`, or\n`jws.deserialize()`, the library checks the JWT header for a `jwk` field. If present, it extracts\nthat value — which is fully attacker-controlled — and uses it as the verification key.\n\n**RFC 7515 violations:**\n\n- **§4.1.3** explicitly states the `jwk` header parameter is **\"NOT RECOMMENDED\"** because keys\n  embedded by the token submitter cannot be trusted as a verification anchor.\n- **§5.2 (Validation Algorithm)** specifies the verification key MUST come from the *application\n  context*, not from the token itself. There is no step in the RFC that permits falling back to\n  the `jwk` header when no application key is provided.\n\n**Why this is a library issue, not just a developer mistake:**\n\nThe most common real-world trigger is a **key resolver callable** used for JWKS-based key lookup.\nA developer writes:\n \n```python\ndef lookup_key(header, payload):\n    kid = header.get(\"kid\")\n    return jwks_cache.get(kid)   # returns None when kid is unknown/rotated\n\n jws.deserialize_compact(token, lookup_key)\n```\n\nWhen an attacker submits a token with an unknown `kid`, the callable legitimately returns `None`.\nThe library then silently falls through to `key = header[\"jwk\"]`, trusting the attacker's embedded\n key. The developer never wrote `key=None` — the library's fallback logic introduced it. The result\nlooks like a verified token with no exception raised, making the substitution invisible.\n\n**Attack steps:**\n\n1. Attacker generates an RSA or EC keypair.\n2. Attacker crafts a JWT payload with any desired claims (e.g. `{\"role\": \"admin\"}`).\n3. Attacker signs the JWT with their **private** key.\n4. Attacker embeds their **public** key in the JWT `jwk` header field.\n5. Attacker uses an unknown `kid` to cause the key resolver to return `None`.\n6. The library uses `header[\"jwk\"]` for verification — signature passes.\n7. Forged claims are returned as authentic.\n\n### PoC\n\nTested against **authlib 1.6.6** (HEAD `a9e4cfee`, Python 3.11).\n\n**Requirements:**\n```\npip install authlib cryptography\n```\n \n**Exploit script:**\n```python\nfrom authlib.jose import JsonWebSignature, RSAKey\n import json\n\njws = JsonWebSignature([\"RS256\"])\n\n# Step 1: Attacker generates their own RSA keypair\nattacker_private = RSAKey.generate_key(2048, is_private=True)\n attacker_public_jwk = attacker_private.as_dict(is_private=False)\n\n# Step 2: Forge a JWT with elevated privileges, embed public key in header\nheader = {\"alg\": \"RS256\", \"jwk\": attacker_public_jwk}\nforged_payload = json.dumps({\"sub\": \"attacker\", \"role\": \"admin\"}).encode()\nforged_token = jws.serialize_compact(header, forged_payload, attacker_private)\n\n# Step 3: Server decodes with key=None — token is accepted\nresult = jws.deserialize_compact(forged_token, None)\nclaims = json.loads(result[\"payload\"])\nprint(claims)  # {'sub': 'attacker', 'role': 'admin'}\nassert claims[\"role\"] == \"admin\"  # PASSES\n```\n\n**Expected output:**\n```\n{'sub': 'attacker', 'role': 'admin'}\n```\n\n**Docker (self-contained reproduction):**\n```bash\nsudo docker run --rm authlib-cve-poc:latest \\\n  python3 /workspace/pocs/poc_auth001_jws_jwk_injection.py\n ```\n\n### Impact\n\nThis is an authentication and authorization bypass vulnerability. Any application using authlib's\nJWS deserialization is affected when:\n\n- `key=None` is passed directly, **or**\n- a key resolver callable returns `None` for unknown/rotated `kid` values (the common JWKS lookup pattern)\n\nAn unauthenticated attacker can impersonate any user or assume any privilege encoded in JWT claims\n(admin roles, scopes, user IDs) without possessing any legitimate credentials or server-side keys.\n The forged token is indistinguishable from a legitimate one — no exception is raised.\n \nThis is a violation of **RFC 7515 §4.1.3** and **§5.2**. The spec is unambiguous: the `jwk`\nheader parameter is \"NOT RECOMMENDED\" as a key source, and the validation key MUST come from\nthe application context, not the token itself.\n\n**Minimal fix** — remove the fallback from `authlib/jose/rfc7515/jws.py:272-273`:\n```python\n # DELETE:\nelif key is None and \"jwk\" in header:\n    key = header[\"jwk\"]\n ```\n\n**Recommended safe replacement** — raise explicitly when no key is resolved:\n ```python\nif key is None:\n    raise MissingKeyError(\"No key provided and no valid key resolvable from context.\")\n```",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-06-29T11:50:45.440491Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.6.9",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-wvwj-cvrp-7pv5",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-27962",
+          "https://github.com/authlib/authlib/commit/a5d4b2d4c9e46bfa11c82f85fdc2bcc0b50ae681",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.6.9",
+          "https://pypi.org/project/authlib",
+          "https://github.com/advisories/GHSA-wvwj-cvrp-7pv5"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-389",
+        "source": "osv",
+        "title": "litellm vulnerable to remote code execution based on using eval unsafely",
+        "summary": "BerriAI/litellm version v1.35.8 contains a vulnerability where an attacker can achieve remote code execution. The vulnerability exists in the `add_deployment` function, which decodes and decrypts environment variables from base64 and assigns them to `os.environ`. An attacker can exploit this by sending a malicious payload to the `/config/update` endpoint, which is then processed and executed by the server when the `get_secret` function is triggered. This requires the server to use Google KMS and a database to store a model.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-06-29T11:50:41.762215Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.40.16",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-5751",
+          "https://github.com/BerriAI/litellm/pull/4228",
+          "https://github.com/BerriAI/litellm/commit/fcea4c22ad96b24436f196ae709f71932e84b0b8",
+          "https://github.com/berriai/litellm",
+          "https://huntr.com/bounties/ae623c2f-b64b-4245-9ed4-f13a0a5824ce",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-gppg-gqw8-wh9g"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 7,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
