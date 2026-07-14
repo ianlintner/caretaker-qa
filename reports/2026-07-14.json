@@ -1,0 +1,636 @@
+{
+  "generated_at": "2026-07-14T03:06:17.781750Z",
+  "since": "2026-07-13T03:06:17.781743Z",
+  "until": "2026-07-14T03:06:17.781750Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3036",
+        "source": "osv",
+        "title": "python-multipart: Quadratic-time querystring parsing with semicolon separators causes CPU denial of service",
+        "summary": "### Summary\n\nWhen parsing `application/x-www-form-urlencoded` bodies, `QuerystringParser` located the field separator with a two step lookup: it first scanned the entire remaining buffer for `&`, and only when no `&` existed anywhere ahead did it fall back to scanning for `;`. For a body that uses `;` as the separator and contains no `&`, every field iteration performed a full failed `&` scan over the entire remaining buffer before locating the nearby `;`. With N semicolon separated fields in a chunk of size B, this yields O(B^2) byte comparisons per chunk.\n\nAn attacker can submit a small crafted body of the form `a;a;a;...` and cause the parser to spend seconds of CPU per request. A handful of concurrent requests can exhaust worker processes.\n\n### Details\n\nIn `python_multipart/multipart.py`, both the `FIELD_NAME` and `FIELD_DATA` states located the next separator like this:\n\n```python\nsep_pos = data.find(b\"&\", i)\nif sep_pos == -1:\n    sep_pos = data.find(b\";\", i)\n```\n\n`data.find(b\"&\", i)` scans from `i` to the end of the buffer and returns `-1` only when there is no `&` anywhere in the remainder. For a `;` separated body with no `&`, this failed full buffer scan repeats once per field, making parsing quadratic in the body length.\n\nFor example, a 1 MiB url encoded body consisting of `a;` repeated ~500,000 times, submitted with `Content-Type: application/x-www-form-urlencoded`, causes the parser to perform on the order of 10^11 byte comparisons, consuming several seconds of CPU for a single request. Cost scales quadratically with chunk size.\n\nThe parser is reachable through the public `QuerystringParser` class and through the high level `FormParser`, `create_form_parser`, and `parse_form` APIs for url encoded bodies. It is also the parser Starlette and FastAPI use for `application/x-www-form-urlencoded` request bodies via `request.form()`.\n\n### Impact\n\nUncontrolled CPU consumption (denial of service). Parsing is synchronous, so a single small crafted form body occupies the handling worker for seconds, blocking any other work on that worker until parsing finishes. Sustained concurrent requests keep workers continuously busy, degrading or denying service.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.30` or later, which treats only `&` as a field separator (per the [WHATWG URL standard](https://url.spec.whatwg.org/#urlencoded-parsing)) using a single bounded scan, making parsing linear in the body length.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.364140Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.30",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-5rvq-cxj2-64vf",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-5rvq-cxj2-64vf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53539"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3036",
+        "source": "osv",
+        "title": "python-multipart: Quadratic-time querystring parsing with semicolon separators causes CPU denial of service",
+        "summary": "### Summary\n\nWhen parsing `application/x-www-form-urlencoded` bodies, `QuerystringParser` located the field separator with a two step lookup: it first scanned the entire remaining buffer for `&`, and only when no `&` existed anywhere ahead did it fall back to scanning for `;`. For a body that uses `;` as the separator and contains no `&`, every field iteration performed a full failed `&` scan over the entire remaining buffer before locating the nearby `;`. With N semicolon separated fields in a chunk of size B, this yields O(B^2) byte comparisons per chunk.\n\nAn attacker can submit a small crafted body of the form `a;a;a;...` and cause the parser to spend seconds of CPU per request. A handful of concurrent requests can exhaust worker processes.\n\n### Details\n\nIn `python_multipart/multipart.py`, both the `FIELD_NAME` and `FIELD_DATA` states located the next separator like this:\n\n```python\nsep_pos = data.find(b\"&\", i)\nif sep_pos == -1:\n    sep_pos = data.find(b\";\", i)\n```\n\n`data.find(b\"&\", i)` scans from `i` to the end of the buffer and returns `-1` only when there is no `&` anywhere in the remainder. For a `;` separated body with no `&`, this failed full buffer scan repeats once per field, making parsing quadratic in the body length.\n\nFor example, a 1 MiB url encoded body consisting of `a;` repeated ~500,000 times, submitted with `Content-Type: application/x-www-form-urlencoded`, causes the parser to perform on the order of 10^11 byte comparisons, consuming several seconds of CPU for a single request. Cost scales quadratically with chunk size.\n\nThe parser is reachable through the public `QuerystringParser` class and through the high level `FormParser`, `create_form_parser`, and `parse_form` APIs for url encoded bodies. It is also the parser Starlette and FastAPI use for `application/x-www-form-urlencoded` request bodies via `request.form()`.\n\n### Impact\n\nUncontrolled CPU consumption (denial of service). Parsing is synchronous, so a single small crafted form body occupies the handling worker for seconds, blocking any other work on that worker until parsing finishes. Sustained concurrent requests keep workers continuously busy, degrading or denying service.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.30` or later, which treats only `&` as a field separator (per the [WHATWG URL standard](https://url.spec.whatwg.org/#urlencoded-parsing)) using a single bounded scan, making parsing linear in the body length.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.364140Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.30",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-5rvq-cxj2-64vf",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-5rvq-cxj2-64vf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53539"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2597",
+        "source": "osv",
+        "title": "LiteLLM: Privilege escalation via unrestricted proxy configuration endpoint",
+        "summary": "### Impact\n\nThe `/config/update endpoint` does not enforce admin role authorization. A user who is already authenticated into the platform can then use this endpoint to do the following:\n\n  - Modify proxy configuration and environment variables\n  - Register custom pass-through endpoint handlers pointing to attacker-controlled Python code, achieving remote code execution\n  - Read arbitrary server files by setting UI_LOGO_PATH and fetching via /get_image\n  - Take over other priveleged accounts by overwriting UI_USERNAME and UI_PASSWORD environment variables\n\n### Patches\n\nFixed in v1.83.0. The endpoint now requires `proxy_admin` role.\n\n### Workarounds\n\nRestrict API key distribution. There is no configuration-level workaround.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T14:36:47.761732Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-53mr-6c8q-9789",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-35029",
+          "https://github.com/BerriAI/litellm",
+          "http://seclists.org/fulldisclosure/2026/Apr/17",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-53mr-6c8q-9789"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3039",
+        "source": "osv",
+        "title": "python-multipart has Denial of Service via unbounded multipart part headers",
+        "summary": "### Summary\n\n`python-multipart` has a denial of service vulnerability in multipart part header parsing. When parsing `multipart/form-data`, `MultipartParser` previously had no limit on the number of part headers or the size of an individual part header. An attacker could send a request with either many repeated headers without terminating the header block or a single very large header value, causing excessive CPU work before request rejection or completion.\n\n### Impact\n\nApplications that parse attacker-controlled `multipart/form-data` with affected versions of `python-multipart` can experience CPU exhaustion. ASGI applications using Starlette, FastAPI, or other frameworks that invoke `python-multipart` may have worker or event-loop delays while processing malicious upload requests.\n\n### Details\n\nThe affected parser states are `HEADER_FIELD_START`, `HEADER_FIELD`, `HEADER_VALUE_START`, `HEADER_VALUE`, and `HEADER_VALUE_ALMOST_DONE`. The issue can be triggered by:\n\n- A multipart part with an oversized individual header value.\n- A multipart part with many repeated header lines or an unterminated header block.\n\nBoth variants are addressed by enforcing default parser limits for maximum header count and maximum header size.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.27` or later.\n\nIf upgrading is not immediately possible, reduce exposure by enforcing request body size limits at the server, proxy, or framework layer. This is only a mitigation; affected versions of `python-multipart` still parse multipart part headers without the default header count and header size limits.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:15:39.936658Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.27",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-pp6c-gr5w-3c5g",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-42561",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-pp6c-gr5w-3c5g"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3039",
+        "source": "osv",
+        "title": "python-multipart has Denial of Service via unbounded multipart part headers",
+        "summary": "### Summary\n\n`python-multipart` has a denial of service vulnerability in multipart part header parsing. When parsing `multipart/form-data`, `MultipartParser` previously had no limit on the number of part headers or the size of an individual part header. An attacker could send a request with either many repeated headers without terminating the header block or a single very large header value, causing excessive CPU work before request rejection or completion.\n\n### Impact\n\nApplications that parse attacker-controlled `multipart/form-data` with affected versions of `python-multipart` can experience CPU exhaustion. ASGI applications using Starlette, FastAPI, or other frameworks that invoke `python-multipart` may have worker or event-loop delays while processing malicious upload requests.\n\n### Details\n\nThe affected parser states are `HEADER_FIELD_START`, `HEADER_FIELD`, `HEADER_VALUE_START`, `HEADER_VALUE`, and `HEADER_VALUE_ALMOST_DONE`. The issue can be triggered by:\n\n- A multipart part with an oversized individual header value.\n- A multipart part with many repeated header lines or an unterminated header block.\n\nBoth variants are addressed by enforcing default parser limits for maximum header count and maximum header size.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.27` or later.\n\nIf upgrading is not immediately possible, reduce exposure by enforcing request body size limits at the server, proxy, or framework layer. This is only a mitigation; affected versions of `python-multipart` still parse multipart part headers without the default header count and header size limits.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:15:39.936658Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.27",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-pp6c-gr5w-3c5g",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-42561",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-pp6c-gr5w-3c5g"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2556",
+        "source": "osv",
+        "title": "LangChain: Path traversal and sandbox escape in LangChain file-search middleware and loaders",
+        "summary": "## Summary\n\nSeveral LangChain components that resolve filesystem paths or expand search patterns do not consistently confine the *resolved* path to the intended root directory. Affected behaviors include: a file-search agent middleware that validates a starting directory but not the search pattern or the resolved target of matched files, so glob patterns and symlinks can reach files outside the configured root; prompt- and chain/agent-configuration loaders that accept path fields and resolve them without confining the result to a trusted base or rejecting symlink targets; and path-prefix authorization checks that compare by string prefix without a path-segment boundary, so a sibling path sharing the prefix is accepted. When these components receive path values, search patterns, or workspace contents influenced by an untrusted source — including an LLM acting on untrusted input — the result can be disclosure of files outside the intended boundary. We have no evidence of this behavior being triggered in the wild.\n\n## Affected users / systems\n\nYou may be affected if you expose an agent with filesystem-search middleware over a directory and accept prompts or retrieved content influenced by untrusted sources; load prompt or chain/agent configuration from untrusted or shared sources; or rely on path-prefix restrictions to confine tool file access. Callers that confine these components to fully trusted inputs and first-party configuration are not affected.\n\n## Impact\n\n- Confidentiality: disclosure of file contents outside the intended root/sandbox.\n- Authorization: path-prefix bypass can grant access to sibling resources beyond the intended subtree.\n\n## Patches / mitigation\n\nThe affected components will canonicalize candidate paths (resolving symlinks) and verify the resolved real path remains within the configured root before reading or returning it; search patterns will be normalized so they cannot escape the root; configuration loaders will confine resolved path fields and reject symlink escapes unless the caller explicitly opts in to dangerous loading; and path-prefix checks will enforce a path-segment boundary. Path validation will be made operating-system-portable.\n\n## Compatibility\n\nCallers that already pass only in-root paths, validated configuration, and trusted search inputs see no behavioral change. Callers that intentionally reference external paths can opt in via the existing dangerous-loading flag.\n\n## Operational guidance\n\nConfine filesystem-backed agent tools to a dedicated directory and prefer running them sandboxed/containerized; validate path and identifier inputs where untrusted input enters; do not enable dangerous loading for configuration whose origin you do not control.\n\n## LangSmith / hosted deployments note\n\nThis issue concerns library components executed by agents.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.779960Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "langchain-anthropic"
+        ],
+        "affected_ranges": [
+          "0..1.4.6",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/langchain-ai/langchain/security/advisories/GHSA-gr75-jv2w-4656",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-55443",
+          "https://github.com/langchain-ai/langchain/commit/dcaf7795a3e6590af55c3ff7bda6add6355e9ea6",
+          "https://github.com/langchain-ai/langchain",
+          "https://pypi.org/project/langchain-anthropic",
+          "https://github.com/advisories/GHSA-gr75-jv2w-4656"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'langchain-anthropic' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2599",
+        "source": "osv",
+        "title": "LiteLLM: Authenticated command execution via MCP stdio test endpoints",
+        "summary": "### Impact\n\nTwo endpoints used to preview an MCP server before saving it — `POST /mcp-rest/test/connection` and `POST /mcp-rest/test/tools/list` — accepted a full server configuration in the request body, including the `command`, `args`, and `env` fields used by the stdio transport. When called with a stdio configuration, the endpoints attempted to connect, which spawned the supplied command as a subprocess on the proxy host with the privileges of the proxy process.\n\nThe endpoints were gated only by a valid proxy API key, with no role check. Any authenticated user — including holders of low-privilege internal-user keys — could therefore run arbitrary commands on the host.\n\n### Patches\n\nFixed in **`1.83.7`**. Both test endpoints now require the `PROXY_ADMIN` role, bringing them into line with the save endpoint.\n\n### Workarounds\n\nIf upgrading is not immediately possible, developers should block `POST /mcp-rest/test/connection` and `POST /mcp-rest/test/tools/list` at their reverse proxy or API gateway.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:02:53.541330Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.7",
+          "1.74.2..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-v4p8-mg3p-g94g",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-42271",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.7-stable",
+          "https://www.cisa.gov/known-exploited-vulnerabilities-catalog?field_cve=CVE-2026-42271",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-v4p8-mg3p-g94g"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3040",
+        "source": "osv",
+        "title": "python-multipart: Negative Content-Length in parse_form buffers the entire body in memory",
+        "summary": "### Summary\n\n`parse_form()` did not validate the `Content-Length` header before using it to bound its chunked read of the request body. A negative `Content-Length` turned the bounded read into a read-until-EOF, so the entire body was loaded into memory in a single read instead of in fixed-size chunks.\n\n### Details\n\n`parse_form()` reads the input stream in chunks, never reading more than the remaining `Content-Length` at a time. The per-chunk size is computed as `min(content_length - bytes_read, chunk_size)`. The header value was parsed to an integer without checking its sign, so a `Content-Length` of `-1` made this expression negative, and `input_stream.read(-1)` reads until end of stream. The intended bounded, chunked read therefore collapsed into a single unbounded read of the whole stream. The amount read is still bounded by what the client actually sends.\n\n### Impact\n\nThis only affects code that calls `parse_form()` directly with a `Content-Length` header taken from attacker-controlled input and without normalizing a negative value first. No known package is affected:\n\n* Starlette and FastAPI drive `MultipartParser` directly from the ASGI `receive()` stream and do not call `parse_form()`.\n* Known `parse_form()` consumers either do not forward `Content-Length` to it, recompute it from the already-read body, or run behind a layer (such as Werkzeug) that normalizes a negative `Content-Length` to `0`.\n\nThe realistic exposure is limited to bespoke WSGI or `http.server` handlers that forward raw client headers into `parse_form()`. In that case a crafted request buffers the body in memory at once, degrading availability under concurrent requests rather than causing a complete denial of service.\n\n### Mitigation\n\nUpgrade to version `0.0.31` or later, which rejects a negative `Content-Length` with a `ValueError` before reading the stream.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.309964Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.31",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-v9pg-7xvm-68hf",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-v9pg-7xvm-68hf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53540"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3040",
+        "source": "osv",
+        "title": "python-multipart: Negative Content-Length in parse_form buffers the entire body in memory",
+        "summary": "### Summary\n\n`parse_form()` did not validate the `Content-Length` header before using it to bound its chunked read of the request body. A negative `Content-Length` turned the bounded read into a read-until-EOF, so the entire body was loaded into memory in a single read instead of in fixed-size chunks.\n\n### Details\n\n`parse_form()` reads the input stream in chunks, never reading more than the remaining `Content-Length` at a time. The per-chunk size is computed as `min(content_length - bytes_read, chunk_size)`. The header value was parsed to an integer without checking its sign, so a `Content-Length` of `-1` made this expression negative, and `input_stream.read(-1)` reads until end of stream. The intended bounded, chunked read therefore collapsed into a single unbounded read of the whole stream. The amount read is still bounded by what the client actually sends.\n\n### Impact\n\nThis only affects code that calls `parse_form()` directly with a `Content-Length` header taken from attacker-controlled input and without normalizing a negative value first. No known package is affected:\n\n* Starlette and FastAPI drive `MultipartParser` directly from the ASGI `receive()` stream and do not call `parse_form()`.\n* Known `parse_form()` consumers either do not forward `Content-Length` to it, recompute it from the already-read body, or run behind a layer (such as Werkzeug) that normalizes a negative `Content-Length` to `0`.\n\nThe realistic exposure is limited to bespoke WSGI or `http.server` handlers that forward raw client headers into `parse_form()`. In that case a crafted request buffers the body in memory at once, degrading availability under concurrent requests rather than causing a complete denial of service.\n\n### Mitigation\n\nUpgrade to version `0.0.31` or later, which rejects a negative `Content-Length` with a `ValueError` before reading the stream.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.309964Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.31",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-v9pg-7xvm-68hf",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-v9pg-7xvm-68hf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53540"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2601",
+        "source": "osv",
+        "title": "LiteLLM has a sandbox escape in custom-code guardrail",
+        "summary": "### Impact\n\nThe `POST /guardrails/test_custom_code` endpoint runs user-supplied Python inside a hand-rolled sandbox. The sandbox can be escaped using bytecode-level techniques, allowing arbitrary code execution in the proxy process — which runs as root in the default Docker image.\n\n**Reaching the endpoint requires a proxy-admin credential** in default configurations.\n\n### Patches\n\nFixed in **`1.83.11`**. The hand-rolled sandbox has been replaced with `RestrictedPython`. Upgrade to `1.83.11` or later.\n\n### Workarounds\n\nIf upgrading is not immediately possible, block `POST /guardrails/test_custom_code` at your reverse proxy or API gateway.\n\n### References\n\n- Patched release: [`v1.83.10-stable`](https://github.com/BerriAI/litellm/releases/tag/v1.83.10-stable)",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:15:44.443320Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.10",
+          "1.81.8..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-wxxx-gvqv-xp7p",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-40217",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.10-stable",
+          "https://www.x41-dsec.de/lab/advisories/x41-2026-001-litellm",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-wxxx-gvqv-xp7p"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3037",
+        "source": "osv",
+        "title": "python-multipart: Semicolon treated as querystring field separator enables parameter smuggling",
+        "summary": "### Summary\n\n`QuerystringParser` treated `;` as a field separator in `application/x-www-form-urlencoded` bodies, in addition to `&`. The [WHATWG URL standard](https://url.spec.whatwg.org/#urlencoded-parsing), modern browsers, and Python's `urllib.parse` (since the CVE-2021-23336 fix) treat only `&` as a separator. This creates a parser differential: the same bytes are tokenized into different fields than a WHATWG compliant intermediary would produce, allowing an attacker to smuggle extra form fields past an upstream body inspecting component.\n\n### Details\n\nIn `python_multipart/multipart.py`, the `FIELD_NAME` and `FIELD_DATA` states located the next separator by scanning for `&` and, failing that, for `;`:\n\n```python\nsep_pos = data.find(b\"&\", i)\nif sep_pos == -1:\n    sep_pos = data.find(b\";\", i)\n```\n\nAs a result, `;` acted as a field boundary. Because the fallback only triggered when no `&` remained in the current chunk, tokenization also depended on unrelated bytes later in the buffer and on how the body was split across `write()` calls. This is the same class of issue as CVE-2021-23336 in CPython's `urllib.parse`.\n\nFor example, a body inspecting WAF or gateway that follows the WHATWG rule (only `&` separates fields) receives:\n\n```\nrole=user&x=;role=admin\n```\n\nThe upstream parses two fields, `role=user` and `x=\";role=admin\"`, sees a benign `role=user`, and forwards the request. `QuerystringParser` parsed the same bytes as three fields: `role=\"user\"`, `x=\"\"`, and `role=\"admin\"`. The application (for example via Starlette/FastAPI `request.form()`, where the last value wins) then received `role=admin`, a value the upstream validator never saw.\n\nThe parser is reachable through the public `QuerystringParser` class, the high level `FormParser`, `create_form_parser`, and `parse_form` APIs, and Starlette/FastAPI `request.form()` for url encoded bodies.\n\n### Impact\n\nInterpretation conflict / HTTP parameter pollution. An attacker can smuggle extra or overriding form fields past an upstream component that applies the WHATWG separator rule, reaching the backend with parameters the intermediary did not observe.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.30` or later, which treats only `&` as a field separator per the [WHATWG URL standard](https://url.spec.whatwg.org/#urlencoded-parsing). `;` is parsed as ordinary field data, matching `urllib.parse`, browsers, and other compliant parsers.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.263527Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.30",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-6jv3-5f52-599m",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-6jv3-5f52-599m",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53538"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3037",
+        "source": "osv",
+        "title": "python-multipart: Semicolon treated as querystring field separator enables parameter smuggling",
+        "summary": "### Summary\n\n`QuerystringParser` treated `;` as a field separator in `application/x-www-form-urlencoded` bodies, in addition to `&`. The [WHATWG URL standard](https://url.spec.whatwg.org/#urlencoded-parsing), modern browsers, and Python's `urllib.parse` (since the CVE-2021-23336 fix) treat only `&` as a separator. This creates a parser differential: the same bytes are tokenized into different fields than a WHATWG compliant intermediary would produce, allowing an attacker to smuggle extra form fields past an upstream body inspecting component.\n\n### Details\n\nIn `python_multipart/multipart.py`, the `FIELD_NAME` and `FIELD_DATA` states located the next separator by scanning for `&` and, failing that, for `;`:\n\n```python\nsep_pos = data.find(b\"&\", i)\nif sep_pos == -1:\n    sep_pos = data.find(b\";\", i)\n```\n\nAs a result, `;` acted as a field boundary. Because the fallback only triggered when no `&` remained in the current chunk, tokenization also depended on unrelated bytes later in the buffer and on how the body was split across `write()` calls. This is the same class of issue as CVE-2021-23336 in CPython's `urllib.parse`.\n\nFor example, a body inspecting WAF or gateway that follows the WHATWG rule (only `&` separates fields) receives:\n\n```\nrole=user&x=;role=admin\n```\n\nThe upstream parses two fields, `role=user` and `x=\";role=admin\"`, sees a benign `role=user`, and forwards the request. `QuerystringParser` parsed the same bytes as three fields: `role=\"user\"`, `x=\"\"`, and `role=\"admin\"`. The application (for example via Starlette/FastAPI `request.form()`, where the last value wins) then received `role=admin`, a value the upstream validator never saw.\n\nThe parser is reachable through the public `QuerystringParser` class, the high level `FormParser`, `create_form_parser`, and `parse_form` APIs, and Starlette/FastAPI `request.form()` for url encoded bodies.\n\n### Impact\n\nInterpretation conflict / HTTP parameter pollution. An attacker can smuggle extra or overriding form fields past an upstream component that applies the WHATWG separator rule, reaching the backend with parameters the intermediary did not observe.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.30` or later, which treats only `&` as a field separator per the [WHATWG URL standard](https://url.spec.whatwg.org/#urlencoded-parsing). `;` is parsed as ordinary field data, matching `urllib.parse`, browsers, and other compliant parsers.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.263527Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.30",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-6jv3-5f52-599m",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-6jv3-5f52-599m",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53538"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2600",
+        "source": "osv",
+        "title": "LiteLLM allows a user to modify their own user_role via the /user/update endpoint",
+        "summary": "LiteLLM prior to 1.83.10 allows a user to modify their own user_role via the /user/update endpoint. While the endpoint correctly restricts users to updating only their own account, it does not restrict which fields may be changed. A user who can reach this endpoint can set their role to proxy_admin, gaining full administrative access to LiteLLM including all users, teams, keys, models, and prompt history. Users with the org_admin role have legitimate access to this endpoint and can exploit this vulnerability without chaining any additional flaw.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:19:11.059386Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.10",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-47102",
+          "https://github.com/BerriAI/litellm/pull/25541",
+          "https://github.com/BerriAI/litellm/commit/128d32d2494b759c5d15da3452452af4c6a34c01",
+          "https://github.com/BerriAI/litellm/commit/e6f18ce75b111c9b93dc15c72894cbdeb53177ce",
+          "https://gist.github.com/13ph03nix/9ec616e1fdc77b3673509c60206e827f",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.10-stable",
+          "https://huntr.com/bounties/8e75edfb-ff05-4e63-bfca-2d93d03fb3b9",
+          "https://www.obsidiansecurity.com/blog/litellm-privilege-escalation-rce",
+          "https://www.vulncheck.com/advisories/litellm-privilege-escalation-via-user-update",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-wpfp-gwwc-vwq6"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2555",
+        "source": "osv",
+        "title": "LangSmith SDK: Public prompt pull deserializes untrusted manifests without trust boundary warning",
+        "summary": "## Description\n\nThe LangSmith SDK's prompt pull methods (`pull_prompt` / `pull_prompt_commit` in Python, `pullPrompt` / `pullPromptCommit` in JS/TS) fetch and deserialize prompt manifests from the LangSmith Hub. These manifests may contain serialized LangChain objects and model configuration that affect runtime behavior. When pulling a public prompt by `owner/name` identifier, the manifest content is controlled by an external party, but prior versions of the SDK did not distinguish this from pulling a prompt within the caller's own organization.\n\nPrompt manifests can intentionally configure a model with a custom base URL, default headers, model name, or other constructor arguments. These are supported features, but they also mean the prompt contents should be treated as executable configuration rather than plain text. A prompt can also include serialized LangChain `Runnable` or `PromptTemplate` objects with attacker-controlled constructor kwargs, or secret references that, if `secrets_from_env` is enabled, read environment variables at deserialization time.\nApplications are exposed when all of the following are true:\n\n- The application calls `pull_prompt` or `pull_prompt_commit` (Python) or `pullPrompt` or `pullPromptCommit` (JS/TS) with a public `owner/name` prompt identifier.\n- The prompt was published or modified by an untrusted or compromised account.\n- The application uses the pulled prompt without independently validating its contents.\n\nApplications that only pull prompts from their own organization (referenced by name only, without an `owner/` prefix) are not affected by the public prompt trust boundary issue described above. However, same-organization prompts carry their own risk. If an attacker gains write access to the organization (for example, through a leaked `LANGSMITH_API_KEY` or a compromised team member account), they can push a malicious prompt that is pulled and deserialized without any additional warning.\n\n## Impact\n\nAn attacker who publishes a malicious prompt to LangSmith Hub may be able to affect applications that pull that prompt by `owner/name`. If the prompt manifest reaches the SDK's deserialization path, the SDK will instantiate the referenced LangChain objects with the attacker-supplied constructor arguments rather than treating the manifest as inert data.\n\nRealistic impacts include:\n\n- Server-side request forgery (SSRF), outbound request redirection, and interception of LLM traffic if a prompt manifest configures an LLM client with an attacker-controlled `base_url`, proxy, or equivalent endpoint-setting parameter. In typical deployments, redirected requests may include prompt contents, system prompts, retrieved context, model parameters, provider credentials, or other secrets and may disclose them to the attacker-controlled endpoint.\n- Prompt injection or behavior manipulation if a manifest embeds attacker-controlled system messages, prompt templates, or model parameters that alter the application's behavior.\n- Additional deserialization risk when `include_model=True` is passed, because this expands the allowlist to partner integration classes. This is not the default, but it materially increases risk when pulling prompts from outside the caller's organization.\n\n## Remediation\n\nThe LangSmith SDK now blocks pulling public prompts by `owner/name` by default. Callers must explicitly opt in by passing `dangerously_pull_public_prompt=True` (Python) or `dangerouslyPullPublicPrompt: true` (JS/TS) to acknowledge the trust boundary. This flag should only be set after reviewing and trusting the prompt contents, not merely the publishing account.\n\nUpgrade to LangSmith SDK **Python >= 0.8.0** or **JS/TS >= 0.6.0**.\n\n### Guidance for prompt pull methods\n\nThe prompt pull methods (`pull_prompt` / `pull_prompt_commit` in Python, `pullPrompt` / `pullPromptCommit` in JS/TS) should be used only with trusted prompts. Do not pull public prompts by `owner/name` from untrusted or unreviewed sources without understanding that the manifest contents will be deserialized and may affect runtime behavior.\n\nWhen pulling prompts that include model configuration (`include_model=True` in Python, `includeModel: true` in JS/TS), the deserialization allowlist expands to include partner integration classes. Because this mode is not the default and is often unnecessary for third-party prompts, prefer the default (`false`) when pulling prompts from sources outside your organization.\n\nAvoid passing `secrets_from_env=True` (Python) when pulling untrusted prompts. This parameter allows prompt manifests to read environment variables during deserialization. Only use it with trusted prompts from your own organization.\n\n### Same-organization prompts\n\nPrompts pulled from the caller's own organization (referenced by name only, without an `owner/` prefix) are not gated by the new `dangerously_pull_public_prompt` flag, but they are not inherently safe. If an attacker gains write access to the organization (for example, through a leaked `LANGSMITH_API_KEY` or a compromised team member account), they can push a malicious prompt that redirects LLM traffic to attacker-controlled infrastructure and may disclose any credentials attached to those requests.\n\nThe security of same-organization prompts follows a shared responsibility model. The LangSmith SDK enforces trust boundaries for public prompts pulled from external accounts, but it cannot protect against compromised credentials or accounts within the caller's own organization. Securing API keys, managing team member access, and reviewing prompt contents before production deployment are the responsibility of the organization. Organizations should treat prompts as executable configuration and apply the same review and audit practices they would apply to application code.\n\n## Credits\n\nFirst reported by @Moaaz-0x.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:15:46.836675Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "langchain"
+        ],
+        "affected_ranges": [
+          "0..0.3.30",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/langchain-ai/langsmith-sdk/security/advisories/GHSA-3644-q5cj-c5c7",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-45134",
+          "https://github.com/langchain-ai/langsmith-sdk",
+          "https://pypi.org/project/langchain",
+          "https://github.com/advisories/GHSA-3644-q5cj-c5c7"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'langchain' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2598",
+        "source": "osv",
+        "title": "LiteLLM allows an authenticated internal_user to create API keys with access to routes that their role does not permit",
+        "summary": "LiteLLM prior to 1.83.14 allows an authenticated internal_user to create API keys with access to routes that their role does not permit. When generating a key, the allowed_routes field is stored without verifying that the specified routes fall within the user's own permissions. A key created with access to admin-only routes can then be used to reach those routes successfully, bypassing the role-based access controls that would otherwise block the request, enabling full privilege escalation from internal_user to proxy_admin.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:19:10.943370Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.14",
+          "0..∞"
+        ],
+        "references": [
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-47101",
+          "https://github.com/BerriAI/litellm/commit/2220f3076ac89bd2a2e3439acf57dcfbec2434c9",
+          "https://github.com/BerriAI/litellm/commit/5190bd07eb23a037745d86328096f54378f1614a",
+          "https://github.com/BerriAI/litellm/commit/d910a95661fce3cdd36f3b06c03ecf9c46c6457c",
+          "https://gist.github.com/13ph03nix/9ec616e1fdc77b3673509c60206e827f",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.14-stable",
+          "https://huntr.com/bounties/8e75edfb-ff05-4e63-bfca-2d93d03fb3b9",
+          "https://www.obsidiansecurity.com/blog/litellm-privilege-escalation-rce",
+          "https://www.vulncheck.com/advisories/litellm-privilege-escalation-via-api-key-generation",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-qrc4-49gv-mv9m"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3041",
+        "source": "osv",
+        "title": "python-multipart: Content-Disposition parameter smuggling via RFC 2231/5987 extended parameters",
+        "summary": "### Summary\n\n`parse_options_header` parsed `Content-Disposition` (and `Content-Type`) headers with [`email.message.Message`](https://docs.python.org/3/library/email.compat32-message.html#email.message.Message), which transparently applies [RFC 2231](https://datatracker.ietf.org/doc/html/rfc2231)/[5987](https://datatracker.ietf.org/doc/html/rfc5987) decoding. The extended parameter syntax (`filename*=charset'lang'value`, `name*=...`, and the `filename*0`/`filename*1` continuation form) is decoded and surfaced under the bare `filename`/`name` key, and overrides the plain parameter when both are present. [RFC 7578 §4.2](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2) explicitly forbids the `filename*` form in `multipart/form-data`.\n\nComponents that follow RFC 7578, or that do not implement RFC 2231/5987 decoding for `multipart/form-data` (WAFs, proxies, gateways), may interpret such a header differently. An attacker can exploit that difference to smuggle a different field name or filename past an upstream inspector to the backend.\n\n### Details\n\nGiven both a plain and an extended parameter, the extended value won. For example:\n\n```\nContent-Disposition: form-data; name=\"comment\"; name*=utf-8''role\n```\n\nAn inspector following RFC 7578 sees the field `comment`, while the returned value was `name=role`. The same applies to filenames:\n\n```\nContent-Disposition: form-data; name=\"upload\"; filename=\"safe.txt\"; filename*=utf-8''evil.php\n```\n\nThe inspector sees `safe.txt`, while the returned value was `filename=evil.php`. Continuation parameters (`filename*0`, `filename*1`, and so on) were likewise reassembled into a `filename` invisible to a plain `filename=` match, and percent encoded sequences in the extended value were decoded (so `..%2F`, `%00`, and similar appeared in the returned filename).\n\nThis affects the high level `parse_options_header`, `FormParser`, `create_form_parser`, and `parse_form` APIs, and reaches Starlette/FastAPI through `request.form()`, where the smuggled value is exposed as the form field name or [`UploadFile.filename`](https://www.starlette.io/requests/#request-files).\n\n### Impact\n\nThis is an interpretation conflict ([CWE-436](https://cwe.mitre.org/data/definitions/436.html)) with other `multipart/form-data` parsers. An attacker able to submit `multipart/form-data` can present a different field name or filename to an upstream body inspecting component than the one delivered to the application. Concrete consequences depend on how the application uses these values, and may include bypassing a field name or filename based access/upload control, or, for an application that builds filesystem paths from the parsed filename without sanitization, path traversal via decoded `..%2F` sequences. Decoded control bytes such as `%00` can likewise cause confusion between an upstream validator and the backend. The `File` class applies `os.path.basename`, so file writing through it is not directly affected.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.30` or later, which ignores RFC 2231/5987 extended parameters (`name*`, `filename*`, and their continuations) so the plain `name`/`filename` parameter remains authoritative. RFC 7578 §4.2 forbids `filename*` for `multipart/form-data`; `name*` and the continuation forms are dropped for the same reason, since they are not valid `multipart/form-data` parameters either.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.215883Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.30",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-vffw-93wf-4j4q",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-vffw-93wf-4j4q",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53537"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3041",
+        "source": "osv",
+        "title": "python-multipart: Content-Disposition parameter smuggling via RFC 2231/5987 extended parameters",
+        "summary": "### Summary\n\n`parse_options_header` parsed `Content-Disposition` (and `Content-Type`) headers with [`email.message.Message`](https://docs.python.org/3/library/email.compat32-message.html#email.message.Message), which transparently applies [RFC 2231](https://datatracker.ietf.org/doc/html/rfc2231)/[5987](https://datatracker.ietf.org/doc/html/rfc5987) decoding. The extended parameter syntax (`filename*=charset'lang'value`, `name*=...`, and the `filename*0`/`filename*1` continuation form) is decoded and surfaced under the bare `filename`/`name` key, and overrides the plain parameter when both are present. [RFC 7578 §4.2](https://datatracker.ietf.org/doc/html/rfc7578#section-4.2) explicitly forbids the `filename*` form in `multipart/form-data`.\n\nComponents that follow RFC 7578, or that do not implement RFC 2231/5987 decoding for `multipart/form-data` (WAFs, proxies, gateways), may interpret such a header differently. An attacker can exploit that difference to smuggle a different field name or filename past an upstream inspector to the backend.\n\n### Details\n\nGiven both a plain and an extended parameter, the extended value won. For example:\n\n```\nContent-Disposition: form-data; name=\"comment\"; name*=utf-8''role\n```\n\nAn inspector following RFC 7578 sees the field `comment`, while the returned value was `name=role`. The same applies to filenames:\n\n```\nContent-Disposition: form-data; name=\"upload\"; filename=\"safe.txt\"; filename*=utf-8''evil.php\n```\n\nThe inspector sees `safe.txt`, while the returned value was `filename=evil.php`. Continuation parameters (`filename*0`, `filename*1`, and so on) were likewise reassembled into a `filename` invisible to a plain `filename=` match, and percent encoded sequences in the extended value were decoded (so `..%2F`, `%00`, and similar appeared in the returned filename).\n\nThis affects the high level `parse_options_header`, `FormParser`, `create_form_parser`, and `parse_form` APIs, and reaches Starlette/FastAPI through `request.form()`, where the smuggled value is exposed as the form field name or [`UploadFile.filename`](https://www.starlette.io/requests/#request-files).\n\n### Impact\n\nThis is an interpretation conflict ([CWE-436](https://cwe.mitre.org/data/definitions/436.html)) with other `multipart/form-data` parsers. An attacker able to submit `multipart/form-data` can present a different field name or filename to an upstream body inspecting component than the one delivered to the application. Concrete consequences depend on how the application uses these values, and may include bypassing a field name or filename based access/upload control, or, for an application that builds filesystem paths from the parsed filename without sanitization, path traversal via decoded `..%2F` sequences. Decoded control bytes such as `%00` can likewise cause confusion between an upstream validator and the backend. The `File` class applies `os.path.basename`, so file writing through it is not directly affected.\n\n### Mitigation\n\nUpgrade to `python-multipart` `0.0.30` or later, which ignores RFC 2231/5987 extended parameters (`name*`, `filename*`, and their continuations) so the plain `name`/`filename` parameter remains authoritative. RFC 7578 §4.2 forbids `filename*` for `multipart/form-data`; `name*` and the continuation forms are dropped for the same reason, since they are not valid `multipart/form-data` parameters either.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:46:17.215883Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.30",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-vffw-93wf-4j4q",
+          "https://github.com/Kludex/python-multipart",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-vffw-93wf-4j4q",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-53537"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3038",
+        "source": "osv",
+        "title": "python-multipart affected by Denial of Service via large multipart preamble or epilogue data",
+        "summary": "### Summary\n\nA denial of service vulnerability exists when parsing crafted `multipart/form-data` requests with large preamble or epilogue sections.\n\n### Details\n\nTwo inefficient multipart parsing paths could be abused with attacker-controlled input.\n\nBefore the first multipart boundary, the parser handled leading CR and LF bytes inefficiently while searching for the start of the first part. After the closing boundary, the parser continued processing trailing epilogue data instead of discarding it immediately. As a result, parsing time could grow with the size of crafted data placed before the first boundary or after the closing boundary.\n\n### Impact\n\nAn attacker can send oversized malformed multipart bodies that consume excessive CPU time during request parsing, reducing request-handling capacity and delaying legitimate requests. This issue degrades availability but does not typically result in a complete denial of service for the entire application.\n\n### Mitigation\n\nUpgrade to version `0.0.26` or later, which skips ahead to the next boundary candidate when processing leading CR/LF data and immediately discards epilogue data after the closing boundary.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:02:48.004841Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.26",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-mj87-hwqh-73pj",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-40347",
+          "https://github.com/Kludex/python-multipart",
+          "https://github.com/Kludex/python-multipart/releases/tag/0.0.26",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-mj87-hwqh-73pj"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-3038",
+        "source": "osv",
+        "title": "python-multipart affected by Denial of Service via large multipart preamble or epilogue data",
+        "summary": "### Summary\n\nA denial of service vulnerability exists when parsing crafted `multipart/form-data` requests with large preamble or epilogue sections.\n\n### Details\n\nTwo inefficient multipart parsing paths could be abused with attacker-controlled input.\n\nBefore the first multipart boundary, the parser handled leading CR and LF bytes inefficiently while searching for the start of the first part. After the closing boundary, the parser continued processing trailing epilogue data instead of discarding it immediately. As a result, parsing time could grow with the size of crafted data placed before the first boundary or after the closing boundary.\n\n### Impact\n\nAn attacker can send oversized malformed multipart bodies that consume excessive CPU time during request parsing, reducing request-handling capacity and delaying legitimate requests. This issue degrades availability but does not typically result in a complete denial of service for the entire application.\n\n### Mitigation\n\nUpgrade to version `0.0.26` or later, which skips ahead to the next boundary candidate when processing leading CR/LF data and immediately discards epilogue data after the closing boundary.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:02:48.004841Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "python-multipart"
+        ],
+        "affected_ranges": [
+          "0..0.0.26",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/Kludex/python-multipart/security/advisories/GHSA-mj87-hwqh-73pj",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-40347",
+          "https://github.com/Kludex/python-multipart",
+          "https://github.com/Kludex/python-multipart/releases/tag/0.0.26",
+          "https://pypi.org/project/python-multipart",
+          "https://github.com/advisories/GHSA-mj87-hwqh-73pj"
+        ]
+      },
+      "repo": "tiangolo/fastapi",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'python-multipart' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "PYSEC-2026-2602",
+        "source": "osv",
+        "title": "LiteLLM: Server-Side Template Injection in /prompts/test endpoint",
+        "summary": "### Impact\nThe `POST /prompts/test` endpoint accepted user-supplied prompt templates and rendered them without sandboxing. A crafted template could run arbitrary code inside the LiteLLM Proxy process.\n\nThe endpoint only checks that the caller presents a valid proxy API key, so any authenticated user could reach it. Depending on how the proxy is deployed, this could expose secrets in the process environment (such as provider API keys or database credentials) and allow commands to be run on the host.\n\nProxy deployments running an affected version are in scope.\n\n### Patches\nThe issue is fixed in **`1.83.7-stable`**. The fix switches the prompt template renderer to a sandboxed environment that blocks the attributes this attack relies on.\n\nLiteLLM recommends upgrading to `1.83.7-stable` or later.\n\n### Workarounds\nIf upgrading is not immediately possible:\n\n1. Block `POST /prompts/test` at your reverse proxy or API gateway.\n2. Review and rotate API keys that should not have access to prompt management routes.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-13T15:02:53.267150Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.7",
+          "1.80.5..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-xqmj-j6mv-4862",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-42203",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.7-stable",
+          "https://pypi.org/project/litellm",
+          "https://github.com/advisories/GHSA-xqmj-j6mv-4862"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 14,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
