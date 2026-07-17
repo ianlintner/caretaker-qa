@@ -1,0 +1,108 @@
+{
+  "generated_at": "2026-07-17T03:06:47.669772Z",
+  "since": "2026-07-16T03:06:47.669765Z",
+  "until": "2026-07-17T03:06:47.669772Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-vj7q-gjh5-988w",
+        "source": "osv",
+        "title": "MCP Python SDK: WebSocket server transport does not support Host/Origin validation",
+        "summary": "### Summary\nIn affected versions, the deprecated WebSocket server transport (`mcp.server.websocket.websocket_server`) accepted the WebSocket handshake without applying any `Host` or `Origin` header validation. The `TransportSecuritySettings` mechanism that the SSE and Streamable HTTP transports use for this purpose was not wired into the WebSocket transport, so there was no SDK-level way to restrict which origins could connect.\n\n### Am I affected?\nOnly if a developer's application server exposes `mcp.server.websocket.websocket_server`. This transport has never been part of the MCP specification, is marked deprecated, and is not reachable through `FastMCP` — a developer must have wired it into an ASGI application themselves. Servers using stdio, SSE, or Streamable HTTP are not affected by this advisory.\n\n### Details\n`websocket_server()` constructed a Starlette `WebSocket` and called `accept(subprotocol=\"mcp\")` immediately, with no inspection of the connection's headers. By contrast, `SseServerTransport` and `StreamableHTTPServerTransport` accept an optional `security_settings: TransportSecuritySettings` and run `TransportSecurityMiddleware.validate_request()` against the incoming `Host` and `Origin` headers before establishing a session. Because browsers attach an `Origin` header to cross-origin WebSocket upgrade requests but do not enforce a same-origin policy on the response, a web page served from any origin could open a WebSocket to a reachable MCP server on this transport, complete the `initialize` handshake, and issue JSON-RPC requests on the resulting session.\n\n### Impact\nA user who runs an MCP server on this transport bound to localhost or a LAN address, without a separate authentication or origin gate in front of it, and visits a malicious web page, can have that page enumerate and invoke the server's tools and read its resources. The consequences depend entirely on what the server exposes. The transport itself requires no token or prior session. Some browsers prompt before allowing a public page to open a connection to a local-network address, which adds a user-interaction step but is not a substitute for server-side validation.\n\n### Mitigation\nUpgrade to version 1.28.1 or later, in which `websocket_server()` accepts the same optional `security_settings: TransportSecuritySettings` argument as the other HTTP-based transports and validates the `Host` and `Origin` headers before accepting the handshake; a request that fails validation is rejected with HTTP 403 and `ValueError(\"Request validation failed\")` is raised to the caller. As with the other transports the parameter defaults to `None`, which leaves validation disabled, so upgrading alone does not change behaviour: pass a `TransportSecuritySettings` with `enable_dns_rebinding_protection=True` and appropriate `allowed_hosts` / `allowed_origins` to receive the protection. The recommended path remains to migrate off this deprecated transport to Streamable HTTP, where `FastMCP` enables this protection automatically for localhost binds. The WebSocket transport has been removed entirely in v2.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-16T20:14:34Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.28.1",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-vj7q-gjh5-988w",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-59950",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/2992",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/777b8d06710c140e3606b0d4598e2aa48546c266",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.28.1"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-jpw9-pfvf-9f58",
+        "source": "osv",
+        "title": "MCP Python SDK: HTTP transports serve session requests without verifying the authenticated principal",
+        "summary": "### Summary\nIn affected versions, the SSE and Streamable HTTP server transports routed incoming requests to an existing session based only on the session identifier, without verifying that the request was authenticated as the same principal that created the session. Anyone who learned or guessed a session ID could send JSON-RPC messages on that session, regardless of which bearer token the request carried.\n\n### Am I affected?\nOnly if a developer's application server uses an HTTP transport (SSE, or Streamable HTTP in stateful mode) **and** authenticates requests. Servers on stdio, stateless Streamable HTTP, or with no authentication configured are not affected.\n\n### Details\nBoth transports look up the target session by its identifier alone — the `session_id` query parameter for SSE (`mcp.server.sse.SseServerTransport`) and the `Mcp-Session-Id` header for Streamable HTTP (`mcp.server.streamable_http_manager.StreamableHTTPSessionManager`). Once the lookup succeeded, the request was handled on that session without comparing its authentication context to the credentials presented when the session was created, so a request authenticated as a different OAuth client could inject messages into the session. On the SSE transport the response is delivered to the original client's event stream; on the Streamable HTTP transport it is returned on the injecting request, so the injecting client can also read the result. The SSE transport has been affected since the first release; the Streamable HTTP transport since version 1.8.0.\n\n### Impact\nServers using either HTTP transport together with the SDK's built-in bearer-token authentication are affected: the per-client isolation that authentication provides can be bypassed for any session whose ID is known. Session IDs are randomly generated UUIDs, so exploitation requires obtaining one out of band (logs, network observation). Servers that do not enable bearer-token authentication have no per-client isolation to bypass and are not addressed by this advisory, and stateless Streamable HTTP deployments do not maintain sessions and are unaffected.\n\n### Mitigation\nUpgrade to version 1.27.2 or later, which records the authenticated principal that created each session — the OAuth client ID together with the token's issuer and subject when the token verifier supplies them — and answers requests presenting a different principal with the same 404 response as for an unknown session.\n\nDeployments where many end users share a single OAuth client (hosted MCP clients, gateways) should ensure their token verifier populates `AccessToken.subject` (e.g. from the token's `sub` claim) so sessions are isolated per user rather than per client. Deployments using a custom authentication backend other than the built-in `BearerAuthBackend` should enforce an equivalent check themselves.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-16T19:58:53Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.27.2",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-jpw9-pfvf-9f58",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-52869",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/2690",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/2719",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/1abcca2408a6b50e10ec601181f63f9978705c00",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/ce267b6fc515dc4efc1dc70b6975b16ff0feef0a",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.27.2"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-hvrp-rf83-w775",
+        "source": "osv",
+        "title": "MCP Python SDK: Experimental task handlers allow any client to access and cancel other clients' tasks",
+        "summary": "### Summary\nIn affected versions, the default request handlers installed by the experimental tasks feature (`server.experimental.enable_tasks()`) did not check which session created a task before acting on it. On a server with more than one connected client, any client could observe, read results from, and cancel tasks belonging to other clients.\n\n### Am I affected?\nOnly if the developer's application server calls `server.experimental.enable_tasks()`. If `grep -r enable_tasks` over their codebase finds nothing, the application is not affected.\n\n### Details\nWhen tasks support is enabled on the low-level server, default handlers are registered for `tasks/list`, `tasks/get`, `tasks/result`, and `tasks/cancel`. These handlers operated on the task identifier alone and kept no record of the session that created each task. Because `tasks/list` returned every task in the store, a connected client did not need to know any identifiers in advance: it could enumerate all tasks, read any task's status and result via `tasks/get` and `tasks/result`, retrieve queued task messages — such as elicitation requests intended for the task's creator, which are removed from the queue on delivery, so the intended recipient never receives them — and cancel any task via `tasks/cancel`.\n\n### Impact\nServers that call `server.experimental.enable_tasks()` and serve multiple clients are affected: one client can read other clients' task results and elicitation payloads, consume messages meant for them, and cancel their tasks. The feature is experimental and opt-in, so servers that never enable it are unaffected. Servers that registered their own task handlers instead of the defaults are affected only if those handlers have the same omission.\n\n### Mitigation\nUpgrade to version 1.27.2 or later, in which task IDs generated by `run_task()` embed an opaque per-session marker and the default handlers restrict each session to its own tasks: requests for another session's task receive \"task not found\", and `tasks/list` returns only the requesting session's tasks. Tasks created with explicitly chosen IDs or written directly through a `TaskStore` remain reachable by ID but are not listed. Alternatively, leave the experimental tasks feature disabled, or register task handlers that validate session ownership.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-16T19:56:12Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.27.2",
+          "1.23.0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-hvrp-rf83-w775",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-52870",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/2720",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/62137874ff26dd74d2fea80ff528a7fd9ca7a5e7",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.27.2"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 3,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
