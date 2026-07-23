@@ -1,0 +1,135 @@
+{
+  "generated_at": "2026-07-23T03:07:14.531982Z",
+  "since": "2026-07-22T03:07:14.531977Z",
+  "until": "2026-07-23T03:07:14.531982Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-7488-6r32-c95q",
+        "source": "osv",
+        "title": "LiteLLM: MCP Authentication Bypass via OAuth2 Passthrough Fallback",
+        "summary": "### Impact\n\nLiteLLM's MCP Streamable HTTP endpoint could allow an unauthenticated attacker to establish an authenticated MCP session using an arbitrary Bearer token.\n\nThe MCP auth handler supported OAuth2 passthrough for upstream MCP servers, but the fallback path could replace failed LiteLLM key validation with an empty `UserAPIKeyAuth()` object. This allowed requests with a fabricated `Authorization` header to reach MCP tooling without a valid LiteLLM key.\n\nAn attacker could use this to list and call configured MCP tools and access connected services exposed through MCP.\n\n### Patches\n\nThe issue is fixed in `1.84.0`.\n\nWe recommend upgrading to `1.84.0` or later.\n\n### Workarounds\n\nIf upgrading is not immediately possible, disable MCP routes or block access to `/mcp/` and related MCP endpoints at your reverse proxy or API gateway.\n\n### References\n\n* [v1.84.0](https://github.com/BerriAI/litellm/releases/tag/v1.84.0)",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-22T22:38:33Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.84.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-7488-6r32-c95q",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-59822",
+          "https://github.com/BerriAI/litellm/pull/26463",
+          "https://github.com/BerriAI/litellm/commit/73869f0faf7d11ee21adcb5f91b8c33a340b6c2c",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.84.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-4g5m-c9r5-49xf",
+        "source": "osv",
+        "title": "LiteLLM: Local file read via request-supplied OIDC file references",
+        "summary": "### Impact\n\nLiteLLM's `/health/test_connection` endpoint resolved request-supplied environment and OIDC file references in `litellm_params`. A proxy administrator, or another privileged caller with permission to test model connections, could cause LiteLLM to read files from the local filesystem via an `oidc/file/` reference.\n\nBecause exploitation requires privileged proxy access, this is treated as a defense-in-depth issue rather than a cross-tenant privilege bypass.\n\n### Patches\n\nThe issue is fixed in `1.83.10-stable`.\n\nLiteLLM recommend upgrading to `1.83.10-stable` or later.\n\n### Workarounds\n\nRestrict `/health/test_connection` access to trusted administrators only.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-22T22:38:04Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.10",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-4g5m-c9r5-49xf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-59819",
+          "https://github.com/BerriAI/litellm/pull/25592",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.10-stable"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-5jmr-gcrj-2c9q",
+        "source": "osv",
+        "title": "LiteLLM: Arbitrary file write via path traversal in Skills archive extraction",
+        "summary": "### Impact\n\nLiteLLM Skills archive extraction did not sufficiently validate file paths from uploaded skill ZIP archives. An authenticated user with access to LiteLLM LLM API routes, or a key whose `allowed_routes` includes `/v1/skills`, `anthropic_routes`, or `llm_api_routes`, could upload a crafted skill archive containing path traversal entries.\n\nWhen the skill was processed for execution, those entries could be written outside the intended extraction/staging directory. This could allow arbitrary file write and may lead to code execution depending on deployment configuration and writable paths.\n\n### Patches\n\nThe issue is fixed in `1.83.7-stable`.\n\nLiteLLM recommens upgrading to `1.83.7-stable` or later.\n\n### Workarounds\n\nIf upgrading is not immediately possible:\n\n1. Block `POST /v1/skills` at your reverse proxy or API gateway.\n2. Restrict Skills API access to trusted users only.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-22T22:37:15Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.7",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-5jmr-gcrj-2c9q",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-59820",
+          "https://github.com/BerriAI/litellm/pull/25475",
+          "https://github.com/BerriAI/litellm/commit/6a15adcd64137d37f73dee76dfe7481f8c2d9196",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.83.7-stable"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-72m8-9m7m-h278",
+        "source": "osv",
+        "title": "LiteLLM: Custom Code Guardrails production endpoints bypass code safety checks",
+        "summary": "### Impact\n\nLiteLLM's Custom Code Guardrails production create/update paths did not apply the same sandboxing and validation used by the test endpoint.\n\nA privileged user with access to create or update guardrails could submit custom Python code that executed in the LiteLLM proxy environment. In deployments without a configured master key, callers could be treated as proxy administrators, making this reachable without intended administrative authorization.\n\nThis could allow arbitrary code execution in the LiteLLM proxy container and exposure of secrets available to the process.\n\n### Patches\n\nThe issue is fixed in `1.82.0-stable`.\n\nLiteLLM recommend upgrading to `1.82.0-stable` or later.\n\n### Workarounds\n\nIf upgrading is not immediately possible:\n\n1. Restrict access to `POST /guardrails` and `PUT /guardrails/{guardrail_id}` to trusted administrators only.\n2. Ensure `LITELLM_MASTER_KEY` is configured.\n3. Avoid enabling Custom Code Guardrails for untrusted users.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-07-22T22:38:55Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.82.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-72m8-9m7m-h278",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-59821",
+          "https://github.com/BerriAI/litellm/commit/e50b4486d0f7aa0497185a1ebcdd2c91f1769eba",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.82.0-stable"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 198,
+    "osv": 4,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
