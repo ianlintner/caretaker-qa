@@ -1,0 +1,73 @@
+{
+  "generated_at": "2026-09-04T02:18:28.542045Z",
+  "since": "2026-09-03T02:18:28.542039Z",
+  "until": "2026-09-04T02:18:28.542045Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-xvg9-69gf-fjrf",
+        "source": "osv",
+        "title": "Material for MkDocs: DOM XSS in search suggestions via query parameter",
+        "summary": "### Impact\n\nMaterial for MkDocs 7.2.0 through 9.7.6 contains a DOM-based cross-site scripting vulnerability in the optional `search.suggest` feature. A crafted `q` URL parameter could execute JavaScript in the documentation site's origin after user interaction.\n\n### Patches\n\nThe issue is fixed in Material for MkDocs 9.7.7. Users should upgrade to 9.7.7 or later.\n\n### Workarounds\n\nSites unable to upgrade should disable the `search.suggest` feature.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-03T19:52:32Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mkdocs-material"
+        ],
+        "affected_ranges": [
+          "0..9.7.7",
+          "7.2.0..∞"
+        ],
+        "references": [
+          "https://github.com/squidfunk/mkdocs-material/security/advisories/GHSA-xvg9-69gf-fjrf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-73295",
+          "https://github.com/squidfunk/mkdocs-material/commit/52fb6be8aafe326419f34dc94d3211e7bbfbfb25",
+          "https://github.com/squidfunk/mkdocs-material",
+          "https://github.com/squidfunk/mkdocs-material/releases/tag/9.7.7"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mkdocs-material' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-xvg9-69gf-fjrf",
+        "source": "osv",
+        "title": "Material for MkDocs: DOM XSS in search suggestions via query parameter",
+        "summary": "### Impact\n\nMaterial for MkDocs 7.2.0 through 9.7.6 contains a DOM-based cross-site scripting vulnerability in the optional `search.suggest` feature. A crafted `q` URL parameter could execute JavaScript in the documentation site's origin after user interaction.\n\n### Patches\n\nThe issue is fixed in Material for MkDocs 9.7.7. Users should upgrade to 9.7.7 or later.\n\n### Workarounds\n\nSites unable to upgrade should disable the `search.suggest` feature.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-03T19:52:32Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mkdocs-material"
+        ],
+        "affected_ranges": [
+          "0..9.7.7",
+          "7.2.0..∞"
+        ],
+        "references": [
+          "https://github.com/squidfunk/mkdocs-material/security/advisories/GHSA-xvg9-69gf-fjrf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-73295",
+          "https://github.com/squidfunk/mkdocs-material/commit/52fb6be8aafe326419f34dc94d3211e7bbfbfb25",
+          "https://github.com/squidfunk/mkdocs-material",
+          "https://github.com/squidfunk/mkdocs-material/releases/tag/9.7.7"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mkdocs-material' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 1,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
