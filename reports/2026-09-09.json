@@ -1,0 +1,212 @@
+{
+  "generated_at": "2026-09-09T02:17:58.532728Z",
+  "since": "2026-09-08T02:17:58.532722Z",
+  "until": "2026-09-09T02:17:58.532728Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-wc9g-mqfw-jrwm",
+        "source": "osv",
+        "title": "multer vulnerable to Denial of Service via crafted multipart field names",
+        "summary": "### Impact\n\nA vulnerability in multer allows a remote, unauthenticated attacker to crash the Node.js process with a single `multipart/form-data` request. Two specially crafted text field names cause an uncaught `RangeError: Invalid array length` inside multer's field parsing, which is not routed to the application error handler and terminates the process. All applications using multer to parse multipart requests are affected.\n\n### Patches\n\nUsers should upgrade to `2.3.0`.\n\n### Workarounds\n\nNone.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-08T21:30:20Z",
+        "ecosystem": "npm",
+        "affected_packages": [
+          "multer"
+        ],
+        "affected_ranges": [
+          "0..2.3.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/expressjs/multer/security/advisories/GHSA-wc9g-mqfw-jrwm",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-77078",
+          "https://github.com/expressjs/multer/commit/87a584e8c8d4da873292635fa1d8c4d78d985b76",
+          "https://cna.openjsf.org/security-advisories.html",
+          "https://github.com/expressjs/multer",
+          "https://github.com/expressjs/multer/releases/tag/v2.3.0"
+        ]
+      },
+      "repo": "axios/axios",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'multer' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-qvfw-j98x-7q72",
+        "source": "osv",
+        "title": "multer vulnerable to file size limit bypass via async fileFilter race condition",
+        "summary": "### Impact\n\nWhen `multer` is configured with an asynchronous `fileFilter`, the `limits.fileSize` limit can be bypassed. The `'limit'` event is registered inside the async `fileFilter` callback, so if a file exceeds `limits.fileSize` before that callback runs, the event is missed and the oversized upload is accepted instead of being rejected with a `LIMIT_FILE_SIZE` error. Applications that rely on `limits.fileSize` to reject oversized uploads are affected on all upload methods (`.single()`, `.array()`, `.fields()`, `.any()`). Uploads using a synchronous `fileFilter` are not affected.\n\n### Patches\n\nUsers should upgrade to `2.3.0`.\n\n### Workarounds\n\nUse a synchronous `fileFilter`, or validate the uploaded file size after the upload completes.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-08T21:29:42Z",
+        "ecosystem": "npm",
+        "affected_packages": [
+          "multer"
+        ],
+        "affected_ranges": [
+          "0..2.3.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/expressjs/multer/security/advisories/GHSA-qvfw-j98x-7q72",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-77063",
+          "https://github.com/expressjs/multer/commit/ab6aeae650328cf31799dcfa4c3e116ba8faaacc",
+          "https://cna.openjsf.org/security-advisories.html",
+          "https://github.com/expressjs/multer",
+          "https://github.com/expressjs/multer/releases/tag/v2.3.0"
+        ]
+      },
+      "repo": "axios/axios",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'multer' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-2883-xcg3-v3hh",
+        "source": "osv",
+        "title": "js-yaml: maxTotalMergeKeys does not limit CPU use for empty merge sources",
+        "summary": "## Summary\n\n`maxTotalMergeKeys` does not count empty mappings. An attacker can repeatedly merge a large sequence of them and consume significant CPU without reaching the configured limit.\n\n## Example\n\n```yaml\narr: &arr [{}, {}, {}, ...] # N empty mappings\ntargets:\n  - <<: *arr                # repeated K times\n```\n\nFor every target, the loader iterates all `N` elements of `arr`. This results in `O(N * K)` work while `totalMergeKeys` remains unchanged.\n\n## PoC\n\n```js\nimport { performance } from 'node:perf_hooks'\nimport { load, YAML11_SCHEMA } from 'js-yaml'\n\nconst n = 20000\n\nconst src =\n  'arr: &arr [' + '{},'.repeat(n).slice(0, -1) + ']\\n' +\n  'targets:\\n' +\n  '  - <<: *arr\\n'.repeat(n)\n\nconst started = performance.now()\n\nload(src, { schema: YAML11_SCHEMA })\n\nconsole.log(`${(performance.now() - started).toFixed(1)} ms`)\n```\n\nObserved results:\n\n| N | YAML size | Time |\n|---:|---:|---:|\n| 800 | ~13 KB | ~20 ms |\n| 3200 | ~50 KB | ~180 ms |\n| 20000 | ~500 KB | ~13 s |\n\n## Impact\n\nAn attacker can submit a relatively small YAML document that causes prolonged CPU consumption despite the default `maxTotalMergeKeys` limit.\n\n## Fix\n\nCount each merge-source mapping as one budget unit, in addition to counting its keys.\n\n## Difference with v5\n\nIn v3 & v4, merge is enabled by default. So, the severity score is higher.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-08T21:24:51Z",
+        "ecosystem": "npm",
+        "affected_packages": [
+          "js-yaml"
+        ],
+        "affected_ranges": [
+          "0..3.15.2",
+          "0..4.3.2",
+          "3.0.0..∞",
+          "4.0.0..∞"
+        ],
+        "references": [
+          "https://github.com/nodeca/js-yaml/security/advisories/GHSA-2883-xcg3-v3hh",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-84375",
+          "https://github.com/nodeca/js-yaml/pull/797",
+          "https://github.com/nodeca/js-yaml/commit/3485bc06ff8a0251505f44a00414d90df2466639",
+          "https://github.com/nodeca/js-yaml/commit/6a8e05f9a485188ed730ac81e81ae221352ef480",
+          "https://github.com/nodeca/js-yaml/commit/d90b6612a5a84385bdcb556c44578eac76dc0f6b",
+          "https://github.com/nodeca/js-yaml",
+          "https://github.com/nodeca/js-yaml/releases/tag/3.15.2",
+          "https://github.com/nodeca/js-yaml/releases/tag/4.3.2"
+        ]
+      },
+      "repo": "ianlintner/kubernetes-apply-vscode",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'js-yaml' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-82fw-gwwq-j7x9",
+        "source": "osv",
+        "title": "Vitest: Path Traversal / Arbitrary File Read via @vitest/mocker Redirect Mock",
+        "summary": "## Summary\n`@vitest/mocker` registers a redirect mock's target path without validating it\nagainst the dev server's file-serving allowlist. An attacker who can reach the\ndev server's WebSocket can register a redirect mock pointing outside the project\nroot; when the mocked module is requested, the plugin's `load` hook returns\n`readFile(<attacker path>)` as the module source, disclosing local files.\n\nThis is exploitable **without authentication** only through the public\n`mockerPlugin` / standalone `interceptorPlugin` exports (used by third-party dev\nservers), which register the handler on Vite's unauthenticated HMR socket.\nVitest's own browser mode registers mocks over a **token-authenticated** RPC and\nis not remotely reachable by default (see Scope).\n\n## Affected code\n`packages/mocker/src/node/interceptorPlugin.ts`.\n\nThe `load` hook is the file-read sink:\n\n```ts\nif (mock.type === 'redirect') {\n  return readFile(mock.redirect, 'utf-8')\n}\n```\n\n`mock.redirect` is derived from client input at registration time with no\nboundary check:\n\n```ts\nif (event.type === 'redirect') {\n  const redirectUrl = new URL(event.redirect)\n  event.redirect = join(server.config.root, redirectUrl.pathname)\n}\nregistry.register(event)\n```\n\nThere is no `server.fs.allow` / `server.fs.deny` check and no assertion that the\nresolved path stays within the project root.\n\n## Registration paths and trust boundaries\n- **Public `mockerPlugin` / `interceptorPlugin` (unauthenticated).** In\n  `configureServer`, the plugin registers `server.ws.on('vitest:interceptor:register', …)`\n  on Vite's HMR WebSocket. That socket performs no token, Origin, or same-origin\n  check, so any client that can reach it can register a redirect mock. This is\n  the path the \"unauthenticated\" impact applies to.\n- **Vitest browser mode (authenticated).** Mocks register over the browser RPC\n  (`registerMock`), which sits behind a per-run token (`isValidApiRequest`, a\n  random `api.token`). The interceptor's `configureServer` socket is not used for\n  registration here (in v5 it does not run at all, as the plugin is injected per\n  environment). The same missing boundary check exists on the authenticated RPC\n  path, but reaching it requires the token, so it is not a remote-unauthenticated\n  read.\n\n## Path handling\n`new URL(redirect).pathname` combined with `join(root, pathname)` does **not**\nconfine reads to the root:\n\n- Special/hierarchical schemes (`file:`, `http:`) are normalized by WHATWG URL,\n  so `..` segments are collapsed and the result stays under the root. Payloads of\n  the form `file:///../../etc/passwd` do **not** escape.\n- A non-special (opaque) scheme preserves `..` in `pathname`, so\n  `join(root, \"../../…/etc/passwd\")` resolves outside the root and reads an\n  arbitrary file.\n\nEven without escaping the root, the missing `server.fs` check allows reading any\nin-root file the dev server would otherwise refuse to serve (for example an\nin-root `.env` or source that is denied by `server.fs.deny`).\n\n## Scope / preconditions\n- This is a **development-server** issue. The dev server binds to `localhost` by\n  default and is not reachable from the network unless the developer exposes it\n  (`server.host` / `0.0.0.0`, a LAN bind, or a proxy).\n- A raw (non-browser) client against a reachable server bypasses browser origin\n  and CORS protections entirely and can both register the mock and read the\n  response.\n- A browser-based drive-by against a localhost server is substantially mitigated\n  by Vite defaults: the default CORS origin allowlist is limited to `localhost`\n  origins, and `server.allowedHosts` blocks DNS-rebinding, so a cross-origin page\n  cannot read the file contents back.\n\n## Impact\nDisclosure of local files readable by the dev-server process (source, in-root\n`.env`/secrets, and, via the opaque-scheme payload, files outside the project\nroot). No integrity or availability impact.\n\n## Affected versions\nPresent since `@vitest/mocker` was introduced.\n\n- **Affected: `@vitest/mocker` >= 2.1.0** (shipped in `vitest` and\n  `@vitest/browser` >= 2.1.0), through 4.1.x and the 5.0.0 pre-releases.\n- **Fixed:** Vitest 4.1.11 and 5.0.0. Older majors (2.1.x, 3.x) are not\n  maintained and are not planned to receive the fix.\n\n## Fix\nValidate the resolved redirect target against Vite's file-serving allowlist\n(`isFileLoadingAllowed`) before registering it, at every registration site, and\nstop registering the interceptor WebSocket events in Vitest's browser mode\n(mocks there flow through the authenticated RPC).",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-08T20:46:45Z",
+        "ecosystem": "npm",
+        "affected_packages": [
+          "@vitest/mocker",
+          "vitest"
+        ],
+        "affected_ranges": [
+          "0..4.1.11",
+          "0..5.0.0-rc.2",
+          "2.1.0..∞",
+          "5.0.0-beta.1..∞"
+        ],
+        "references": [
+          "https://github.com/vitest-dev/vitest/security/advisories/GHSA-82fw-gwwq-j7x9",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-84373",
+          "https://github.com/vitest-dev/vitest/pull/10972",
+          "https://github.com/vitest-dev/vitest/pull/10974",
+          "https://github.com/vitest-dev/vitest/commit/51edf2b072902aec6d30c90ebaafd8f121c6f9d8",
+          "https://github.com/vitest-dev/vitest/commit/8ff9b9a9efca7c6cfd5243569440de8d7a33aec4",
+          "https://github.com/vitest-dev/vitest/commit/fe5a11d3ceac5ec10d6d7d21a46d4caca132c48f",
+          "https://github.com/vitest-dev/vitest",
+          "https://github.com/vitest-dev/vitest/releases/tag/v4.1.11",
+          "https://github.com/vitest-dev/vitest/releases/tag/v5.0.0-rc.2"
+        ]
+      },
+      "repo": "axios/axios",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'vitest' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-qfvm-cv95-jqjf",
+        "source": "osv",
+        "title": "multer vulnerable to Denial of Service via file descriptor leak on aborted uploads",
+        "summary": "### Impact\n\nA vulnerability in multer `2.2.0` allows an attacker to trigger a Denial of Service (DoS) by aborting or truncating multipart uploads. When using `diskStorage`, the destination write stream is not closed if the upload is aborted before it finishes, so each failed request leaks an open file descriptor and retains its disk blocks until the process exits. Repeated failed uploads can exhaust the available file descriptors. All applications using multer's disk storage are affected.\n\n### Patches\n\nUsers should upgrade to `2.3.0`.\n\n### Workarounds\n\nNone.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-08T21:29:51Z",
+        "ecosystem": "npm",
+        "affected_packages": [
+          "multer"
+        ],
+        "affected_ranges": [
+          "0..2.3.0",
+          "2.2.0..∞"
+        ],
+        "references": [
+          "https://github.com/expressjs/multer/security/advisories/GHSA-qfvm-cv95-jqjf",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-77037",
+          "https://github.com/expressjs/multer/commit/eef74440b491ef0f976f3d25895e8089ae495df0",
+          "https://cna.openjsf.org/security-advisories.html",
+          "https://github.com/expressjs/multer",
+          "https://github.com/expressjs/multer/releases/tag/v2.3.0"
+        ]
+      },
+      "repo": "axios/axios",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'multer' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-535w-7cp7-47q4",
+        "source": "osv",
+        "title": "multer vulnerable to Denial of Service via oversized array index in field names",
+        "summary": "### Impact\n\nmulter is vulnerable to a Denial of Service (DoS) via a crafted array index in multipart field names. The `append-field` dependency parses bracket notation in field names, and a large numeric index such as `items[4294967294]` forces allocation of a maximum-length sparse array. A following field with a non-numeric key on the same base then converts that array to an object by iterating its full length, which consumes CPU synchronously and leaves the process unable to handle other requests. A single HTTP request with a crafted multipart body is sufficient to exploit this, and it affects multer 1.x and 2.x.\n\n### Patches\n\nUsers should upgrade to `2.3.0` and configure `limits.fieldArrayIndexLimit` to the minimum array index their application requires.\n\n### Workarounds\n\nNone.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-08T21:28:43Z",
+        "ecosystem": "npm",
+        "affected_packages": [
+          "multer"
+        ],
+        "affected_ranges": [
+          "0..2.3.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/expressjs/multer/security/advisories/GHSA-535w-7cp7-47q4",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-82333",
+          "https://github.com/expressjs/multer/pull/1438",
+          "https://github.com/expressjs/multer/commit/73c1759fa93b87366bc6dbd7abe1b80ddff7d27c",
+          "https://cna.openjsf.org/security-advisories.html",
+          "https://github.com/expressjs/multer",
+          "https://github.com/expressjs/multer/releases/tag/v2.3.0"
+        ]
+      },
+      "repo": "axios/axios",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'multer' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 6,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
