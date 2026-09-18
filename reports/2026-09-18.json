@@ -1,0 +1,43 @@
+{
+  "generated_at": "2026-09-18T02:17:57.921079Z",
+  "since": "2026-09-17T02:17:57.921073Z",
+  "until": "2026-09-18T02:17:57.921079Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-hx8v-g79f-8w5f",
+        "source": "osv",
+        "title": "LiteLLM Proxy has server-side request forgery via the `user_config` request parameter",
+        "summary": "### Summary\nA server-side request forgery in LiteLLM Proxy lets an authenticated caller redirect the\nproxy's outbound request to a host of their choosing by smuggling an `api_base` inside the\n`user_config` request body, bypassing the existing parameter guard.\n\n### Details\nLiteLLM Proxy validates request bodies with `is_request_body_safe`, which blocks the\n`api_base` and `base_url` parameters but does not cover `user_config`. The `user_config`\nobject is used to build the outbound router for a request, so a caller can place an\n`api_base` inside it and reach an arbitrary host. The guard only inspected the two\ntop-level keys, so the same `api_base` nested inside `user_config` was never checked.\n\nExploitation requires a valid virtual key.\n\n### Impact\nAn authenticated caller can make the proxy issue server-side requests to internal or\nexternal hosts of their choosing, reaching endpoints the caller cannot otherwise access.\n\n### Affected / Patched\nAffected: `<= 1.83.8`\nPatched: `1.83.9`\n\n### Remediation\nUpgrade to 1.83.9 or later (released 2026-04-17).",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-17T14:51:21Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.83.9",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-hx8v-g79f-8w5f",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-59823",
+          "https://github.com/BerriAI/litellm/pull/25827",
+          "https://github.com/BerriAI/litellm/commit/47214be317f45a2d2ac08258362e0481411eb427",
+          "https://github.com/BerriAI/litellm"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 1,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
