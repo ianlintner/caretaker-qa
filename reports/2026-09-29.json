@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-09-29T02:20:26.915512Z",
+  "since": "2026-09-28T02:20:26.915506Z",
+  "until": "2026-09-29T02:20:26.915512Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-3pph-fpjx-jg34",
+        "source": "osv",
+        "title": "multer vulnerable to Denial of Service via orphaned disk writes on aborted uploads",
+        "summary": "### Impact\n\nMulter's `diskStorage` can leave complete, orphaned files on disk when a multipart upload is aborted in the brief window before the storage engine assigns the file path. This is an incomplete fix of CVE-2026-5038: the earlier cleanup removes only in-flight uploads that already have a path, so an upload aborted inside that window is written to disk with nothing left to remove it, and the application is not given a handle to clean it up. An unauthenticated attacker sending aborted requests to any route backed by disk storage can accumulate orphaned files until the upload directory or the shared system temporary directory is exhausted. An asynchronous `destination` or `filename` widens the window.\n\n### Patches\n\nUsers should upgrade to `2.4.0` or higher.\n\n### Workarounds\n\nNone.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-09-28T21:34:58Z",
+        "ecosystem": "npm",
+        "affected_packages": [
+          "multer"
+        ],
+        "affected_ranges": [
+          "0..2.4.0",
+          "2.2.0..∞"
+        ],
+        "references": [
+          "https://github.com/expressjs/multer/security/advisories/GHSA-3pph-fpjx-jg34",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-88932",
+          "https://github.com/expressjs/multer/commit/53337f9713619ef3381ee6b4e541f926dbaac305",
+          "https://cna.openjsf.org/security-advisories.html",
+          "https://github.com/expressjs/multer",
+          "https://github.com/expressjs/multer/releases/tag/v2.4.0"
+        ]
+      },
+      "repo": "axios/axios",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'multer' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 1,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
