@@ -1,0 +1,49 @@
+{
+  "generated_at": "2026-10-16T02:17:28.636874Z",
+  "since": "2026-10-15T02:17:28.636869Z",
+  "until": "2026-10-16T02:17:28.636874Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-84m7-p3x7-pcfv",
+        "source": "osv",
+        "title": "MCP Python SDK: Unbounded Session Accumulation in StreamableHTTP Transport Enables Resource Exhaustion",
+        "summary": "### Summary\nIn affected versions, a Streamable HTTP server in stateful mode (the default) never reclaimed session state:\n\n- sessions did not expire;\n- a client `DELETE` ended the session but left its entry registered;\n- a session whose first request was refused stayed registered with a running task.\n\nEach session also kept its parsed `initialize` parameters, and the number of sessions was unlimited. A client that could reach the endpoint could grow server memory without bound using ordinary short requests; only a restart reclaimed it.\n\n### Am I affected?\nYes, if you serve MCP over Streamable HTTP in stateful mode and clients you do not fully trust can reach the endpoint. Stateful mode is the default for:\n\n- `FastMCP` (1.x)\n- `MCPServer` and `Server.streamable_http_app()` (2.x)\n- `StreamableHTTPSessionManager`\n\nAffected versions: 1.8.0 through 1.29.1, and 2.0.0 through 2.1.1.\n\nNot affected:\n\n- servers on 1.12.0 or later passing `stateless_http=True` (no sessions are kept)\n- servers using only the stdio or SSE transports\n\nAuthentication limits who can open sessions, not how many a token holder can open.\n\n### Fix\nUpgrade to `mcp` 1.30.0 (1.x) or 2.2.0 (2.x) or later. In those versions:\n\n- a session with no request in flight for `session_idle_timeout` seconds (default 1800) is closed and its ID then answers `404`; open streams and in-progress requests keep it alive;\n- at most `max_sessions` sessions exist at once (default 10000); a request that would open another is answered `503`;\n- a session is discarded as soon as it ends, whether by `DELETE`, expiry, or a refused opening request.\n\nBoth settings are keyword arguments on `FastMCP(...)` (1.x), `MCPServer.run()` / `streamable_http_app()` (2.x) and `StreamableHTTPSessionManager`; `None` disables them.\n\nThis bounds retention rather than eliminating it: a live session still holds its `initialize` parameters (up to roughly twice the 4 MiB body limit), and an `initialize` with invalid parameters still opens a session that expires like any other. On a small host, lower `session_idle_timeout`, `max_sessions` and `max_request_body_size` to fit.\n\nIf you cannot upgrade yet, pass `stateless_http=True` (1.12.0 or later) where you need no per-session state, or restrict who can reach the endpoint.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-15T20:13:13Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.30.0",
+          "0..2.2.0",
+          "1.8.0..∞",
+          "2.0.0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-84m7-p3x7-pcfv",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-59951",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3395",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3426",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/92120b4b0f50385af096592d7cee932fc1d994e7",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/d2290ca3434731b68ea3e2270bc06a6e6575931b",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.30.0",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 1,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
