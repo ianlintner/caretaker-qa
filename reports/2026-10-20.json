@@ -1,0 +1,110 @@
+{
+  "generated_at": "2026-10-20T02:16:57.138928Z",
+  "since": "2026-10-19T02:16:57.138923Z",
+  "until": "2026-10-20T02:16:57.138928Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-494j-54xm-rwp3",
+        "source": "osv",
+        "title": "AIOHTTP: Secure attribute not enforced for shared cookie",
+        "summary": "### Summary\n\nThe Secure attribute was not being enforced for the shared cookie.\n\n### Impact\n\nIt may be possible to send a shared cookie marked Secure through an unencrypted request.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-19T17:07:47Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-494j-54xm-rwp3",
+          "https://github.com/aio-libs/aiohttp/commit/999c356d61e966faffa97b06ab0d0455226d36c5",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-5wr8-gcqf-gqf3",
+        "source": "osv",
+        "title": "aiohttp server lacks an initial request/header timeout",
+        "summary": "### Summary\n\nThe keepalive timeout was not used during the initial portion of a request.\n\n### Impact\n\nAn attacker could keep an idle connection open indefinitely before sending any data.\n\n### Workaround\n\nUse a reverse proxy (as recommended for all production deployments) with sensible keepalive limits.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-19T17:08:04Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-5wr8-gcqf-gqf3",
+          "https://github.com/aio-libs/aiohttp/commit/be846822b4b3a5a54b6163e794b42dc06fba54a3",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-2g87-pp6c-29x5",
+        "source": "osv",
+        "title": "aiohttp: Multiple instances of excessive or unbounded memory/CPU use",
+        "summary": "### Summary\n\nMultiple cases were found where aiohttp could use excessive or unbounded memory, or excessive CPU consumption on attacker controlled requests.\n\n### Impact\n\nAn attacker could cause resource exhaustion through specially crafted requests.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-19T17:07:23Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-2g87-pp6c-29x5",
+          "https://github.com/aio-libs/aiohttp/commit/09bcaa73ff084a0c539bbf16a0a78743acb7141f",
+          "https://github.com/aio-libs/aiohttp/commit/0ae507423f681161efa77d20052b4054397c7fb6",
+          "https://github.com/aio-libs/aiohttp/commit/3d850ee9b92573c7e913821cbcb96005beb3f4df",
+          "https://github.com/aio-libs/aiohttp/commit/47babd8c23ca79e2bae6cc8dcb5752b61e369fc7",
+          "https://github.com/aio-libs/aiohttp/commit/615fec3d4f088f30d2ee72cad760152e92aa1c53",
+          "https://github.com/aio-libs/aiohttp/commit/6963ee0befec1502b6bb7b4db6c72d044c08f4fa",
+          "https://github.com/aio-libs/aiohttp/commit/6a4f6682817839313b04b8e5cea2b39c1a88ab4f",
+          "https://github.com/aio-libs/aiohttp/commit/8cfbe9abe5e11b84006a10f9bdf82bf607671dab",
+          "https://github.com/aio-libs/aiohttp/commit/a555ab698e08e9baea7386d5b4c0761cb8956fdd",
+          "https://github.com/aio-libs/aiohttp/commit/c6ac0e44c3c573ff9616f4a6a532992538b31e43",
+          "https://github.com/aio-libs/aiohttp/commit/d925a80539ffd227da1d93ab4a5bff123cc777db",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 3,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
