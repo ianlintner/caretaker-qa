@@ -1,0 +1,312 @@
+{
+  "generated_at": "2026-11-17T02:12:03.678820Z",
+  "since": "2026-11-16T02:12:03.678814Z",
+  "until": "2026-11-17T02:12:03.678820Z",
+  "entries": [
+    {
+      "advisory": {
+        "id": "GHSA-5pv8-vvhc-h7jv",
+        "source": "osv",
+        "title": "AIOHTTP: Unbounded cookie storage in client CookieJar",
+        "summary": "### Summary\n\n`Set-Cookie` parsing created additional cookies from unrecognised `name=value` attributes, and `CookieJar` had no limit on the number of cookies stored or sent. A server could make the client store a very large number of cookies and generate very large `Cookie` headers.\n\n### Impact\n\nA malicious server could cause excessive memory and CPU use in a client, repeated on every redirect, and cause later requests to the same domain to build an excessively large `Cookie` header.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/6963ee0befec1502b6bb7b4db6c72d044c08f4fa",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:55:06Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-5pv8-vvhc-h7jv",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128125",
+          "https://github.com/aio-libs/aiohttp/pull/13930",
+          "https://github.com/aio-libs/aiohttp/pull/13942",
+          "https://github.com/aio-libs/aiohttp/commit/6963ee0befec1502b6bb7b4db6c72d044c08f4fa",
+          "https://github.com/aio-libs/aiohttp/commit/b1f6c87b2bd3bd80f2b6c22ff46e11d00921e412",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-3rp8-rxj8-mvjw",
+        "source": "osv",
+        "title": "AIOHTTP: WebSocket max_msg_size bypass via integer overflow",
+        "summary": "### Summary\n\nThe `max_msg_size` check in the WebSocket reader added the declared frame length to the size of the partial message already buffered. In the C extension this addition is 64-bit arithmetic, so a declared length close to 2**63 overflowed and the check passed.\n\n### Impact\n\nAn attacker could bypass `max_msg_size` and cause unbounded memory use by streaming an oversized WebSocket message after a small non-final fragment.\n\n### Workaround\n\nIf unable to upgrade, the Python reader is unaffected and can be used with `AIOHTTP_NO_EXTENSIONS=1`.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/8cfbe9abe5e11b84006a10f9bdf82bf607671dab",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:52:40Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-3rp8-rxj8-mvjw",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128128",
+          "https://github.com/aio-libs/aiohttp/pull/13415",
+          "https://github.com/aio-libs/aiohttp/pull/13494",
+          "https://github.com/aio-libs/aiohttp/commit/8c8906a19f64e52ef6a7d44d65217eb3c5af413f",
+          "https://github.com/aio-libs/aiohttp/commit/8cfbe9abe5e11b84006a10f9bdf82bf607671dab",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-28qf-cpwq-vmc2",
+        "source": "osv",
+        "title": "AIOHTTP: Pure-Python parser request replay and buffer growth behind a declined upgrade",
+        "summary": "### Summary\n\nWhen the pipelined request queue was full, the pure-Python parser stored the unparsed remainder internally and also returned it to the caller. After a handler declined an upgrade request, the buffered data was re-fed, so the buffer grew with each handled request and already-handled requests were dispatched to the application again.\n\n### Impact\n\nIf users are using the Python parser (`AIOHTTP_NO_EXTENSIONS`, or not a standard wheel installed), an attacker could cause excessive memory use and cause pipelined requests to be processed more than once.\n\n### Workaround\n\nSwitch to the default C parser.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/47babd8c23ca79e2bae6cc8dcb5752b61e369fc7",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:51:53Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-28qf-cpwq-vmc2",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128130",
+          "https://github.com/aio-libs/aiohttp/pull/13356",
+          "https://github.com/aio-libs/aiohttp/pull/13360",
+          "https://github.com/aio-libs/aiohttp/commit/47babd8c23ca79e2bae6cc8dcb5752b61e369fc7",
+          "https://github.com/aio-libs/aiohttp/commit/72eaa429cf89b1e20212590f3e704444239569fb",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-5rmc-48h2-hvcm",
+        "source": "osv",
+        "title": "AIOHTTP: WebSocket receive queue limits bypassed by small or compressed messages",
+        "summary": "### Summary\n\nThe WebSocket reader continued parsing frames already received after the receive queue had paused the transport, and empty messages were not counted towards the queue size. With permessage-deflate, a single read of compressed frames could add many megabytes of decompressed messages to the queue.\n\n### Impact\n\nAn attacker could cause excessive memory use in a WebSocket server, or a malicious server against a client, by sending many small or compressed messages faster than the application consumes them.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/0ae507423f681161efa77d20052b4054397c7fb6",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:51:01Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-5rmc-48h2-hvcm",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128132",
+          "https://github.com/aio-libs/aiohttp/pull/13393",
+          "https://github.com/aio-libs/aiohttp/pull/13545",
+          "https://github.com/aio-libs/aiohttp/pull/13546",
+          "https://github.com/aio-libs/aiohttp/commit/0ae507423f681161efa77d20052b4054397c7fb6",
+          "https://github.com/aio-libs/aiohttp/commit/5e54037933fa8422be5fa8a2002d118ed2d4e5e0",
+          "https://github.com/aio-libs/aiohttp/commit/b62321b6fa264a89f4aca084ad60fc38a59ffa51",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-xgw8-8ccx-rmqh",
+        "source": "osv",
+        "title": "AIOHTTP: Too many URL-encoded form fields block the event loop",
+        "summary": "### Summary\n\n`Request.post()` had no limit on the number of fields in a URL-encoded form body. Inserting a large number of repeated keys into a `MultiDict` took quadratic time on the event loop.\n\n### Impact\n\nAn attacker could block the event loop with a form POST within the default `client_max_size` to any handler that calls `Request.post()`.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/615fec3d4f088f30d2ee72cad760152e92aa1c53",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:54:10Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-xgw8-8ccx-rmqh",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128126",
+          "https://github.com/aio-libs/aiohttp/pull/13738",
+          "https://github.com/aio-libs/aiohttp/pull/13741",
+          "https://github.com/aio-libs/aiohttp/commit/615fec3d4f088f30d2ee72cad760152e92aa1c53",
+          "https://github.com/aio-libs/aiohttp/commit/8b0100572936df28977b9de8a6cc7e464c0b521e",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-jm3w-gw2p-xjfj",
+        "source": "osv",
+        "title": "AIOHTTP: Event loop stall in add_domain() wildcard matching",
+        "summary": "### Summary\n\n`Application.add_domain()` compiled each `*` in a host mask to `[^:]*`. With two or more wildcards in a mask, matching a long `Host` header that does not match the mask took polynomial time on the event loop.\n\n### Impact\n\nAn attacker could stall a server that registers a domain mask with more than one wildcard by sending requests with a long `Host` header.\n\n### Workaround\n\nUse at most one `*` in a domain mask.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/c6ac0e44c3c573ff9616f4a6a532992538b31e43",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:56:35Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-jm3w-gw2p-xjfj",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128124",
+          "https://github.com/aio-libs/aiohttp/pull/13943",
+          "https://github.com/aio-libs/aiohttp/pull/13945",
+          "https://github.com/aio-libs/aiohttp/commit/766b882820da0651c84090e366a3b024b4a263c9",
+          "https://github.com/aio-libs/aiohttp/commit/c6ac0e44c3c573ff9616f4a6a532992538b31e43",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-pw86-h8fm-j323",
+        "source": "osv",
+        "title": "AIOHTTP: Unbounded buffering of data received during an upgrade request",
+        "summary": "### Summary\n\nWhile a request flagged as an upgrade (e.g. a WebSocket handshake) was being handled, all further data received on the connection was buffered with no size limit or flow control until the handler completed.\n\n### Impact\n\nAn attacker could cause unbounded memory use by streaming data behind an upgrade request to any handler that does not immediately accept or reject the upgrade.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/3d850ee9b92573c7e913821cbcb96005beb3f4df",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:52:05Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-pw86-h8fm-j323",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128129",
+          "https://github.com/aio-libs/aiohttp/pull/13501",
+          "https://github.com/aio-libs/aiohttp/pull/13511",
+          "https://github.com/aio-libs/aiohttp/commit/3d850ee9b92573c7e913821cbcb96005beb3f4df",
+          "https://github.com/aio-libs/aiohttp/commit/c207cadb257e0959b192ffca0548eca8c71eb96a",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-h4cc-hm5h-fmm9",
+        "source": "osv",
+        "title": "AIOHTTP: Concatenated compressed streams cause excessive CPU use",
+        "summary": "### Summary\n\nWhen decompressing a payload made up of many concatenated compressed members (gzip, deflate or zstd), each member was decoded by passing the entire remaining input to a new decompressor, resulting in quadratic CPU time. Empty members produce no output, so `client_max_size` and output backpressure did not limit the work.\n\n### Impact\n\nAn attacker could block the event loop of a server with a specially crafted compressed request body or WebSocket message. A malicious server could do the same to a client.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/d925a80539ffd227da1d93ab4a5bff123cc777db",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:51:27Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-h4cc-hm5h-fmm9",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128131",
+          "https://github.com/aio-libs/aiohttp/pull/13362",
+          "https://github.com/aio-libs/aiohttp/pull/13391",
+          "https://github.com/aio-libs/aiohttp/commit/d041d4d0fd48c3f0832084d33be16cf1c4835f85",
+          "https://github.com/aio-libs/aiohttp/commit/d925a80539ffd227da1d93ab4a5bff123cc777db",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    },
+    {
+      "advisory": {
+        "id": "GHSA-24c4-3p7v-29cm",
+        "source": "osv",
+        "title": "AIOHTTP: Base64 multipart parts bypass client_max_size",
+        "summary": "### Summary\n\nWhen reading a multipart part with `Content-Transfer-Encoding: base64`, `BodyPartReader.read_chunk()` kept reading until the chunk length was a multiple of 4, with no byte limit. A part with a short `Content-Length`, or a long run of whitespace, could cause the entire remaining body to be read into memory within a single call before any size check, or spin on the event loop.\n\n### Impact\n\nAn attacker could bypass `client_max_size` to cause excessive memory use, or block the event loop, with a specially crafted multipart request to any handler that reads multipart data.\n\n---\n\nPatch: https://github.com/aio-libs/aiohttp/commit/a555ab698e08e9baea7386d5b4c0761cb8956fdd",
+        "severity": "unknown",
+        "cvss": null,
+        "published": "2026-11-16T14:53:12Z",
+        "ecosystem": "pypi",
+        "affected_packages": [
+          "aiohttp"
+        ],
+        "affected_ranges": [
+          "0..3.14.4",
+          "0..∞"
+        ],
+        "references": [
+          "https://github.com/aio-libs/aiohttp/security/advisories/GHSA-24c4-3p7v-29cm",
+          "https://nvd.nist.gov/vuln/detail/CVE-2026-128127",
+          "https://github.com/aio-libs/aiohttp/pull/13509",
+          "https://github.com/aio-libs/aiohttp/pull/13513",
+          "https://github.com/aio-libs/aiohttp/commit/2d9c5c1062eff0034fb3ab120897a6c1b3ff7041",
+          "https://github.com/aio-libs/aiohttp/commit/a555ab698e08e9baea7386d5b4c0761cb8956fdd",
+          "https://github.com/aio-libs/aiohttp",
+          "https://github.com/aio-libs/aiohttp/releases/tag/v3.14.4"
+        ]
+      },
+      "repo": "ianlintner/caretaker",
+      "severity": "unknown",
+      "relevance": "direct",
+      "rationale": "declared dep 'aiohttp' named in advisory"
+    }
+  ],
+  "feed_counts": {
+    "nvd": 200,
+    "osv": 9,
+    "ghsa": 100
+  },
+  "repos_scanned": 9
+}
